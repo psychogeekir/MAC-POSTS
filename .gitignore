@@ -1,7 +1,10 @@
 #folder
 build/
 doc_builder/build/
-
+src/cmake-build-debug/
+src/cmake-build-debug-remote/
+src/cmake-build-release/
+src/cmake-build-release-remote/
 
 
 #MINAMI related
