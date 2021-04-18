@@ -1,10 +1,14 @@
 #folder
 build/
 doc_builder/build/
+
+src/.idea
 src/cmake-build-debug/
 src/cmake-build-debug-remote/
 src/cmake-build-release/
 src/cmake-build-release-remote/
+.vscode
+.ipynb_checkpoints
 
 
 #MINAMI related
