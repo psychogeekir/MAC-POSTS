@@ -1,0 +1,739 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+   <FileVersion major="1" minor="6" />
+   <Project>
+      <Option title="MINAMI" />
+      <Option makefile_is_custom="1" />
+      <Option compiler="gcc" />
+      <Option virtualFolders="CMake Files\;CMake Files\..\;CMake Files\..\..\;CMake Files\..\..\..\;CMake Files\..\..\..\..\;CMake Files\..\..\..\..\..\;CMake Files\..\..\..\..\..\usr\;CMake Files\..\..\..\..\..\usr\local\;CMake Files\..\..\..\..\..\usr\local\share\;CMake Files\..\..\..\..\..\usr\local\share\eigen3\;CMake Files\..\..\..\..\..\usr\local\share\eigen3\cmake\;CMake Files\glib-core\;CMake Files\snap-core\;CMake Files\3rdparty\;CMake Files\3rdparty\g3log\;CMake Files\3rdparty\adv_ds\;CMake Files\minami\;CMake Files\examples\;CMake Files\pybinder\;CMake Files\pybinder\pybind11\;CMake Files\pybinder\pybind11\tools\;" />
+      <Build>
+      <Target title="all">
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote" />
+         <Option type="4" />
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 all" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="edit_cache">
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote" />
+         <Option type="4" />
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 edit_cache" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="rebuild_cache">
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote" />
+         <Option type="4" />
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 rebuild_cache" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="Glib">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/libGlib.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/Makefile&quot;  VERBOSE=1 Glib" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="Glib/fast">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/libGlib.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/Makefile&quot;  VERBOSE=1 Glib/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/glib-core/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="Snap">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/libSnap.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/Makefile&quot;  VERBOSE=1 Snap" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="Snap/fast">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/libSnap.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/Makefile&quot;  VERBOSE=1 Snap/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/snap-core/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="g3log">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/libg3log.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/Makefile&quot;  VERBOSE=1 g3log" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="g3log/fast">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/libg3log.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/Makefile&quot;  VERBOSE=1 g3log/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/g3log/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="adv_ds">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/libadv_ds.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/Makefile&quot;  VERBOSE=1 adv_ds" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="adv_ds/fast">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/libadv_ds.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/Makefile&quot;  VERBOSE=1 adv_ds/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/3rdparty/adv_ds/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="minami">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/libminami.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/minami" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+            <Add directory="/usr/local/include/eigen3" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/Makefile&quot;  VERBOSE=1 minami" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="minami/fast">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/libminami.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/minami" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+            <Add directory="/usr/local/include/eigen3" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/Makefile&quot;  VERBOSE=1 minami/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/minami/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="test_multimodal_due">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/test_multimodal_due" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples" />
+         <Option object_output="./" />
+         <Option type="1" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/minami" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+            <Add directory="/usr/local/include/eigen3" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 test_multimodal_due" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="test_multimodal_due/fast">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/test_multimodal_due" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples" />
+         <Option object_output="./" />
+         <Option type="1" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/minami" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+            <Add directory="/usr/local/include/eigen3" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 test_multimodal_due/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="test_multimodal">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/test_multimodal" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples" />
+         <Option object_output="./" />
+         <Option type="1" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/minami" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+            <Add directory="/usr/local/include/eigen3" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 test_multimodal" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="test_multimodal/fast">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/test_multimodal" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples" />
+         <Option object_output="./" />
+         <Option type="1" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/minami" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+            <Add directory="/usr/local/include/eigen3" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 test_multimodal/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/examples/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="MNMAPI">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/MNMAPI.cpython-36m-x86_64-linux-gnu.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/minami" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/pybinder/pybind11/include" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/python3.6m" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+            <Add directory="/usr/local/include/eigen3" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/Makefile&quot;  VERBOSE=1 MNMAPI" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      <Target title="MNMAPI/fast">
+         <Option output="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/MNMAPI.cpython-36m-x86_64-linux-gnu.so" prefix_auto="0" extension_auto="0" />
+         <Option working_dir="/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder" />
+         <Option object_output="./" />
+         <Option type="3" />
+         <Option compiler="gcc" />
+         <Compiler>
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/glib-core" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/minami" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/pybinder/pybind11/include" />
+            <Add directory="/home/qiling/Documents/MAC-POSTS/src/snap-core" />
+            <Add directory="/usr/include" />
+            <Add directory="/usr/include/c++/5" />
+            <Add directory="/usr/include/c++/5/backward" />
+            <Add directory="/usr/include/python3.6m" />
+            <Add directory="/usr/include/x86_64-linux-gnu" />
+            <Add directory="/usr/include/x86_64-linux-gnu/c++/5" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include" />
+            <Add directory="/usr/lib/gcc/x86_64-linux-gnu/5/include-fixed" />
+            <Add directory="/usr/local/include" />
+            <Add directory="/usr/local/include/eigen3" />
+         </Compiler>
+         <MakeCommands>
+            <Build command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/Makefile&quot;  VERBOSE=1 MNMAPI/fast" />
+            <CompileFile command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/Makefile&quot;  VERBOSE=1 &quot;$file&quot;" />
+            <Clean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/Makefile&quot;  VERBOSE=1 clean" />
+            <DistClean command="/usr/bin/make -f &quot;/home/qiling/Documents/MAC-POSTS/src/cmake-build-debug-remote/pybinder/Makefile&quot;  VERBOSE=1 clean" />
+         </MakeCommands>
+      </Target>
+      </Build>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds/bimap.h">
+         <Option target="adv_ds"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds/radix_heap.h">
+         <Option target="adv_ds"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds/union_find.h">
+         <Option target="adv_ds"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/crashhandler_unix.cpp">
+         <Option target="g3log"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/filesink.cpp">
+         <Option target="g3log"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/g3log.cpp">
+         <Option target="g3log"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/logcapture.cpp">
+         <Option target="g3log"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/loglevels.cpp">
+         <Option target="g3log"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/logmessage.cpp">
+         <Option target="g3log"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/logworker.cpp">
+         <Option target="g3log"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/time.cpp">
+         <Option target="g3log"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/examples/test_multimodal.cpp">
+         <Option target="test_multimodal"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/examples/test_multimodal_due.cpp">
+         <Option target="test_multimodal_due"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/glib-core/base.cpp">
+         <Option target="Glib"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/glib-core/base.h">
+         <Option target="Glib"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/base.h_backup.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/cc_tree.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/dlink.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/dlink.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/dnode.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/dnode.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/dta.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/dta.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/dta_gradient_utls.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/dta_gradient_utls.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/due.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/due.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/emission.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/emission.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/enum.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/factory.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/factory.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/gridlock_checker.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/gridlock_checker.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/io.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/io.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/k_shortest_path.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/k_shortest_path.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/marginal_cost.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/marginal_cost.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/multiclass.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/multiclass.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/multimodal.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/multimodal.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/od.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/od.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/path.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/path.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/pmc_table.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/pre_routing.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/pre_routing.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/realtime_dta.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/realtime_dta.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/routing.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/routing.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/shortest_path.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/shortest_path.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/so_routing.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/statistics.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/statistics.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/ults.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/ults.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/vehicle.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/vehicle.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/vms.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/vms.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/workzone.cpp">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/workzone.h">
+         <Option target="minami"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/pybinder/src/dta_api.cpp">
+         <Option target="MNMAPI"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/pybinder/src/dta_api.h">
+         <Option target="MNMAPI"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/pybinder/src/typecast_ground .cpp">
+         <Option target="MNMAPI"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/pybinder/src/typecast_ground.h">
+         <Option target="MNMAPI"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/snap-core/Snap.cpp">
+         <Option target="Snap"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/snap-core/Snap.h">
+         <Option target="Snap"/>
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/../../../../../usr/local/share/eigen3/cmake/Eigen3ConfigVersion.cmake">
+          <Option virtualFolder="CMake Files\..\..\..\..\..\usr\local\share\eigen3\cmake\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/../../../../../usr/local/share/eigen3/cmake/Eigen3Config.cmake">
+          <Option virtualFolder="CMake Files\..\..\..\..\..\usr\local\share\eigen3\cmake\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/../../../../../usr/local/share/eigen3/cmake/Eigen3Targets.cmake">
+          <Option virtualFolder="CMake Files\..\..\..\..\..\usr\local\share\eigen3\cmake\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/glib-core/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\glib-core\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/snap-core/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\snap-core\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\3rdparty\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/g3log/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\3rdparty\g3log\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/3rdparty/adv_ds/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\3rdparty\adv_ds\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/minami/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\minami\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/examples/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\examples\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/pybinder/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\pybinder\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/pybinder/pybind11/CMakeLists.txt">
+          <Option virtualFolder="CMake Files\pybinder\pybind11\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/pybinder/pybind11/tools/pybind11Tools.cmake">
+          <Option virtualFolder="CMake Files\pybinder\pybind11\tools\" />
+      </Unit>
+      <Unit filename="/home/qiling/Documents/MAC-POSTS/src/pybinder/pybind11/tools/FindPythonLibsNew.cmake">
+          <Option virtualFolder="CMake Files\pybinder\pybind11\tools\" />
+      </Unit>
+   </Project>
+</CodeBlocks_project_file>

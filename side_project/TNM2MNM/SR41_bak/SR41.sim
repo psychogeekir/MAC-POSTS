@@ -1,0 +1,27 @@
+	=================================================================
+				       Toolkit Of Network Modeling
+	                 A Research Software at Traffic Lab
+	                  University of California, Davis
+	=================================================================
+
+	>>>Loading Report:
+
+	Assgnment interval: 0 sec - 15 min 0 sec
+Tot_Veh:     4733 Gen_Veh:     4733 Arr_Veh:     2899 Enr_Veh:     1895
+	Assgnment interval: 15 min 0 sec - 30 min 0 sec
+Tot_Veh:    18933 Gen_Veh:    14200 Arr_Veh:    10260 Enr_Veh:     5917
+	Assgnment interval: 30 min 0 sec - 45 min 0 sec
+Tot_Veh:    42600 Gen_Veh:    23666 Arr_Veh:    19165 Enr_Veh:    10514
+	Assgnment interval: 45 min 0 sec - 1 hour 0 min 0 sec
+Tot_Veh:    66267 Gen_Veh:    23667 Arr_Veh:    21564 Enr_Veh:    12650
+	Assgnment interval: 1 hour 0 min 0 sec - 1 hour 15 min 0 sec
+Tot_Veh:    80466 Gen_Veh:    14199 Arr_Veh:    17915 Enr_Veh:     8830
+	Assgnment interval: 1 hour 15 min 0 sec - 1 hour 30 min 0 sec
+Tot_Veh:    85200 Gen_Veh:     4734 Arr_Veh:     9784 Enr_Veh:     3680
+	Assgnment interval: 1 hour 30 min 0 sec - 1 hour 45 min 0 sec
+Tot_Veh:    85200 Gen_Veh:        0 Arr_Veh:     3125 Enr_Veh:      499
+	-----------------------------------------------------------------------
+	Loading is accomplished at Time 711 (1 hour 58 min 30 sec)
+	170401 vehicles were released in 6 intervals (1 hour 30 min 0 sec)
+	Simulation spent   47.9 seconds,  148.5 times faster than real traffic.
+	-----------------------------------------------------------------------

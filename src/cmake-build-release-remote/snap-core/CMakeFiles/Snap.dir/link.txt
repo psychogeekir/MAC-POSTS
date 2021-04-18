@@ -1,0 +1,1 @@
+g++  -fPIC -std=c++11 -m64 -Wall -O3 -DNDEBUG -O3  -shared -Wl,-soname,libSnap.so -o libSnap.so CMakeFiles/Snap.dir/Snap.cpp.o ../glib-core/libGlib.so -Wl,-rpath,/home/qiling/Documents/MAC-POSTS/src/cmake-build-release-remote/glib-core 

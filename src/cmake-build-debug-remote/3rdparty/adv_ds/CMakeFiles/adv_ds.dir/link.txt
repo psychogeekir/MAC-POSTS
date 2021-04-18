@@ -1,0 +1,1 @@
+g++  -fPIC -std=c++11 -m64 -Wall -g  -shared -Wl,-soname,libadv_ds.so -o libadv_ds.so  

@@ -1,0 +1,51 @@
+===============================================================================
+               Models and Algorithms Toolkit (MAT)
+                         Version 2.0
+
+                                                              Yu Nie, Sean Qian
+                                                        Traffic Lab at UC Davis
+===============================================================================
+       Model:     Static Deterministic Traffic Assignment Problem
+       Algorithm:                    Frank-Wolfe Algorithm
+===============================================================================
+       This file was created at: Wed May 11 02:17:58 2011
+===============================================================================
+
+
+	The Summary of Computation Facts: 
+-------------------------------------------------------------------------------
+
+	Selected Parameters:
+	-------------------------------------------------------
+	Maximum allowed iter    |                          1000
+	Required accuracy       |                      0.001000
+	Minimum allowed step    |                      0.000100
+	Allowed line-search/iter|                            10
+	-------------------------------------------------------
+
+	Algorithm performance:
+	-------------------------------------------------------
+	Termination reason      |    Required accuracy achieved
+	Total iteration         |                            44
+	Accuracy indicator      |                      0.000555
+	Number of line-search   |                           397
+	Objective value         |                   8257.967430
+	CPU time consumed       |                          1.71
+	-------------------------------------------------------
+
+	Network information:
+	-------------------------------------------------------
+	Number of links         |                          2413
+	Number of nodes         |                          1789
+	Number of O-D pair      |                          7110
+	Total trips(veh)        |                      85199.59
+	-------------------------------------------------------
+
+	Assignment Results:
+	-------------------------------------------------------
+	Pursued Equilibrium     |                System Optimal
+	Total System Delay      |                       8257.97
+	Retained used path      |                             0
+	Average v/c ratio       |                          0.18
+	Maximum v/c ratio       |                          1.13
+	-------------------------------------------------------
