@@ -11,6 +11,7 @@
 
 class MNM_Parking_Lot_Factory;
 class MNM_Walking_Link_Factory;
+class MNM_MM_Due;
 
 /******************************************************************************************************************
 *******************************************************************************************************************
@@ -539,7 +540,7 @@ class MNM_Passenger_Path_Driving : public MNM_Passenger_Path_Base
 public:
     MNM_Passenger_Path_Driving(int mode_1, int mode_2, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
                                TInt num_people, TFlt carpool_cost_multiplier, TFlt walking_time_before_driving,
-                               MNM_Parking_Lot* parking_lot, MNM_Walking_Link *walking_link_after_driving);
+                               MNM_Parking_Lot* parking_lot, MNM_Walking_Link *walking_link_after_driving, TFlt walking_time_after_driving);
     ~MNM_Passenger_Path_Driving();
 
     TInt m_num_people;
@@ -658,6 +659,20 @@ public:
     bool is_in(MNM_Passenger_Path_Base* path);
 };
 
+// <O, <D, <mode, PassengerPathset>>>
+typedef std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<TInt, MNM_Passenger_Pathset*>*>*> Passenger_Path_Table;
+
+namespace MNM {
+
+    Passenger_Path_Table *build_shortest_passenger_pathset(std::vector<MMDue_mode>*mode_vec,
+                                                           MNM_MM_Due *mmdue, PNEGraph &graph,
+                                                           MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory,
+                                                           MNM_Busstop_Factory *busstop_factory, Bus_Path_Table *bus_path_table,
+                                                           MNM_Walking_Link_Factory *walking_link_factory,
+                                                           MNM_Parking_Lot_Factory *parking_lot_factory);
+
+}
+
 /******************************************************************************************************************
 *******************************************************************************************************************
 										Multimodal DUE
@@ -673,13 +688,15 @@ public:
 
     MNM_Dta_Multimodal *run_mmdta(bool verbose);
 
-    virtual int init_path_flow();
+    virtual int init_passenger_path_flow();
 
-    virtual int update_path_table(MNM_Dta_Multiclass *mcdta, int iter) { return 0; };
+    virtual int passenger_demand_to_vehicle_demand();
 
-    virtual int update_path_table_fixed_departure_time_choice(MNM_Dta_Multiclass *mcdta, int iter) { return 0; };
+    virtual int update_path_table(MNM_Dta_Multimodal *mmdta, int iter) { return 0; };
 
-    virtual int update_path_table_gp_fixed_departure_time_choice(MNM_Dta_Multiclass *mcdta, int iter) { return 0;};
+    virtual int update_path_table_fixed_departure_time_choice(MNM_Dta_Multimodal *mmdta, int iter) { return 0; };
+
+    virtual int update_path_table_gp_fixed_departure_time_choice(MNM_Dta_Multimodal *mmdta, int iter) { return 0;};
 
     TFlt compute_merit_function();
 
@@ -689,7 +706,7 @@ public:
 
     TFlt get_tt(TFlt depart_time, MNM_Path *path);
 
-    int build_cost_map(MNM_Dta_Multiclass *mcdta);
+    int build_cost_map(MNM_Dta_Multimodal *mmdta);
 
     int update_demand_from_path_table(MNM_Dta_Multimodal *mmdta);
 
@@ -703,7 +720,7 @@ public:
     // <O_node_ID, <D_node_ID, time-varying demand with length of m_total_assign_inter>>
     std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_passenger_demand;
     // <O_node_ID, <D_node_ID, <mode_ID, passenger_pathset>>>
-    std::unordered_map<> m_passenger_path_table;
+    Passenger_Path_Table *m_passenger_path_table;
     Path_Table *m_path_table;
     TInt m_total_assign_inter;
 
@@ -718,6 +735,13 @@ public:
     TFlt m_late_penalty;
     TFlt m_target_time;
     TFlt m_step_size;
+
+    TFlt m_parking_lot_to_destination_walking_time;
+    TFlt m_carpool_cost_multiplier;
+    TFlt m_bus_fare;
+    TFlt m_metro_fare;
+    TFlt m_pnr_inconvenience;
+    TFlt m_bus_inconvenience;
 
     MNM_Dta_Multimodal *m_mmdta;
 

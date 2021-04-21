@@ -113,7 +113,7 @@ TFlt MNM_Busstop::get_bus_waiting_time(TFlt time, TInt routeID) {
         if (_end_time <= time) {
             return TFlt(0);
         } else {
-            return _end_time - time;
+            return _end_time - time;  // interval
         }
     }
 }
@@ -769,7 +769,7 @@ int MNM_Dlink_Ctm_Multimodal::move_veh_queue_in_cell(std::deque<MNM_Veh*> *from_
                             _busstop -> m_passed_bus_counter.find(_veh_multimodal -> m_bus_route_ID) -> second += 1;
                             break;
                         }
-
+                        // TODO: 2 is arbitrarily set
                         if (_veh_multimodal -> m_stopped_intervals < 2) {
                             // hold the bus, move the bus to a different location of queue
                             from_queue->pop_front();
@@ -907,7 +907,7 @@ int MNM_Dlink_Ctm_Multimodal::move_veh_queue_in_last_cell(TInt timestamp)
                                     _busstop -> m_passed_bus_counter.find(_veh_multimodal -> m_bus_route_ID) -> second += 1;
                                     break;
                                 }
-
+                                // TODO: 2 is arbitrarily set
                                 if (_veh_multimodal -> m_stopped_intervals < 2) {
                                     // hold the bus, move the bus to a different location of queue
                                     m_cell_array[m_num_cells - 1]->m_veh_queue_truck.pop_front();
@@ -1317,13 +1317,13 @@ TFlt MNM_BusPath::get_busroute_tt(TFlt start_time, MNM_Link_Factory *link_factor
 
     TFlt _cc_flow = start_busstop -> m_N_in_bus.find(m_route_ID) -> second -> get_result(_true_start_time);
     if (_cc_flow <= DBL_EPSILON) {
-        return fftt; // free flow travel time, # of unit intervals
+        return fftt;  // free flow travel time, # of unit intervals
     }
     TFlt _end_time = end_busstop -> m_N_out_bus.find(m_route_ID) -> second -> get_time(_cc_flow);
     if (_end_time() < 0 || (_end_time - start_time < 0) || (_end_time - start_time < fftt)) {
 //        printf("Something wrong in bus cc of busstops\n");
 //        exit(-1);
-        return fftt; // # of unit intervals
+        return fftt;  // # of unit intervals
     } else {
         return _end_time - start_time;  // # of unit intervals
     }
@@ -2582,7 +2582,7 @@ TFlt MNM_Passenger_Path_Base::get_wrongtime_penalty(TFlt arrival_time){
 **************************************************************************/
 MNM_Passenger_Path_Driving::MNM_Passenger_Path_Driving(int mode_1, int mode_2, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
                                                        TInt num_people, TFlt carpool_cost_multiplier, TFlt walking_time_before_driving,
-                                                       MNM_Parking_Lot* parking_lot, MNM_Walking_Link *walking_link_after_driving)
+                                                       MNM_Parking_Lot* parking_lot, MNM_Walking_Link *walking_link_after_driving, TFlt walking_time_after_driving)
         : MNM_Passenger_Path_Base::MNM_Passenger_Path_Base(mode_1, mode_2, vot, early_penalty, late_penalty, target_time) {
     IAssert(walking_link_after_driving == nullptr || walking_link_after_driving -> m_from_node_type == "parking_lot");
     IAssert(num_people >= 1);
@@ -2596,7 +2596,7 @@ MNM_Passenger_Path_Driving::MNM_Passenger_Path_Driving(int mode_1, int mode_2, T
     if (m_walking_link_after_driving != nullptr) {
         m_walking_time_after_driving = m_walking_link_after_driving -> m_walking_time;  // seconds
     } else {
-        m_walking_time_after_driving = TFlt(0);
+        m_walking_time_after_driving = walking_time_after_driving; // seconds
     }
 }
 
@@ -2610,6 +2610,9 @@ TFlt MNM_Passenger_Path_Driving::get_carpool_cost() {
 }
 
 TFlt MNM_Passenger_Path_Driving::get_amortized_parkingfee() {
+    if (m_parking_lot == nullptr) {
+        return TFlt(0);
+    }
     return TFlt(m_parking_lot->m_base_price * m_parking_lot->m_price_surge_coeff / m_num_people);
 }
 
@@ -2624,7 +2627,9 @@ TFlt MNM_Passenger_Path_Driving::get_travel_time(TFlt start_time, MNM_Dta_Multim
             throw std::runtime_error("Mcdta_Api::register_links: link type is not multiclass");
         }
     }
-    arrival_time += m_parking_lot->get_cruise_time(arrival_time, mmdta);
+    if (m_parking_lot != nullptr) {
+        arrival_time += m_parking_lot->get_cruise_time(arrival_time, mmdta);
+    }
     arrival_time += m_walking_time_after_driving / mmdta->m_unit_time;
     return arrival_time - start_time;  // intervals
 }
@@ -2903,7 +2908,146 @@ bool MNM_Passenger_Pathset::is_in(MNM_Passenger_Path_Base* path) {
     }
 }
 
+namespace MNM {
 
+Passenger_Path_Table *build_shortest_passenger_pathset(std::vector<MMDue_mode> *mode_vec,
+                                                       MNM_MM_Due *mmdue, PNEGraph &graph,
+                                                       MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory,
+                                                       MNM_Busstop_Factory *busstop_factory, Bus_Path_Table *bus_path_table,
+                                                       MNM_Walking_Link_Factory *walking_link_factory,
+                                                       MNM_Parking_Lot_Factory *parking_lot_factory){
+    // create an empty passenger path table
+    auto *_path_table = new Passenger_Path_Table();
+    for (auto _o_it = od_factory -> m_origin_map.begin(); _o_it != od_factory -> m_origin_map.end(); _o_it++){
+        auto *_new_map_1 = new std::unordered_map<TInt, std::unordered_map<TInt, MNM_Passenger_Pathset*>*>();
+        _path_table -> insert(std::pair<TInt, std::unordered_map<TInt, std::unordered_map<TInt, MNM_Passenger_Pathset*>*>*>(_o_it -> second -> m_origin_node -> m_node_ID, _new_map_1));
+        for (auto _d_it = od_factory -> m_destination_map.begin(); _d_it != od_factory -> m_destination_map.end(); _d_it++){
+            auto *_new_map_2 = new std::unordered_map<TInt, MNM_Passenger_Pathset*>();
+            _new_map_1 -> insert(std::pair<TInt, std::unordered_map<TInt, MNM_Passenger_Pathset*>*>(_d_it -> second -> m_dest_node -> m_node_ID, _new_map_2));
+            for (auto _mode_it : *mode_vec){
+                auto _pathset = new MNM_Passenger_Pathset(_mode_it);
+                _new_map_2 -> insert(std::pair<TInt, MNM_Passenger_Pathset*>(_mode_it, _pathset));
+            }
+        }
+    }
+
+    MNM_Passenger_Path_Driving *_p_path_driving;
+    MNM_Passenger_Path_Bus *_p_path_bus;
+    MNM_Parking_Lot* _parking_lot;
+    std::vector<MNM_Walking_Link*> start_walking_links_vec = std::vector<MNM_Walking_Link*>();
+    std::vector<MNM_Walking_Link*> end_walking_links_vec = std::vector<MNM_Walking_Link*>();
+    TInt _dest_node_ID, _origin_node_ID;
+    std::unordered_map<TInt, TFlt> _free_cost_map = std::unordered_map<TInt, TFlt>();
+    std::unordered_map<TInt, TInt> _free_shortest_path_tree;
+    MNM_Path *_path;
+    for (auto _link_it : link_factory -> m_link_map){
+        _free_cost_map.insert(std::pair<TInt, TFlt>(_link_it.first, _link_it.second -> get_link_tt() / mmdue->m_unit_time));
+    }
+    for (auto _d_it = od_factory -> m_destination_map.begin(); _d_it != od_factory -> m_destination_map.end(); _d_it++){
+        _dest_node_ID = _d_it -> second -> m_dest_node -> m_node_ID;
+        // destination parking lot
+        for (auto _it : parking_lot_factory->m_parking_lot_map) {
+            if (_it.second -> m_node_ID == _dest_node_ID) {
+                _parking_lot = _it.second;
+                break;
+            }
+        }
+        // end walking links for bus
+        if (!end_walking_links_vec.empty()) end_walking_links_vec.clear();
+        for (auto _it : walking_link_factory->m_walking_link_map) {
+            if (_it.second -> m_to_node_ID == _dest_node_ID && _it.second -> m_from_node_type == "bus_stop") {
+                end_walking_links_vec.push_back(_it.second);
+            }
+        }
+        MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _free_cost_map, _free_shortest_path_tree);
+        for (auto _o_it = od_factory -> m_origin_map.begin(); _o_it != od_factory -> m_origin_map.end(); _o_it++){
+            _origin_node_ID = _o_it -> second -> m_origin_node -> m_node_ID;
+            // start walking links for bus
+            if (!start_walking_links_vec.empty()) start_walking_links_vec.clear();
+            for (auto _it : walking_link_factory->m_walking_link_map) {
+                if (_it.second -> m_from_node_ID == _origin_node_ID && _it.second -> m_to_node_type == "bus_stop") {
+                    start_walking_links_vec.push_back(_it.second);
+                }
+            }
+
+            // driving
+            _path = MNM::extract_path(_origin_node_ID, _dest_node_ID, _free_shortest_path_tree, graph);
+            if (_path != nullptr){
+
+                if (_parking_lot -> m_node_ID != _path->m_node_vec.back()) {
+                    _parking_lot = nullptr; // no destination parking lot
+                }
+                _p_path_driving = new MNM_Passenger_Path_Driving(driving, 0, mmdue->m_vot, mmdue->m_early_penalty,
+                                                                 mmdue->m_late_penalty, mmdue->m_target_time,
+                                                                 1, mmdue->m_carpool_cost_multiplier, 0.0,
+                                                                 _parking_lot, nullptr,
+                                                                 mmdue->m_parking_lot_to_destination_walking_time);
+                // copy
+                _p_path_driving -> m_link_vec = _path -> m_link_vec;
+                _p_path_driving -> m_node_vec = _path -> m_node_vec;
+                delete _path;
+                printf("Adding to path table\n");
+                std::cout << _p_path_driving -> node_vec_to_string();
+                std::cout << _p_path_driving -> link_vec_to_string();
+                _path_table -> find(_origin_node_ID) -> second -> find(_dest_node_ID) -> second ->
+                               find(driving) -> second -> m_path_vec.push_back(_p_path_driving);
+            }
+
+            // bus
+            TFlt tt_min = TFlt(std::numeric_limits<double>::max());
+            TInt route_ID = -1;
+            TInt start_busstop_ID = -1;
+            TInt end_busstop_ID = -1;
+            MNM_Walking_Link* start_walking_link = nullptr;
+            MNM_Walking_Link* end_walking_link = nullptr;
+            for (auto _s_link : start_walking_links_vec) {
+                TInt _s_busstop_ID = _s_link -> m_to_node_ID;
+                MNM_Busstop *_s_busstop = busstop_factory -> get_busstop(_s_busstop_ID);
+                for (auto _e_link : end_walking_links_vec) {
+                    TInt _e_busstop_ID = _s_link -> m_from_node_ID;
+                    MNM_Busstop *_e_busstop = busstop_factory -> get_busstop(_e_busstop_ID);
+
+                    for (auto _it : *bus_path_table) {
+                        for (auto _it_it : *_it.second) {
+                            for (auto _it_it_it : *_it_it.second) {
+                                TInt _route_ID = _it_it_it.first;
+                                MNM_BusPath *_bus_path = _it_it_it.second;
+                                if (std::find(_bus_path->m_node_vec.begin(), _bus_path->m_node_vec.end(), _s_busstop_ID) != _bus_path->m_node_vec.end() &&
+                                    std::find(_bus_path->m_node_vec.begin(), _bus_path->m_node_vec.end(), _e_busstop_ID) != _bus_path->m_node_vec.end()) {
+                                    TFlt tt = _bus_path -> get_busroute_fftt(link_factory, _s_busstop, _e_busstop, mmdue->m_unit_time);
+                                    if (tt < tt_min) {
+                                        tt_min = tt;
+                                        route_ID = _route_ID;
+                                        start_busstop_ID = _s_busstop_ID;
+                                        end_busstop_ID = _e_busstop_ID;
+                                        start_walking_link = _s_link;
+                                        end_walking_link = _e_link;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (route_ID == -1) {
+                printf("No appropriate bus route available\n");
+            } else {
+                _p_path_bus = new MNM_Passenger_Path_Bus(transit, 0, mmdue->m_vot, mmdue->m_early_penalty,
+                                                         mmdue->m_late_penalty, mmdue->m_target_time,
+                                                         route_ID, start_busstop_ID, end_busstop_ID,
+                                                         mmdue->m_bus_fare, mmdue->m_bus_inconvenience,
+                                                         start_walking_link, end_walking_link);
+                _path_table -> find(_origin_node_ID) -> second -> find(_dest_node_ID) -> second ->
+                               find(transit) -> second -> m_path_vec.push_back(_p_path_bus);
+            }
+
+        }
+    }
+    return _path_table;
+
+}
+
+}
 
 /******************************************************************************************************************
 *******************************************************************************************************************
@@ -2912,6 +3056,7 @@ bool MNM_Passenger_Pathset::is_in(MNM_Passenger_Path_Base* path) {
 ******************************************************************************************************************/
 MNM_MM_Due::MNM_MM_Due(const std::string& file_folder) {
     m_file_folder = file_folder;
+
     m_mmdta_config = new MNM_ConfReader(m_file_folder + "/config.conf", "DTA");
     IAssert(m_mmdta_config->get_string("routing_type") == "Biclass_Bus_Hybrid");
     IAssert(m_mmdta_config->get_int("total_interval") < 0); // -1
@@ -2919,16 +3064,9 @@ MNM_MM_Due::MNM_MM_Due(const std::string& file_folder) {
     m_num_modes = m_mmdta_config->get_int("num_of_modes");
     m_unit_time = m_mmdta_config->get_float("unit_time"); // 5s
     m_total_loading_inter = m_mmdta_config->get_int("total_interval"); // -1
-    m_mmdue_config = new MNM_ConfReader(m_file_folder + "/config.conf", "MMDUE");
     m_total_assign_inter = m_mmdta_config->get_int("max_interval");
 
-    m_passenger_demand = std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> ();
-
-    // for car and truck driving
-    m_path_table = nullptr;
-
-    m_parkinglot_factory = nullptr;
-    m_walkinglink_factory = nullptr;
+    m_mmdue_config = new MNM_ConfReader(m_file_folder + "/config.conf", "MMDUE");
 
     // money / hour -> money / interval
     m_vot = m_mmdue_config -> get_float("vot") / 3600. * m_unit_time;
@@ -2937,7 +3075,25 @@ MNM_MM_Due::MNM_MM_Due(const std::string& file_folder) {
     // minute -> interval
     m_target_time = m_mmdue_config->get_float("target_time") * 60 / 5;
 
+    // second
+    m_parking_lot_to_destination_walking_time = m_mmdue_config -> get_float("parking_lot_to_destination_walking_time");
+    m_carpool_cost_multiplier = m_mmdue_config -> get_float("carpool_cost_multiplier");
+    m_bus_fare = m_mmdue_config -> get_float("bus_fare");
+    m_metro_fare = m_mmdue_config -> get_float("metro_fare");
+    m_pnr_inconvenience = m_mmdue_config -> get_float("pnr_inconvenience");
+    m_bus_inconvenience = m_mmdue_config -> get_float("bus_inconvenience");
+
     m_step_size = m_mmdue_config->get_float("step_size");  //0.01;  // MSA
+
+    m_passenger_demand = std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> ();
+
+    m_passenger_path_table = nullptr;
+    // for car and truck driving
+    m_path_table = nullptr;
+
+    m_parkinglot_factory = nullptr;
+    m_walkinglink_factory = nullptr;
+
     m_link_cost_map = std::unordered_map<TInt, TFlt *>();  // time-varying link cost
 
     m_mmdta = nullptr;
@@ -2998,12 +3154,12 @@ int MNM_MM_Due::initialize() {
                                                  m_mmdta_config->get_string("walking_link_file_name"));
 
 //    m_total_loading_inter = m_mmdta -> loading(false);
-    printf("finish initialize\n");
+    printf("finish initialization\n");
     return 0;
 }
 
 // spread the OD demand evenly over the initial paths for each mode
-int MNM_MM_Due::init_path_flow() {
+int MNM_MM_Due::init_passenger_path_flow() {
 
     TFlt _len, _dmd;
     TInt _o_node_ID, _d_node_ID;
@@ -3038,5 +3194,9 @@ int MNM_MM_Due::init_path_flow() {
     }
     // MNM::save_path_table(m_path_table, m_od_factory, true);
     printf("Finish init route choice\n");
+    return 0;
+}
+
+int MNM_MM_Due::passenger_demand_to_vehicle_demand() {
     return 0;
 }
