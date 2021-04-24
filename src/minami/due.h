@@ -10,7 +10,7 @@ class MNM_Due {
 public:
     MNM_Due(std::string file_folder);
 
-    ~MNM_Due();
+    virtual ~MNM_Due();
 
     int virtual initialize() { return 0; };
 
@@ -61,7 +61,7 @@ class MNM_Due_Msa : public MNM_Due {
 public:
     MNM_Due_Msa(std::string file_folder);
 
-    ~MNM_Due_Msa();
+    virtual ~MNM_Due_Msa() override;
 
     virtual int initialize() override;
 

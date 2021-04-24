@@ -23,6 +23,8 @@ int main() {
     due->initialize();  // create and set m_buffer[i] = 0
     due->init_path_flow();
 
+    MNM_Dta *dta;
+
     std::string gap_file_name = file_folder + "/" + rec_folder + "/gap_iteration";
     std::ofstream gap_file;
     gap_file.open(gap_file_name, std::ofstream::out);
@@ -36,7 +38,7 @@ int main() {
         printf("---------- Iteration %d ----------\n", i);
 
         // DNL using dta.cpp, new dta is built from scratch
-        MNM_Dta *dta = due->run_dta(false);
+        dta = due->run_dta(false);
 
         // search for the lowest disutility route and update path flow
         // with departure time choice
@@ -59,6 +61,7 @@ int main() {
     gap_file.close();
 
     delete config;
+    delete dta;
     delete due;
     printf("Finished\n");
     return 0;

@@ -120,6 +120,9 @@ TFlt MNM_Due::compute_merit_function() {
                     _dis_utl = get_disutility(_depart_time, _tt);
                     if (_dis_utl < _lowest_dis_utl) _lowest_dis_utl = _dis_utl;
                 }
+            }
+            for (int _col = 0; _col < m_total_assign_inter; _col++) {
+                _depart_time = TFlt(_col * m_dta_config->get_int("assign_frq"));
                 for (MNM_Path *_path : _it_it.second->m_path_vec) {
                     _tt = get_tt(_depart_time, _path);
                     _dis_utl = get_disutility(_depart_time, _tt);
@@ -246,7 +249,7 @@ int MNM_Due_Msa::initialize() {
     // }
 
     // printf("%d, %d\n", m_od_factory -> m_origin_map.size(), m_od_factory -> m_destination_map.size());
-    printf("finish initialize\n");
+    printf("finish initialization\n");
     return 0;
 }
 
@@ -364,6 +367,7 @@ int MNM_Due_Msa::update_path_table(MNM_Dta *dta, int iter) {
             _path = _path_result.first;
             _best_time_col = int(_path_result.second);
             _best_assign_col = floor(_best_time_col / m_base_dta->m_assign_freq);
+            if (_best_assign_col >= m_total_assign_inter) _best_assign_col = m_total_assign_inter - 1;
             // printf("Best time col %d\n", _best_time_col);
 
             _path_set = MNM::get_pathset(m_path_table, _orig_node_ID, _dest_node_ID);
@@ -443,6 +447,7 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
     MNM_Pathset *_path_set;
     TFlt _tot_change, _tmp_change;
     MNM_Path *_best_path;
+    bool _exist;
 
     for (auto _it : dta->m_od_factory->m_destination_map) {
         _dest = _it.second;
@@ -467,17 +472,19 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
             for (int _col = 0; _col < m_total_assign_inter; _col++) {
 
                 _tot_change = 0.0;
-                _best_path = NULL;
+                _best_path = nullptr;
 
                 _path_result = get_best_route_for_single_interval(_col * m_base_dta -> m_assign_freq, _orig_node_ID, _tdsp_tree);
                 _path = _path_result.first;
 
                 if (_path_set->is_in(_path)) {
                     printf("Update current pathset\n");
+                    _exist = true;
                 } else {
                     printf("Adding new path\n");
                     _path->allocate_buffer(m_total_assign_inter);
                     _path_set->m_path_vec.push_back(_path);
+                    _exist = false;
                 }
 
                 for (auto _tmp_path : _path_set->m_path_vec) {
@@ -493,6 +500,7 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
                     }
                 }
                 _best_path->m_buffer[_col] += _tot_change;
+                if (_exist) delete _path;
             }
         }
     }
@@ -511,6 +519,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
     MNM_Path *_path;
     MNM_Pathset *_path_set;
     TFlt _tot_path_cost, _tmp_change, _tau, _tmp_tt, _tmp_cost, _min_flow;
+    bool _exist;
 
     for (auto _it : dta->m_od_factory->m_destination_map) {
         _dest = _it.second;
@@ -544,11 +553,12 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                 _tmp_change = 0.0;
                 if (_path_set->is_in(_path)) {
                     printf("Update current pathset\n");
-
+                    _exist = true;
                 } else {
                     printf("Adding new path\n");
                     _path->allocate_buffer(m_total_assign_inter);
                     _path_set->m_path_vec.push_back(_path);
+                    _exist = false;
                 }
 
                 // average path cost
@@ -587,7 +597,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                         _tmp_path -> m_buffer[_col] -= MNM_Ults::min(_tmp_path -> m_buffer[_col], _tau * _tmp_change);
                     }
                 }
-
+                if (_exist) delete _path;
             }
         }
     }
