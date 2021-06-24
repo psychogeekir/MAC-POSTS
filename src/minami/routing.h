@@ -35,7 +35,7 @@ public:
   MNM_Routing_Random(PNEGraph &graph,
                       MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
   virtual ~MNM_Routing_Random() override;
-  virtual int init_routing(Path_Table *path_table=NULL) override;
+  virtual int init_routing(Path_Table *path_table=nullptr) override;
   virtual int update_routing(TInt timestamp) override;
 };
 
@@ -45,9 +45,9 @@ class MNM_Routing_Adaptive : public MNM_Routing
 {
 public:
   MNM_Routing_Adaptive(const std::string& file_folder, PNEGraph &graph, MNM_Statistics* statistics,
-                      MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
+                       MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
   virtual ~MNM_Routing_Adaptive() override;
-  virtual int init_routing(Path_Table *path_table=NULL) override;
+  virtual int init_routing(Path_Table *path_table=nullptr) override;
   virtual int update_routing(TInt timestamp) override;
 // private:
   MNM_Statistics* m_statistics;

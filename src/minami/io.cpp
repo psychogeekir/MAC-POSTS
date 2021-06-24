@@ -470,7 +470,7 @@ Path_Table *MNM_IO::load_path_table(const std::string& file_name, const PNEGraph
         for (size_t j = 0; j < _path -> m_node_vec.size() - 1; ++j){
           _from_ID = _path -> m_node_vec[j];
           _to_ID = _path -> m_node_vec[j+1];
-          _link_ID = graph -> GetEI(_from_ID, _to_ID).GetId();
+          _link_ID = graph -> GetEI(_from_ID, _to_ID).GetId();  // assume this is not a MultiGraph
           _path -> m_link_vec.push_back(_link_ID);
         }
 

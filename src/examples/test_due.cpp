@@ -55,7 +55,9 @@ int main() {
         gap = due -> compute_merit_function_fixed_departure_time_choice();
         printf("GAP = %lf\n", (float) gap);
         gap_file << std::to_string(gap) + "\n";
-        // delete dta;
+
+        dynamic_cast<MNM_Routing_Fixed*>(dta -> m_routing) -> m_path_table = nullptr;
+        delete dta;
     }
 
     gap_file.close();

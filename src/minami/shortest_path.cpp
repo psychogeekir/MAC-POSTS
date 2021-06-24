@@ -41,7 +41,7 @@ int MNM_Shortest_Path::all_to_one_Dijkstra(TInt destination_ID,
     // in the min-heap for the same nodes with different distance values. But the duplication
     // doesn't affect the correctness of algorithm. (visited label for eliminating the
     // duplication is also tested, but slower than not using it, kind of weird.)
-    while (m_Q.size() != 0) {
+    while (!m_Q.empty()) {
         MNM_Cost *_min_cost = m_Q.top();
         m_Q.pop();
         TInt _node_id = _min_cost->m_ID;
@@ -409,7 +409,7 @@ bool MNM_Shortest_Path::is_FIFO(PNEGraph graph, std::unordered_map<TInt, TFlt *>
 /*------------------------------------------------------------
                   TDSP  one destination tree
 -------------------------------------------------------------*/
-MNM_TDSP_Tree::MNM_TDSP_Tree(TInt dest_node_ID, PNEGraph graph, TInt max_interval) {
+MNM_TDSP_Tree::MNM_TDSP_Tree(TInt dest_node_ID, const PNEGraph& graph, TInt max_interval) {
     m_dist = std::unordered_map<TInt, TFlt *>();
     m_tree = std::unordered_map<TInt, TInt *>();
     m_dest_node_ID = dest_node_ID;
@@ -421,8 +421,8 @@ MNM_TDSP_Tree::~MNM_TDSP_Tree() {
     TInt _node_ID;
     for (auto _node_it = m_graph->BegNI(); _node_it < m_graph->EndNI(); _node_it++) {
         _node_ID = _node_it.GetId();
-        if (m_dist[_node_ID] != NULL) delete m_dist[_node_ID];
-        if (m_tree[_node_ID] != NULL) delete m_tree[_node_ID];
+        if (m_dist[_node_ID] != nullptr) delete m_dist[_node_ID];
+        if (m_tree[_node_ID] != nullptr) delete m_tree[_node_ID];
     }
     m_dist.clear();
     m_tree.clear();
@@ -442,13 +442,14 @@ int MNM_TDSP_Tree::initialize() {
 int MNM_TDSP_Tree::update_tree(std::unordered_map<TInt, TFlt *> &cost_map) {
     // printf("Init in update tree\n");
     // init tree and cost
+    static_assert(std::numeric_limits<double>::is_iec559, "No iec559 infinity implementation for this compiler!\n");
     TInt _node_ID;
     for (auto _node_it = m_graph->BegNI(); _node_it < m_graph->EndNI(); _node_it++) {
         for (int t = 0; t < m_max_interval; ++t) {
             _node_ID = _node_it.GetId();
             m_dist[_node_ID][t] = _node_ID == m_dest_node_ID ?
                                   TFlt(0) :
-                                  TFlt(std::numeric_limits<double>::max());
+                                  TFlt(std::numeric_limits<double>::infinity());
             m_tree[_node_ID][t] = -1;
         }
     }
@@ -462,50 +463,22 @@ int MNM_TDSP_Tree::update_tree(std::unordered_map<TInt, TFlt *> &cost_map) {
     // construct m_dist and m_tree in a reverse time order
     TFlt _temp_cost, _edge_cost;
     TInt _src_node, _dst_node;
-    bool flg;
-    TInt _edge_count;
     for (int t = m_max_interval - 2; t > -1; t--) {
         // printf("%d\n", t);
 
-        // get_distance_to_destination rounds the given time down to the nearest integer
+        // DOT method has some drawbacks due to the time rounding issues, using rounding up in get_distance_to_destination
+
+        // if using rounding down in get_distance_to_destination to round the given time down to the nearest integer
         // when some links (usually for OD connectors) have very short travel time (less than unit time interval)
         // the rounding down can be problematic since int(TFlt(t) + _edge_cost) == t
         // so m_dist[_src_node][t] = m_dist[_dst_node][int(TFlt(t) + _edge_cost)] = inf does not change
         // so the loop for the links should keep going on until all m_dist and m_tree are filled
         // but be careful that this while loop may not be able to break if many links have short travel time
-//        flg = true;
-//        _edge_count = 0;
-//        while (flg) {
-//            for (auto _edge_it = m_graph->BegEI(); _edge_it < m_graph->EndEI(); _edge_it++) {
-//                _dst_node = _edge_it.GetDstNId();
-//                _src_node = _edge_it.GetSrcNId();
-//                _edge_cost = cost_map[_edge_it.GetId()][t];
-//                if ((int(TFlt(t) + _edge_cost) == t) && (_dst_node != m_dest_node_ID)) {  // rounding down issue
-//                    continue;
-//                }
-//                _temp_cost = _edge_cost + get_distance_to_destination(_dst_node, TFlt(t) + _edge_cost);
-//                if (m_dist[_src_node][t] > _temp_cost) {
-//                    // printf("At time %d, src %d to des %d, m_dist is %f, _temp_cost is %f\n", t, _src_node(),
-//                    //        _edge_it.GetDstNId(), (float) m_dist[_src_node][t], (float) _temp_cost);
-//                    m_dist[_src_node][t] = _temp_cost;
-//                    m_tree[_src_node][t] = _edge_it.GetId();
-//                }
-//                _edge_count += 1;
-//            }
-//            if (_edge_count == m_graph->GetEdges()) flg = false;
-//        }
 
-        // use two loops of edges to fill all m_dist and m_tree
-        // if it still fails, check the input link info, modify the links with very short travel time
-        flg = false;
         for (auto _edge_it = m_graph->BegEI(); _edge_it < m_graph->EndEI(); _edge_it++) {
             _dst_node = _edge_it.GetDstNId();
             _src_node = _edge_it.GetSrcNId();
             _edge_cost = cost_map[_edge_it.GetId()][t];
-            if ((int(TFlt(t) + _edge_cost) == t) && (_dst_node != m_dest_node_ID)) {  // rounding down issue
-                flg = true;
-                continue;
-            }
             _temp_cost = _edge_cost + get_distance_to_destination(_dst_node, TFlt(t) + _edge_cost);
             if (m_dist[_src_node][t] > _temp_cost) {
                 // printf("At time %d, src %d to des %d, m_dist is %f, _temp_cost is %f\n", t, _src_node(),
@@ -514,33 +487,6 @@ int MNM_TDSP_Tree::update_tree(std::unordered_map<TInt, TFlt *> &cost_map) {
                 m_tree[_src_node][t] = _edge_it.GetId();
             }
         }
-
-        if (flg) {
-            for (auto _edge_it = m_graph->BegEI(); _edge_it < m_graph->EndEI(); _edge_it++) {
-                _dst_node = _edge_it.GetDstNId();
-                _src_node = _edge_it.GetSrcNId();
-                _edge_cost = cost_map[_edge_it.GetId()][t];
-                if ((int(TFlt(t) + _edge_cost) == t) && (_dst_node != m_dest_node_ID)) {  // rounding down issue
-                    _temp_cost = _edge_cost + get_distance_to_destination(_dst_node, TFlt(t) + _edge_cost);
-                    if (m_dist[_src_node][t] > _temp_cost) {
-                        printf("--------------- correction -----------\n");
-                        printf("At time %d, src %d to des %d, m_dist is %f, _temp_cost is %f\n", t, _src_node(),
-                               _edge_it.GetDstNId(), (float) m_dist[_src_node][t], (float) _temp_cost);
-                        m_dist[_src_node][t] = _temp_cost;
-                        m_tree[_src_node][t] = _edge_it.GetId();
-                    }
-                }
-            }
-        }
-
-        // double check m_dist and m_tree are constructed correctly
-        for (auto _node_it = m_graph->BegNI(); _node_it < m_graph->EndNI(); _node_it++) {
-            _node_ID = _node_it.GetId();
-            if ((_node_ID != m_dest_node_ID) && (m_tree[_node_ID][t] == -1)) {
-                throw std::runtime_error("some road links (not OD connectors) are too short, the free flow travel time should be larger than one unit time interval\n");
-            }
-        }
-
     }
     // printf("Finished update tree\n");
     return 0;
@@ -553,9 +499,9 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, std::unordered_map<TInt
     TFlt _cur_time = TFlt(time);
     while (_cur_node_ID != m_dest_node_ID) {
         path->m_node_vec.push_back(_cur_node_ID);
-        _cur_link_ID = m_tree[_cur_node_ID][round_time(_cur_time, m_max_interval)];
+        _cur_link_ID = m_tree[_cur_node_ID][round_time(_cur_time)];
         path->m_link_vec.push_back(_cur_link_ID);
-        _cur_time += cost_map[_cur_link_ID][round_time(_cur_time, m_max_interval)];
+        _cur_time += cost_map[_cur_link_ID][round_time(_cur_time)];
         _cur_node_ID = m_graph->GetEI(_cur_link_ID).GetDstNId();
     }
     path->m_node_vec.push_back(m_dest_node_ID);
@@ -565,7 +511,7 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, std::unordered_map<TInt
 
 TFlt MNM_TDSP_Tree::get_distance_to_destination(TInt node_ID, TFlt time_stamp) {
     IAssert(m_dist.find(node_ID) != m_dist.end());
-    IAssert(m_dist[node_ID] != NULL);
+    IAssert(m_dist[node_ID] != nullptr);
     IAssert(time_stamp >= 0);
     // printf("Current time stamp is %lf, %d\n", time_stamp, int(time_stamp)+ 1);
 
@@ -574,21 +520,14 @@ TFlt MNM_TDSP_Tree::get_distance_to_destination(TInt node_ID, TFlt time_stamp) {
     //   return m_dist[node_ID][m_max_interval - 1];
     // }
     // return m_dist[node_ID][int(time_stamp)];
-    return m_dist[node_ID][round_time(time_stamp, m_max_interval)];
+    return m_dist[node_ID][round_time(time_stamp)];
 }
 
 
-int MNM_TDSP_Tree::round_time(TFlt time_stamp, TInt m_max_interval) {
+int MNM_TDSP_Tree::round_time(TFlt time_stamp) {
     if (time_stamp >= TFlt(m_max_interval - 1)) {
         // printf("Enter if\n");
         return int(m_max_interval - 1);
     }
-
-//    if (time_stamp < 1e-8) {
-//        return 0;
-//    }
-//    return int(time_stamp) + 1;
-
-    // modified by Zou, rounding down, consistent with m_cost_map in MNM_Due::get_tt() in due.cpp
-    return int(time_stamp);
+    return int(time_stamp) + 1;
 }

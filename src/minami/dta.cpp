@@ -121,6 +121,7 @@ int MNM_Dta::set_routing()
     m_routing = new MNM_Routing_Fixed(m_graph, m_od_factory, m_node_factory, m_link_factory, m_config -> get_int("assign_frq"), _tmp_conf -> get_int("buffer_length"));
     // m_routing = new MNM_Routing_Fixed(m_graph, m_od_factory, m_node_factory, m_link_factory, m_config -> get_int("assign_frq"));
     // m_routing -> init_routing(_path_table);
+    delete _tmp_conf;
   }
 
   // m_routing = new MNM_Routing_Random(m_graph, m_statistics, m_od_factory, m_node_factory, m_link_factory);
@@ -243,20 +244,20 @@ bool MNM_Dta::is_ok()
   bool _temp_flag = true;
   //Checks the graph data structure for internal consistency.
   //For each node in the graph check that its neighbors are also nodes in the graph.
-  printf("Checking......Graph consistent!\n");
+  printf("Checking......Driving Graph consistent!\n");
   _temp_flag = m_graph -> IsOk(); 
   _flag = _flag && _temp_flag;
   if (_temp_flag)  printf("Passed!\n");
 
   //check node
-  printf("Checking......Node consistent!\n");
+  printf("Checking......Driving Node consistent!\n");
   _temp_flag = (m_graph -> GetNodes() == m_config -> get_int("num_of_node"))
                 && (m_graph -> GetNodes() == TInt(m_node_factory -> m_node_map.size()));
   _flag = _flag && _temp_flag;
   if (_temp_flag)  printf("Passed!\n");
 
   //check link
-  printf("Checking......Link consistent!\n");
+  printf("Checking......Driving Link consistent!\n");
   _temp_flag = (m_graph -> GetEdges() == m_config -> get_int("num_of_link"))
                 && (m_graph -> GetEdges() == TInt(m_link_factory -> m_link_map.size()));
   _flag = _flag && _temp_flag;
@@ -318,6 +319,8 @@ int MNM_Dta::check_origin_destination_connectivity()
   }
   return true;
 }
+
+
 
 
 int MNM_Dta::pre_loading()

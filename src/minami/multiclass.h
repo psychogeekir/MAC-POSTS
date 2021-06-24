@@ -35,7 +35,8 @@ public:
 
     virtual TFlt get_link_flow_car(){return 0;};
     virtual TFlt get_link_flow_truck(){return 0;};
-
+    virtual TFlt get_link_tt_from_flow_car(TFlt flow){return 0;};
+    virtual TFlt get_link_tt_from_flow_truck(TFlt flow){return 0;};
 	TFlt get_link_freeflow_tt_car();
 	TFlt get_link_freeflow_tt_truck();
 
@@ -92,6 +93,8 @@ public:
     virtual TFlt get_link_flow_truck() override;
     virtual TFlt get_link_flow() override;
     virtual TFlt get_link_tt() override;
+    virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
+    virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
 
     virtual int move_veh_queue(std::deque<MNM_Veh*> *from_queue,
 						       std::deque<MNM_Veh*> *to_queue,
@@ -199,6 +202,8 @@ public:
     virtual TFlt get_link_flow_truck() override;
     virtual TFlt get_link_flow() override;
     virtual TFlt get_link_tt() override;
+    virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
+    virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
 
 	int update_perceived_density();
 
@@ -258,6 +263,8 @@ public:
     virtual TFlt get_link_flow_truck() override;
     virtual TFlt get_link_flow() override;
     virtual TFlt get_link_tt() override;
+    virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
+    virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
 
 	std::unordered_map<MNM_Veh*, TInt> m_veh_pool;
 	TInt m_volume_car; //vehicle number, without the flow scalar
@@ -417,6 +424,7 @@ public:
 
     virtual TInt get_class() override {return m_class;};  // virtual getter
     virtual TInt get_bus_route_ID() override {return m_bus_route_ID;};  // virtual getter
+    virtual bool get_ispnr() override {return m_pnr;}; // virtual getter
 
 	TInt m_class;
 	TFlt m_visual_position_on_link; //[0(start), 1(end)], for vehicle-based visualization
@@ -554,6 +562,9 @@ TFlt get_link_inflow_truck(MNM_Dlink_Multiclass* link,
 
 TFlt get_average_waiting_time_at_intersection(MNM_Dlink_Multiclass* link);
 TInt get_is_spillback(MNM_Dlink_Multiclass* link); // 0 - no spillback, 1 - spillback
+
+TFlt get_travel_time_from_FD_car(MNM_Dlink_Multiclass *link, TFlt start_time, TFlt unit_interval);
+TFlt get_travel_time_from_FD_truck(MNM_Dlink_Multiclass *link, TFlt start_time, TFlt unit_interval);
 
 TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval);
 TFlt get_travel_time_car_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials = TInt(10));

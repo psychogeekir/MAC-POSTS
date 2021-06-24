@@ -341,9 +341,19 @@ int MNM_Dnode_Inout::move_vehicle(TInt timestamp)
   size_t _offset = m_out_link_array.size();
   TInt _num_to_move;
 
+  std::vector<size_t> _in_link_ind_array = std::vector<size_t>();
+  for (size_t i=0; i<m_in_link_array.size(); ++i){
+    _in_link_ind_array.push_back(i);
+  }
+
   for (size_t j=0; j<m_out_link_array.size(); ++j){
     _out_link = m_out_link_array[j];
-    for (size_t i=0; i<m_in_link_array.size(); ++i) {
+
+    // shuffle the in links, reserve the FIFO
+    std::random_device rng; // random sequence
+    std::shuffle(_in_link_ind_array.begin(), _in_link_ind_array.end(), rng);
+    for (size_t i : _in_link_ind_array) {
+    // for (size_t i=0; i<m_in_link_array.size(); ++i) {
       _in_link = m_in_link_array[i];
       _num_to_move = m_veh_tomove[i * _offset + j];
       // printf("In node %d, from link %d to link %d, %d to move\n", m_node_ID, _in_link ->m_link_ID, _out_link->m_link_ID, _num_to_move);
@@ -395,10 +405,10 @@ int MNM_Dnode_Inout::move_vehicle(TInt timestamp)
         exit(-1);
       }
     }
-    // make the queue randomly perturbed, may not be true in signal controlled intersection
-    // TODO 
-    random_shuffle(_out_link -> m_incoming_array.begin(), _out_link -> m_incoming_array.end());
+    // make the queue randomly perturbed, may not be true in signal controlled intersection, violate FIFO
+    // random_shuffle(_out_link -> m_incoming_array.begin(), _out_link -> m_incoming_array.end());
   }
+  _in_link_ind_array.clear();
   return 0;
 }
 

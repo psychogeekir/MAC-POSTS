@@ -69,6 +69,7 @@ public:
   int hook_up_node(MNM_Dnode *from, MNM_Dnode *to);
   virtual TFlt get_link_flow() {return TFlt(0);};
   virtual TFlt get_link_tt() {return TFlt(0);};
+  virtual TFlt get_link_tt_from_flow(TFlt flow) {return TFlt(0);};
 
   int install_cumulative_curve();
   int install_cumulative_curve_tree();
@@ -111,6 +112,7 @@ public:
   virtual void print_info() override;
   virtual TFlt get_link_flow() override;
   virtual TFlt get_link_tt() override;
+  virtual TFlt get_link_tt_from_flow(TFlt flow) override;
 
 // private:
   class Ctm_Cell;
@@ -165,6 +167,8 @@ public:
   virtual void print_info() override;
   virtual TFlt get_link_flow() override;
   virtual TFlt get_link_tt() override;
+  virtual TFlt get_link_tt_from_flow(TFlt flow) override;
+
 // private:
   std::unordered_map<MNM_Veh*, TInt> m_veh_queue;
   TInt m_volume; //vehicle number, without the flow scalar
@@ -199,6 +203,8 @@ public:
   virtual void print_info() override;
   virtual TFlt get_link_flow() override;
   virtual TFlt get_link_tt() override;
+  virtual TFlt get_link_tt_from_flow(TFlt flow) override;
+
 // private:
   std::deque<MNM_Veh*> m_veh_queue;
   TInt m_volume; //vehicle number, without the flow scalar
@@ -238,6 +244,8 @@ public:
   virtual void print_info() override;
   virtual TFlt get_link_flow() override;
   virtual TFlt get_link_tt() override;
+  virtual TFlt get_link_tt_from_flow(TFlt flow) override;
+
 // private:
   std::deque<MNM_Veh*> m_veh_queue;
   MNM_Cumulative_Curve m_N_in2;

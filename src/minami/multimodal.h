@@ -9,11 +9,18 @@
 #include "path.h"
 #include "due.h"
 
+class MNM_Routing_Multimodal_Hybrid;
+class MNM_Destination_Multimodal;
+class MNM_Transit_Link;
+class MNM_Bus_Link;
+class MNM_Veh_Multimodal;
+class MNM_Passenger;
+class MNM_Passenger_Factory;
 class MNM_Walking_Link;
 class MNM_Parking_Lot;
 class MNM_Parking_Lot_Factory;
-class MNM_Walking_Link_Factory;
 class MNM_MM_Due;
+using namespace MNM;
 
 /******************************************************************************************************************
 *******************************************************************************************************************
@@ -26,31 +33,43 @@ public:
     MNM_Busstop(TInt ID,
                 TInt linkID,
                 TFlt linkloc,
-                std::vector<TInt>* routID_vec);
-
+                TFlt flow_scalar,
+                TInt rout_ID);
     ~MNM_Busstop();
     int install_cumulative_curve_multiclass();
-    TFlt get_bus_waiting_time(TFlt time, TInt routeID);
+    TFlt get_bus_waiting_time(TFlt time);
+    bool hold_bus(MNM_Veh *veh, MNM_Veh_Multimodal *veh_multimodal,
+                  std::deque<MNM_Veh*> *from_queue,
+                  std::deque<MNM_Veh*> *held_queue,
+                  int flow_scalar);
+    int release_bus(TInt timestamp, MNM_Veh_Multimodal *veh_multimodal);
+    int receive_bus(TInt timestamp, MNM_Veh_Multimodal *veh_multimodal);
+    int update_routing_passenger(TInt timestamp);
+    int evolve(TInt timestamp);
 
     TInt m_busstop_ID;
     TInt m_link_ID;
     TFlt m_link_loc;
     TInt m_cell_ID;
-    std::vector<TInt> m_routeID_vec;
+    TInt m_route_ID;
+    TFlt m_flow_scalar;
+    TInt m_passed_bus_counter;
+    std::deque<MNM_Veh_Multimodal*> m_bus_queue;
 
-    std::unordered_map<TInt, TInt> m_passed_bus_counter;
+    MNM_Routing_Multimodal_Hybrid* m_routing;
 
-    // separate N-curves for different bus routes, <route ID, cc curve>
-    std::unordered_map<TInt, MNM_Cumulative_Curve*> m_N_in_bus;
-    std::unordered_map<TInt, MNM_Cumulative_Curve*> m_N_out_bus;
+    MNM_Cumulative_Curve* m_N_in_bus;
+    MNM_Cumulative_Curve* m_N_out_bus;
 
 //    MNM_Cumulative_Curve *m_N_in_car;
 //    MNM_Cumulative_Curve *m_N_out_car;
 //    MNM_Cumulative_Curve *m_N_in_truck;
 //    MNM_Cumulative_Curve *m_N_out_truck;
 
-    std::vector<MNM_Walking_Link*> m_walking_links_vec;
-
+    MNM_Bus_Link* m_bus_in_link;
+    MNM_Bus_Link* m_bus_out_link;
+    std::vector<MNM_Walking_Link*> m_walking_in_links_vec;
+    std::vector<MNM_Walking_Link*> m_walking_out_links_vec;
 };
 
 /******************************************************************************************************************
@@ -63,10 +82,130 @@ class MNM_Busstop_Factory
 public:
     MNM_Busstop_Factory();
     virtual ~MNM_Busstop_Factory();
-    MNM_Busstop *make_busstop(TInt ID, TInt linkID, TFlt linkloc, std::vector<TInt>* routID_vec);
+    MNM_Busstop *make_busstop(TInt ID, TInt linkID, TFlt linkloc, TFlt flow_scalar, TInt rout_ID);
     MNM_Busstop *get_busstop(TInt ID);
 
     std::unordered_map<TInt, MNM_Busstop*> m_busstop_map;
+};
+
+/******************************************************************************************************************
+*******************************************************************************************************************
+												Parking lot
+*******************************************************************************************************************
+******************************************************************************************************************/
+class MNM_Parking_Lot
+{
+public:
+    MNM_Parking_Lot(TInt ID, TInt node_ID, MNM_Passenger_Factory *passenger_factory,
+                    TFlt base_price, TFlt price_surge_coeff, TFlt avg_parking_time, TFlt capacity, TFlt unit_time);
+    virtual ~MNM_Parking_Lot();
+    int release_one_interval_passenger(TInt timestamp);
+    int evolve(TInt timestamp);
+    TFlt get_cruise_time(TInt timestamp); // intervals
+
+    TInt m_ID;
+    TFlt m_base_price;
+    TFlt m_price_surge_coeff;
+    TFlt m_unit_time;
+    // intervals
+    TFlt m_avg_parking_time;
+    TFlt m_max_parking_time;
+    // time-dependent occupancy
+    TFlt m_occupancy;
+    TFlt m_capacity;
+    // dest node ID
+    TInt m_node_ID;
+    MNM_DMDND_Multiclass *m_dest_node;
+    MNM_Passenger_Factory *m_passenger_factory;
+    std::vector<MNM_Walking_Link*> m_walking_out_links_vec;
+
+    // <timestamp, cruising time in intervals>
+    std::unordered_map<TInt, TFlt> m_cruising_time_record;
+    // parked cars
+    std::deque<MNM_Veh_Multimodal *> m_parked_car_queue;
+    // pnr passengers about to leave the parking lot
+    std::deque<MNM_Passenger*> m_in_passenger_queue;
+    // <path_ID, cumulative counter> for converting pnr vehicles to passenger, the path_ID of adaptive routing is -1
+    std::unordered_map<TInt, TInt> m_pnr_fixed_routing_counter;
+};
+
+
+/******************************************************************************************************************
+*******************************************************************************************************************
+												Parking lot factory
+*******************************************************************************************************************
+******************************************************************************************************************/
+class MNM_Parking_Lot_Factory
+{
+public:
+    MNM_Parking_Lot_Factory();
+    virtual ~MNM_Parking_Lot_Factory();
+    MNM_Parking_Lot *make_parking_lot(TInt ID, TInt node_ID, MNM_Passenger_Factory *passenger_factory,
+                                      TFlt base_price, TFlt price_surge_coeff, TFlt avg_parking_time, TFlt capacity, TFlt unit_time);
+    MNM_Parking_Lot *get_parking_lot(TInt ID);
+    std::unordered_map<TInt, MNM_Parking_Lot*> m_parking_lot_map;
+};
+
+
+/******************************************************************************************************************
+*******************************************************************************************************************
+											    Passenger
+*******************************************************************************************************************
+******************************************************************************************************************/
+
+class MNM_Passenger
+{
+public:
+    MNM_Passenger(TInt ID, TInt start_time, TInt passenger_type);
+    ~MNM_Passenger();
+
+    int set_current_link(MNM_Transit_Link *link);
+    MNM_Transit_Link *get_current_link();
+    MNM_Transit_Link *get_next_link();
+    int set_next_link(MNM_Transit_Link *link);
+    bool has_next_link();
+    MNM_Destination *get_destination();
+    int set_destination(MNM_Destination * dest);
+    int finish(TInt finish_time);
+    MNM_Origin *get_origin();
+    int set_origin(MNM_Origin * origin);
+
+// private:
+    TInt m_passenger_ID;
+    TInt m_passenger_type;
+    bool m_pnr;
+    TFlt m_waiting_time;  // intervals, cruising time in parking lot
+    MNM_Transit_Link *m_current_link;
+    TInt m_start_time;
+    TInt m_finish_time;
+    MNM_Transit_Link *m_next_link;
+    MNM_Destination *m_dest;
+    MNM_Origin *m_origin;
+    MNM_Parking_Lot *m_parking_lot;  // for pnr
+    // m_path will only be used in Fixed routing (didn't find a better way to encode)
+    MNM_Path* m_driving_path;
+    MNM_Path* m_transit_path;
+    TInt m_assign_interval;
+};
+
+
+/******************************************************************************************************************
+*******************************************************************************************************************
+											 Passenger  Factory
+*******************************************************************************************************************
+******************************************************************************************************************/
+class MNM_Passenger_Factory
+{
+public:
+    MNM_Passenger_Factory();
+    ~MNM_Passenger_Factory();
+
+    MNM_Passenger* make_passenger(TInt timestamp, TInt passenger_type);
+    MNM_Passenger* get_passenger(TInt ID);
+
+    std::unordered_map<TInt, MNM_Passenger*> m_passenger_map;
+
+    TInt m_num_passenger;
 };
 
 
@@ -79,14 +218,27 @@ public:
 class MNM_Veh_Multimodal : public MNM_Veh_Multiclass
 {
 public:
-    MNM_Veh_Multimodal(TInt ID, TInt vehicle_class, TInt start_time, TInt bus_route_ID = TInt(-1));
+    MNM_Veh_Multimodal(TInt ID, TInt vehicle_class, TInt start_time, TInt capacity = 1, TInt bus_route_ID = TInt(-1),
+                       bool is_pnr = false);
     virtual ~MNM_Veh_Multimodal() override;
+
+    int board_and_alight(TInt timestamp, MNM_Busstop* busstop);
 
     virtual TInt get_class() override {return m_class;};  // virtual getter
     virtual TInt get_bus_route_ID() override {return m_bus_route_ID;};  // virtual getter
+    virtual bool get_ispnr() override {return m_pnr;}; // virtual getter
 
+    TInt m_capacity;
     TInt m_bus_route_ID;
+    TInt m_min_dwell_intervals;
     TInt m_stopped_intervals;
+    TInt m_boarding_lost_intervals;
+    TInt m_max_alighting_passengers_per_unit_time;
+    TInt m_max_boarding_passengers_per_unit_time;
+
+    bool m_pnr;
+    MNM_Path* m_transit_path;
+    std::deque<MNM_Passenger*> m_passenger_pool;
 };
 
 
@@ -99,10 +251,19 @@ public:
 class MNM_Veh_Factory_Multimodal : public MNM_Veh_Factory_Multiclass
 {
 public:
-    MNM_Veh_Factory_Multimodal();
+    MNM_Veh_Factory_Multimodal(TInt bus_capacity, TInt min_dwell_intervals,
+                               TInt boarding_lost_intervals,
+                               TInt max_alighting_passengers_per_unit_time, TInt max_boarding_passengers_per_unit_time);
     virtual ~MNM_Veh_Factory_Multimodal() override;
 
-    MNM_Veh_Multimodal* make_veh_multimodal(TInt timestamp, Vehicle_type veh_type, TInt vehicle_cls, TInt bus_route=TInt(-1));
+    MNM_Veh_Multimodal* make_veh_multimodal(TInt timestamp, Vehicle_type veh_type, TInt vehicle_cls, TInt capacity=TInt(1),
+                                            TInt bus_route=TInt(-1), bool is_pnr=false);
+
+    TInt m_bus_capacity;
+    TInt m_min_dwell_intervals;
+    TInt m_boarding_lost_intervals;
+    TInt m_max_alighting_passengers_per_unit_time;
+    TInt m_max_boarding_passengers_per_unit_time;
 };
 
 /******************************************************************************************************************
@@ -116,9 +277,13 @@ class MNM_Destination_Multimodal : public MNM_Destination_Multiclass
 public:
     explicit MNM_Destination_Multimodal(TInt ID);
     virtual ~MNM_Destination_Multimodal() override;
+    int evolve(TInt timestamp);
+    virtual int receive(TInt timestamp) override;
 
     MNM_Parking_Lot *m_parking_lot;
-    std::vector<MNM_Walking_Link*> m_walking_links_vec;
+    std::deque<MNM_Passenger*> m_out_passenger_queue;
+    std::vector<MNM_Walking_Link*> m_walking_in_links_vec;
+    std::vector<MNM_Parking_Lot*> m_connected_pnr_parkinglot_vec;
 };
 
 class MNM_Origin_Multimodal : public MNM_Origin_Multiclass
@@ -126,6 +291,7 @@ class MNM_Origin_Multimodal : public MNM_Origin_Multiclass
 public:
     MNM_Origin_Multimodal(TInt ID, TInt max_interval, TFlt flow_scalar, TInt frequency);
     virtual ~MNM_Origin_Multimodal() override;
+    int evolve(TInt timestamp);
 
     virtual int release_one_interval(TInt current_interval,
                                      MNM_Veh_Factory* veh_factory,
@@ -138,14 +304,30 @@ public:
                                              TFlt adaptive_ratio_car,
                                              TFlt adaptive_ratio_truck) override;
 
+    int release_one_interval_passenger(TInt current_interval,
+                                       MNM_Passenger_Factory* passenger_factory,
+                                       TInt assign_interval,
+                                       TFlt adaptive_ratio);
+
     int add_dest_demand_bus(MNM_Destination_Multimodal *dest,
                             TInt routeID,
                             TFlt* demand_bus);
 
+    int add_dest_demand_pnr_car(MNM_Destination_Multimodal *dest,
+                                TFlt* demand_pnr_car);
+
+    int add_dest_demand_passenger_bus(MNM_Destination_Multimodal *dest,
+                                      TFlt* demand_passenger_bus);
+
     // <Destination node, <routeID, time-varying demand>>
     std::unordered_map<MNM_Destination_Multimodal*, std::unordered_map<TInt, TFlt*>> m_demand_bus;
+    // <Destination node, time-varying demand>
+    std::unordered_map<MNM_Destination_Multimodal*, TFlt*> m_demand_pnr_car;
+    // <Destination node, time-varying demand>
+    std::unordered_map<MNM_Destination_Multimodal*, TFlt*> m_demand_passenger_bus;
 
-    std::vector<MNM_Walking_Link*> m_walking_links_vec;
+    std::deque<MNM_Passenger*> m_in_passenger_queue;
+    std::vector<MNM_Walking_Link*> m_walking_out_links_vec;
 };
 
 /******************************************************************************************************************
@@ -190,6 +372,75 @@ public:
 ******************************************************************************************************************/
 
 /**************************************************************************
+					        Transit Link Model
+**************************************************************************/
+class MNM_Transit_Link
+{
+public:
+    MNM_Transit_Link(TInt link_ID, DLink_type_multimodal link_type,
+                     const std::string& from_node_type, const std::string& to_node_type,
+                     TInt from_node_ID, TInt to_node_ID, TFlt unit_time);
+    virtual ~MNM_Transit_Link();
+    virtual int evolve(TInt timestamp) {return 0;};
+    virtual TFlt get_link_tt() {return TFlt(0);}; // real-time tt in seconds
+
+    TInt m_link_ID;
+    DLink_type_multimodal m_link_type;
+    // possible node-node pair: origin -> bus_stop, parking_lot -> bus_stop, bus_stop -> destination, bus_stop -> bus_stop, parking_lot -> destination
+    std::string m_from_node_type;
+    std::string m_to_node_type;
+    TInt m_from_node_ID;
+    TInt m_to_node_ID;
+    TFlt m_fftt; // seconds
+    TFlt m_unit_time;
+};
+
+
+/**************************************************************************
+					        Bus Link Model
+**************************************************************************/
+class MNM_Bus_Link : public MNM_Transit_Link
+{
+public:
+    MNM_Bus_Link(TInt link_ID, TInt from_busstop_ID, TInt to_busstop_ID, TFlt bus_fftt, TFlt unit_time);
+    virtual ~MNM_Bus_Link() override;
+    virtual TFlt get_link_tt() override; // real-time tt in seconds
+
+    TInt m_route_ID;
+    MNM_Busstop* m_from_busstop;
+    MNM_Busstop* m_to_busstop;
+    std::vector<MNM_Dlink*> m_overlapped_driving_link_vec;
+};
+
+
+/**************************************************************************
+					        Walking Link Model
+**************************************************************************/
+class MNM_Walking_Link : public MNM_Transit_Link
+{
+public:
+    MNM_Walking_Link(TInt ID, const std::string& from_node_type, const std::string& to_node_type,
+                     TInt from_node_ID, TInt to_node_ID, TFlt walking_time, TFlt unit_time);
+    virtual ~MNM_Walking_Link() override;
+    virtual TFlt get_link_tt() override; // real-time tt in seconds
+    int install_cumulative_curve();
+    int install_cumulative_curve_tree();
+    int clear_incoming_array(TInt timestamp);
+    virtual int evolve(TInt timestamp) override;
+
+    MNM_Cumulative_Curve *m_N_in;
+    MNM_Cumulative_Curve *m_N_out;
+    MNM_Tree_Cumulative_Curve *m_N_in_tree;
+    MNM_Tree_Cumulative_Curve *m_N_out_tree;
+
+
+    std::deque<MNM_Passenger*> m_incoming_array;
+    // <passenger, time left to be moved to finished queque>
+    std::unordered_map<MNM_Passenger*, TInt> m_passenger_queue;
+    std::deque<MNM_Passenger*> m_finished_array;
+};
+
+/**************************************************************************
 					Multimodal Point-Queue Model
 **************************************************************************/
 class MNM_Dlink_Pq_Multimodal : public MNM_Dlink_Pq_Multiclass
@@ -211,9 +462,11 @@ public:
     virtual int clear_incoming_array(TInt timestamp) override;
     virtual int evolve(TInt timestamp) override;
 
+    std::deque<std::pair<MNM_Veh*, TInt>> m_veh_queue;
     // for multimodal with busstops on the link
     DLink_type_multimodal m_link_type;
     std::vector<MNM_Busstop*> m_busstop_vec;
+    std::unordered_map<MNM_Busstop*, TInt> m_busstop_timeloc_map;
 };
 
 
@@ -258,6 +511,27 @@ public:
 *******************************************************************************************************************
 ******************************************************************************************************************/
 
+/**************************************************************************
+					        transit link factory
+**************************************************************************/
+class MNM_Transit_Link_Factory
+{
+public:
+    MNM_Transit_Link_Factory();
+    ~MNM_Transit_Link_Factory();
+
+    MNM_Transit_Link *make_transit_link(TInt ID, DLink_type_multimodal link_type,
+                                        const std::string& from_node_type, const std::string& to_node_type,
+                                        TInt from_node_ID, TInt to_node_ID, TFlt fftt, TFlt unit_time);
+    MNM_Transit_Link *get_transit_link(TInt link_ID);
+
+    std::unordered_map<TInt, MNM_Transit_Link*> m_transit_link_map;
+};
+
+
+/**************************************************************************
+					        driving link factory
+**************************************************************************/
 class MNM_Link_Factory_Multimodal : public MNM_Link_Factory_Multiclass
 {
 public:
@@ -278,6 +552,37 @@ public:
                                     TFlt unit_time,
                                     TFlt veh_convert_factor,
                                     TFlt flow_scalar);
+};
+
+/******************************************************************************************************************
+*******************************************************************************************************************
+												Statistics
+*******************************************************************************************************************
+******************************************************************************************************************/
+class MNM_Statistics_Lrn_Multimodal : public MNM_Statistics_Lrn
+{
+public:
+    MNM_Statistics_Lrn_Multimodal(const std::string& file_folder, MNM_ConfReader *conf_reader, MNM_ConfReader *record_config,
+                                  MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory,
+                                  MNM_Transit_Link_Factory *transitlink_factory);
+    virtual ~MNM_Statistics_Lrn_Multimodal() override;
+
+    virtual int record_loading_interval_condition(TInt timestamp) override;
+    virtual int record_record_interval_condition(TInt timestamp) override;
+    virtual int update_record(TInt timestamp) override;
+    virtual int init_record() override;
+    virtual int post_record() override;
+
+    std::unordered_map<TInt, TFlt> m_load_interval_tt_bus_transit;
+    std::unordered_map<TInt, TFlt> m_record_interval_tt_bus_transit;
+    std::unordered_map<TInt, TFlt> m_to_be_tt_bus_transit;
+
+    std::vector<MNM_Transit_Link*> m_transitlink_order;
+
+private:
+    MNM_Transit_Link_Factory* m_transitlink_factory;
+    std::ofstream m_load_interval_tt_bus_transit_file;
+    std::ofstream m_record_interval_tt_bus_transit_file;
 };
 
 /******************************************************************************************************************
@@ -312,6 +617,45 @@ typedef std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<TIn
 
 /******************************************************************************************************************
 *******************************************************************************************************************
+												PnR Path
+*******************************************************************************************************************
+******************************************************************************************************************/
+class MNM_PnR_Path : public MNM_Path
+{
+public:
+    MNM_PnR_Path(TInt path_ID, TInt mid_parking_lot_ID, TInt mid_dest_node_ID, MNM_Path* driving_path, MNM_Path* transit_path);
+    virtual ~MNM_PnR_Path() override;
+    bool is_equal(MNM_Path* path);
+
+    TInt m_mid_parking_lot_ID;
+    TInt m_mid_dest_node_ID;
+    MNM_Path *m_driving_path;
+    MNM_Path *m_transit_path;
+};
+
+/******************************************************************************************************************
+*******************************************************************************************************************
+												PnR Pathset
+*******************************************************************************************************************
+******************************************************************************************************************/
+class MNM_PnR_Pathset : public MNM_Pathset
+{
+public:
+    MNM_PnR_Pathset();
+    virtual ~MNM_PnR_Pathset() override;
+    virtual bool is_in(MNM_Path *path) override;
+};
+
+/******************************************************************************************************************
+*******************************************************************************************************************
+												PnR Path Table
+*******************************************************************************************************************
+******************************************************************************************************************/
+// <O, <D, Pathset>>
+typedef std::unordered_map<TInt, std::unordered_map<TInt, MNM_PnR_Pathset*>*> PnR_Path_Table;
+
+/******************************************************************************************************************
+*******************************************************************************************************************
 												Routing
 *******************************************************************************************************************
 ******************************************************************************************************************/
@@ -323,33 +667,164 @@ typedef std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<TIn
 class MNM_Routing_Bus : public MNM_Routing_Biclass_Fixed
 {
 public:
-    MNM_Routing_Bus(PNEGraph &graph,
+    MNM_Routing_Bus(PNEGraph &driving_graph,
                     MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory,
                     MNM_Link_Factory *link_factory, Bus_Path_Table *bus_path_table, TInt route_frq = TInt(-1),
                     TInt buffer_length=TInt(-1), TInt veh_class = TInt(1));
     virtual ~MNM_Routing_Bus() override;
     virtual int register_veh(MNM_Veh* veh) override;
-    virtual int init_routing(Path_Table *path_table=NULL) override;
+    virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
     virtual int update_routing(TInt timestamp) override;
 
     Bus_Path_Table *m_bus_path_table;
 };
 
+
 /**************************************************************************
-                          Biclass_Bus_Hybrid routing
+                          PnR Fixed Vehicle Routing
 **************************************************************************/
-class MNM_Routing_Biclass_Bus_Hybrid : public MNM_Routing_Biclass_Hybrid
+class MNM_Routing_PnR_Fixed : public MNM_Routing_Biclass_Fixed
 {
 public:
-    MNM_Routing_Biclass_Bus_Hybrid(const std::string& file_folder, PNEGraph &graph, MNM_Statistics* statistics, MNM_OD_Factory *od_factory,
-                                   MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory, Bus_Path_Table *bus_path_table,
-                                   TInt route_frq_fixed = TInt(-1), TInt buffer_length = TInt(-1));
-    virtual ~MNM_Routing_Biclass_Bus_Hybrid() override;
-    virtual int init_routing(Path_Table *path_table=NULL) override;
+    MNM_Routing_PnR_Fixed(PNEGraph &driving_graph,
+                          MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory,
+                          MNM_Link_Factory *link_factory, PnR_Path_Table *pnr_path_table, TInt route_frq = TInt(-1),
+                          TInt buffer_length=TInt(-1), TInt veh_class = TInt(0));
+    virtual ~MNM_Routing_PnR_Fixed() override;
+    virtual int change_choice_portion(TInt routing_interval) override;
+    virtual int register_veh(MNM_Veh* veh) override;
+    virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
     virtual int update_routing(TInt timestamp) override;
 
-    MNM_Routing_Bus *m_routing_fixed_bus;
+    PnR_Path_Table *m_pnr_path_table;
 };
+
+
+/**************************************************************************
+                  Passenger Bus Transit Routing
+**************************************************************************/
+class MNM_Routing_PassengerBusTransit
+{
+public:
+    MNM_Routing_PassengerBusTransit(PNEGraph &transit_graph,
+                                    MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory,
+                                    MNM_Busstop_Factory *busstop_factory,
+                                    MNM_Parking_Lot_Factory *parkinglot_factory,
+                                    MNM_Transit_Link_Factory *transitlink_factory);
+    virtual ~MNM_Routing_PassengerBusTransit();
+    virtual int init_routing(Path_Table *path_table=nullptr){return 0;};
+    virtual int update_routing(TInt timestamp){return 0;};
+
+    PNEGraph m_graph;
+    MNM_OD_Factory *m_od_factory;
+    MNM_Node_Factory *m_node_factory;
+    MNM_Busstop_Factory *m_busstop_factory;
+    MNM_Parking_Lot_Factory *m_parkinglot_factory;
+    MNM_Transit_Link_Factory *m_transitlink_factory;
+};
+
+/**************************************************************************
+                  Passenger Bus Transit Fixed Routing
+**************************************************************************/
+class MNM_Routing_PassengerBusTransit_Fixed : public MNM_Routing_PassengerBusTransit
+{
+public:
+    MNM_Routing_PassengerBusTransit_Fixed(PNEGraph &transit_graph,
+                                          MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory,
+                                          MNM_Busstop_Factory *busstop_factory,
+                                          MNM_Parking_Lot_Factory *parkinglot_factory,
+                                          MNM_Transit_Link_Factory *transitlink_factory,
+                                          Path_Table *bustransit_path_table,
+                                          TInt route_frq = TInt(-1),
+                                          TInt buffer_length=TInt(-1));
+    virtual ~MNM_Routing_PassengerBusTransit_Fixed() override;
+    int register_passenger(MNM_Passenger* passenger);
+    int add_passenger_path(MNM_Passenger* passenger, std::deque<TInt> *link_que);
+    virtual int init_routing(Path_Table *path_table=nullptr) override;
+    int update_routing_origin(TInt timestamp);
+    int update_routing_parkinglot(TInt timestamp);
+    int update_routing_link(TInt timestamp);
+    int update_routing_one_busstop(TInt timestamp, MNM_Busstop* busstop);
+    int update_routing_busstop(TInt timestamp);
+    virtual int update_routing(TInt timestamp) override;
+
+    int add_bustransit_path(MNM_Passenger* passenger, std::deque<TInt> *link_que);
+    int change_choice_portion(TInt interval);
+
+    Path_Table *m_bustransit_path_table;
+    std::unordered_map<MNM_Passenger*, std::deque<TInt>*> m_tracker;
+    bool m_buffer_as_p;
+    TInt m_routing_freq;
+    TInt m_buffer_length;
+};
+
+
+/**************************************************************************
+                  Passenger and Vehicle Adaptive Routing
+**************************************************************************/
+class MNM_Routing_Multimodal_Adaptive
+{
+public:
+    MNM_Routing_Multimodal_Adaptive(const std::string& file_folder, PNEGraph &driving_graph,
+                                    PNEGraph &transit_graph, MNM_Statistics* statistics,
+                                    MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory,
+                                    MNM_Busstop_Factory *busstop_factory,
+                                    MNM_Parking_Lot_Factory *parkinglot_factory,
+                                    MNM_Link_Factory *link_factory,
+                                    MNM_Transit_Link_Factory *transitlink_factory);
+    ~MNM_Routing_Multimodal_Adaptive();
+
+    int init_routing();
+    int update_routing(TInt timestamp);
+    int update_routing_passenger_origin(TInt timestamp);
+    int update_routing_passenger_parkinglot(TInt timestamp);
+    int update_routing_passenger_link(TInt timestamp);
+    int update_routing_passenger_one_busstop(TInt timestamp, MNM_Busstop* busstop);
+    int update_routing_passenger_busstop(TInt timestamp);
+    int update_routing_passenger(TInt timestamp);
+    int update_routing_vehicle(TInt timestamp);
+    MNM_Destination* find_mid_destination_for_pnr(TInt timestamp, TInt origin_node_ID, TInt final_dest_node_ID);
+
+    MNM_Statistics_Lrn_Multimodal* m_statistics;
+    TInt m_routing_freq;
+    MNM_ConfReader *m_self_config;
+
+    Routing_Table *m_driving_table;
+    Routing_Table *m_transit_table;
+    PNEGraph m_driving_graph;
+    PNEGraph m_transit_graph;
+    MNM_OD_Factory *m_od_factory;
+    MNM_Node_Factory *m_node_factory;
+    MNM_Busstop_Factory *m_busstop_factory;
+    MNM_Parking_Lot_Factory *m_parkinglot_factory;
+    MNM_Link_Factory *m_link_factory;
+    MNM_Transit_Link_Factory *m_transitlink_factory;
+};
+
+
+/**************************************************************************
+                          Multimodal_Hybrid Routing
+**************************************************************************/
+class MNM_Routing_Multimodal_Hybrid : public MNM_Routing_Biclass_Hybrid
+{
+public:
+    MNM_Routing_Multimodal_Hybrid(const std::string& file_folder, PNEGraph &driving_graph, PNEGraph &transit_graph,
+                                  MNM_Statistics* statistics, MNM_OD_Factory *od_factory,
+                                  MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory,
+                                  MNM_Busstop_Factory *busstop_factory, MNM_Parking_Lot_Factory *parkinglot_factory,
+                                  MNM_Transit_Link_Factory *transitlink_factory,
+                                  Bus_Path_Table *bus_path_table, PnR_Path_Table *pnr_path_table, Path_Table *bustransit_path_table,
+                                  TInt route_frq_fixed = TInt(-1), TInt buffer_length = TInt(-1));
+    virtual ~MNM_Routing_Multimodal_Hybrid() override;
+    virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
+    virtual int update_routing(TInt timestamp) override;
+
+    MNM_Routing_Bus *m_routing_bus_fixed;
+    MNM_Routing_PnR_Fixed *m_routing_car_pnr_fixed;
+    MNM_Routing_PassengerBusTransit_Fixed *m_routing_passenger_fixed;
+    MNM_Routing_Multimodal_Adaptive *m_routing_multimodal_adaptive;
+};
+
 
 /******************************************************************************************************************
 *******************************************************************************************************************
@@ -369,42 +844,68 @@ public:
     static int build_node_factory_multimodal(const std::string& file_folder,
                                              MNM_ConfReader *conf_reader,
                                              MNM_Node_Factory *node_factory,
-                                             const std::string& file_name = "MNM_input_node");
+                                             const std::string& file_name = "driving_node");
     static int build_link_factory_multimodal(const std::string& file_folder,
                                              MNM_ConfReader *conf_reader,
                                              MNM_Link_Factory *link_factory,
-                                             const std::string& file_name = "MNM_input_link");
+                                             const std::string& file_name = "driving_link");
     static int build_busstop_factory(const std::string& file_folder,
                                      MNM_ConfReader *conf_reader,
                                      MNM_Busstop_Factory *busstop_factory,
                                      MNM_Link_Factory *link_factory,
-                                     const std::string& file_name = "bus_stops");
+                                     const std::string& file_name = "bus_stop");
     static int build_parkinglot_factory(const std::string& file_folder,
                                         MNM_ConfReader *conf_reader,
                                         MNM_Parking_Lot_Factory *parkinglot_factory,
                                         MNM_Node_Factory *node_factory,
                                         MNM_Link_Factory *link_factory,
-                                        const std::string& file_name = "parking_lots");
+                                        MNM_Passenger_Factory *passenger_factory,
+                                        const std::string& file_name = "parking_lot");
     static int build_walkinglink_factory(const std::string& file_folder,
                                          MNM_ConfReader *conf_reader,
+                                         MNM_Transit_Link_Factory *transit_link_factory,
                                          MNM_Node_Factory *node_factory,
                                          MNM_Busstop_Factory *busstop_factory,
                                          MNM_Parking_Lot_Factory *parkinglot_factory,
-                                         MNM_Walking_Link_Factory *walkinglink_factory,
-                                         const std::string& file_name = "walking_links");
-    static int build_demand_multimodal(const std::string& file_folder,
-                                       MNM_ConfReader *conf_reader,
-                                       MNM_OD_Factory *od_factory,
-                                       const std::string& file_name_driving = "MNM_input_demand",
-                                       const std::string& file_name_bus = "bus_demand");
+                                         const std::string& file_name = "walking_link");
+    static int build_buslink_factory(const std::string& file_folder,
+                                     MNM_ConfReader *conf_reader,
+                                     MNM_Transit_Link_Factory *transit_link_factory,
+                                     MNM_Busstop_Factory *busstop_factory,
+                                     MNM_Link_Factory *link_factory,
+                                     const std::string& file_name = "bus_link");
+    static PNEGraph build_bus_transit_graph(MNM_ConfReader *conf_reader,
+                                            MNM_Transit_Link_Factory *transit_link_factory);
     static int build_passenger_demand(const std::string& file_folder,
                                       MNM_ConfReader *conf_reader,
                                       MNM_OD_Factory *od_factory,
                                       std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &passenger_demand,
                                       const std::string& file_name = "passenger_demand");
+    static int build_vehicle_demand_multimodal(const std::string& file_folder,
+                                               MNM_ConfReader *conf_reader,
+                                               MNM_OD_Factory *od_factory,
+                                               const std::string& file_name_driving = "driving_demand",
+                                               const std::string& file_name_bus = "bus_demand");
+    static int build_pnr_demand(const std::string& file_folder,
+                                MNM_ConfReader *conf_reader,
+                                MNM_OD_Factory *od_factory,
+                                const std::string& file_name = "pnr_demand");
+    static int build_bustransit_demand(const std::string& file_folder,
+                                       MNM_ConfReader *conf_reader,
+                                       MNM_OD_Factory *od_factory,
+                                       const std::string& file_name = "bustransit_demand");
+
     static Bus_Path_Table *load_bus_path_table(const PNEGraph& graph, TInt num_path,
                                                const std::string& file_name="bus_path_table",
-                                               const std::string& route_file_name="bus_routes");
+                                               const std::string& route_file_name="bus_route");
+    static PnR_Path_Table *load_pnr_path_table(const PNEGraph& driving_graph, const PNEGraph& transit_graph,
+                                               TInt num_path,
+                                               const std::string& file_name="pnr_path_table",
+                                               bool w_buffer = true, bool w_ID = false);
+    static Path_Table *load_bustransit_path_table(const PNEGraph& transit_graph,
+                                                  TInt num_path,
+                                                  const std::string& file_name="bustransit_path_table",
+                                                  bool w_buffer = true, bool w_ID = false);
 };
 
 
@@ -419,104 +920,43 @@ public:
     explicit MNM_Dta_Multimodal(const std::string& file_folder);
     virtual ~MNM_Dta_Multimodal() override;
     virtual int initialize() override;
+    virtual int set_statistics() override;
     virtual int set_routing() override;
     virtual int build_from_files() override;
+    int find_connected_pnr_parkinglot_for_destination();
+    bool check_bus_transit_connectivity();
+    virtual bool is_ok() override;
     // virtual int pre_loading() override;
     virtual int load_once(bool verbose, TInt load_int, TInt assign_int) override;
     virtual int loading(bool verbose) override;
+    virtual bool finished_loading(int cur_int) override;
+
+
 
 //    MNM_Veh_Factory_Multimodal *m_veh_factory;
 //    MNM_Node_Factory_Multimodal *m_node_factory;
 //    MNM_Link_Factory_Multimodal *m_link_factory;
 //    MNM_OD_Factory_Multimodal *m_od_factory;
+    MNM_Passenger_Factory *m_passenger_factory;
     MNM_Busstop_Factory *m_busstop_factory;
-};
+    MNM_Parking_Lot_Factory *m_parkinglot_factory;
+    MNM_Transit_Link_Factory *m_transitlink_factory;
 
+    PNEGraph m_bus_transit_graph;
+};
 
 /******************************************************************************************************************
 *******************************************************************************************************************
-												Parking lot
+										Multiclass DTA Gradient Utils
 *******************************************************************************************************************
 ******************************************************************************************************************/
-class MNM_Parking_Lot
+namespace MNM_DTA_GRADIENT
 {
-public:
-    MNM_Parking_Lot(TInt ID, TInt node_ID, std::vector<TInt>* in_linkID_vec,
-                    TFlt base_price, TFlt price_surge_coeff, TFlt avg_parking_time, TFlt capacity);
-    virtual ~MNM_Parking_Lot();
+TFlt get_travel_time_walking(MNM_Walking_Link *link, TFlt start_time, TFlt unit_interval);
 
-    TFlt get_cruise_time(TFlt timestamp, MNM_Dta_Multimodal *mmdta); // interval
+TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval);
 
-    TInt m_ID;
-    TFlt m_base_price;
-    TFlt m_price_surge_coeff;
-    TFlt m_avg_parking_time;
-    TFlt m_max_parking_time;
-    TFlt m_capacity;
-    std::vector<TInt> m_in_linkID_vec;
-    std::vector<MNM_Dlink*> m_in_link_vec;
-    TInt m_node_ID;
-    MNM_Destination_Multimodal *m_dest;
-
-    std::vector<MNM_Walking_Link*> m_walking_links_vec;
-};
-
-
-/******************************************************************************************************************
-*******************************************************************************************************************
-												Parking lot factory
-*******************************************************************************************************************
-******************************************************************************************************************/
-class MNM_Parking_Lot_Factory
-{
-public:
-    MNM_Parking_Lot_Factory();
-    virtual ~MNM_Parking_Lot_Factory();
-    MNM_Parking_Lot *make_parking_lot(TInt ID, TInt node_ID, std::vector<TInt>* in_linkID_vec,
-                                      TFlt base_price, TFlt price_surge_coeff, TFlt avg_parking_time, TFlt capacity);
-    MNM_Parking_Lot *get_parking_lot(TInt ID);
-    std::unordered_map<TInt, MNM_Parking_Lot*> m_parking_lot_map;
-};
-
-
-/******************************************************************************************************************
-*******************************************************************************************************************
-												Walking Link
-*******************************************************************************************************************
-******************************************************************************************************************/
-class MNM_Walking_Link
-{
-public:
-    MNM_Walking_Link(TInt ID, const std::string& from_node_type, const std::string& to_node_type,
-                     TInt from_node_ID, TInt to_node_ID, TFlt walking_time);
-    virtual ~MNM_Walking_Link();
-
-    TInt m_link_ID;
-    // possible node-node pair: origin -> bus_stop, parking_lot -> bus_stop, bus_stop -> destination, parking_lot -> destination
-    std::string m_from_node_type;
-    std::string m_to_node_type;
-    TInt m_from_node_ID;
-    TInt m_to_node_ID;
-    TFlt m_walking_time; //second
-};
-
-
-/******************************************************************************************************************
-*******************************************************************************************************************
-												Walking Link Factory
-*******************************************************************************************************************
-******************************************************************************************************************/
-class MNM_Walking_Link_Factory
-{
-public:
-    MNM_Walking_Link_Factory();
-    virtual ~MNM_Walking_Link_Factory();
-
-    MNM_Walking_Link *make_walking_link(TInt ID, const std::string& from_node_type, const std::string& to_node_type,
-                                        TInt from_node_ID, TInt to_node_ID, TFlt walking_time);
-    MNM_Walking_Link *get_walking_link(TInt ID);
-    std::unordered_map<TInt, MNM_Walking_Link*> m_walking_link_map;
-};
+}
 
 /******************************************************************************************************************
 *******************************************************************************************************************
@@ -530,11 +970,11 @@ public:
 class MNM_Passenger_Path_Base : public MNM_Path
 {
 public:
-    MNM_Passenger_Path_Base(int mode_1, int mode_2, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time);
-    virtual ~MNM_Passenger_Path_Base() override;
+    MNM_Passenger_Path_Base(int mode, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time);
+    virtual ~MNM_Passenger_Path_Base();
 
-    int m_mode_1;
-    int m_mode_2;
+    int m_mode;
+    MNM_Path *m_path;
     TFlt m_vot; // money / interval
     TFlt m_early_penalty; // money / interval
     TFlt m_late_penalty; // money / interval
@@ -547,7 +987,7 @@ public:
     TFlt get_wrongtime_penalty(TFlt arrival_time);
 
     virtual bool is_equal(MNM_Passenger_Path_Base* path) {return false;};
-    virtual std::string info2str() {return "Base method should not be called\n#origin_node_ID dest_node_ID mode bus_route_ID start_busstop_ID end_busstop_ID metro_route_ID start_metrostop_ID end_metrostop_ID start_walkinglink_ID end_walkinglink_ID parkinglot_ID <node_sequence>\n";};
+    virtual std::string info2str() {return "Base method should not be called\n#origin_node_ID dest_node_ID mode mid_dest_node_ID parkinglot_ID <driving_node_sequence> <bus_transit_link_sequence>\n";};
 };
 
 
@@ -557,9 +997,9 @@ public:
 class MNM_Passenger_Path_Driving : public MNM_Passenger_Path_Base
 {
 public:
-    MNM_Passenger_Path_Driving(int mode_1, int mode_2, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
+    MNM_Passenger_Path_Driving(int mode, MNM_Path *path, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
                                TInt num_people, TFlt carpool_cost_multiplier, TFlt walking_time_before_driving,
-                               MNM_Parking_Lot* parking_lot, MNM_Walking_Link *walking_link_after_driving, TFlt walking_time_after_driving);
+                               MNM_Parking_Lot* parking_lot, TFlt walking_time_after_driving);
     virtual ~MNM_Passenger_Path_Driving() override;
 
     TInt m_num_people;
@@ -568,7 +1008,6 @@ public:
     TFlt m_walking_time_after_driving;  // seconds
 
     MNM_Parking_Lot *m_parking_lot;
-    MNM_Walking_Link *m_walking_link_after_driving;
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
@@ -581,29 +1020,22 @@ public:
 
 
 /**************************************************************************
-					           Bus
+					           Bus Transit
 **************************************************************************/
 class MNM_Passenger_Path_Bus : public MNM_Passenger_Path_Base
 {
 public:
-    MNM_Passenger_Path_Bus(int mode_1, int mode_2, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
-                           TInt route_ID, TInt start_busstop_ID, TInt end_busstop_ID, TFlt bus_fare, TFlt bus_inconvenience,
-                           MNM_Walking_Link *walking_link_before_bus, MNM_Walking_Link *walking_link_after_bus);
+    MNM_Passenger_Path_Bus(int mode, MNM_Path *path, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
+                           TFlt bus_fare, TFlt bus_inconvenience);
     virtual ~MNM_Passenger_Path_Bus() override;
 
-    TInt m_route_ID;
-    TInt m_start_busstop_ID;
-    TInt m_end_busstop_ID;
     TFlt m_bus_fare;
     TFlt m_bus_inconvenience;
-    TFlt m_walking_time_before_bus;  // seconds
-    TFlt m_walking_time_after_bus;  // seconds
-    MNM_Walking_Link *m_walking_link_before_bus;
-    MNM_Walking_Link *m_walking_link_after_bus;
     // TFlt m_waiting_time;
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // intervals
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
+    TFlt get_total_bus_fare(MNM_Dta_Multimodal *mmdta);
 
     virtual bool is_equal(MNM_Passenger_Path_Base* path) override;
     virtual std::string info2str() override;
@@ -611,32 +1043,22 @@ public:
 
 
 /**************************************************************************
-					           Metro
+					           Metro Transit
 **************************************************************************/
 class MNM_Passenger_Path_Metro : public MNM_Passenger_Path_Base
 {
 public:
-    MNM_Passenger_Path_Metro(int mode_1, int mode_2, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
-                             TInt route_ID, TInt start_metrostop_ID, TInt end_metrostop_ID,
-                             TFlt metro_fare, TFlt metro_inconvenience, TFlt metro_time, TFlt waiting_time,
-                             MNM_Walking_Link *walking_link_before_metro, MNM_Walking_Link *walking_link_after_metro);
+    MNM_Passenger_Path_Metro(int mode, MNM_Path *path, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
+                             TFlt metro_fare, TFlt metro_inconvenience, TFlt metro_time, TFlt waiting_time);
     virtual ~MNM_Passenger_Path_Metro() override;
 
-    TInt m_route_ID;
-    TInt m_start_metrostop_ID;
-    TInt m_end_metrostop_ID;
     TFlt m_metro_fare;
     TFlt m_metro_inconvenience;
     TFlt m_metro_time;  // intervals, from metro network (TODO)
-    TFlt m_walking_time_before_metro;  // seconds
-    TFlt m_walking_time_after_metro;  // second
-    TFlt m_waiting_time;  // second
-
-    MNM_Walking_Link *m_walking_link_before_metro;
-    MNM_Walking_Link *m_walking_link_after_metro;
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
+    TFlt get_total_metro_fare(MNM_Dta_Multimodal *mmdta);
 
     virtual bool is_equal(MNM_Passenger_Path_Base* path) override;
     virtual std::string info2str() override;
@@ -649,14 +1071,15 @@ public:
 class MNM_Passenger_Path_PnR : public MNM_Passenger_Path_Base
 {
 public:
-    MNM_Passenger_Path_PnR(int mode_1, int mode_2, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
-                           MNM_Passenger_Path_Driving *driving_part,
-                           MNM_Passenger_Path_Bus *bus_part,
+    MNM_Passenger_Path_PnR(int mode, MNM_PnR_Path *path, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
+                           TFlt walking_time_before_driving, MNM_Parking_Lot* parking_lot, TFlt bus_fare,
                            TFlt pnr_inconvenience);
     virtual ~MNM_Passenger_Path_PnR() override;
 
+    MNM_PnR_Path *m_path;
     MNM_Passenger_Path_Driving *m_driving_part;
     MNM_Passenger_Path_Bus *m_bus_part;
+    MNM_Parking_Lot *m_mid_parking_lot;
     TFlt m_pnr_inconvenience;
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
@@ -686,14 +1109,23 @@ public:
 typedef std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<TInt, MNM_Passenger_Pathset*>*>*> Passenger_Path_Table;
 
 namespace MNM {
+    int normalize_path_table_p(PnR_Path_Table *pnr_path_table);
 
-    Passenger_Path_Table *build_shortest_passenger_pathset(std::vector<MMDue_mode>*mode_vec,
-                                                           std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> *passenger_demand,
-                                                           MNM_MM_Due *mmdue, PNEGraph &graph,
+    int copy_buffer_to_p(PnR_Path_Table *pnr_path_table, TInt col);
+
+    bool has_running_passenger(MNM_Passenger_Factory *passenger_factory);
+
+    int print_passenger_statistics(MNM_Passenger_Factory *passenger_factory);
+
+    TFlt get_path_tt_snapshot(MNM_Path* path, std::unordered_map<TInt, TFlt> &link_cost_map);
+
+    Passenger_Path_Table *build_shortest_passenger_pathset(std::vector<MMDue_mode> &mode_vec,
+                                                           std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &passenger_demand,
+                                                           std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> &od_mode_connectivity,
+                                                           MNM_MM_Due *mmdue, PNEGraph &driving_graph, PNEGraph &bustransit_graph,
                                                            MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory,
-                                                           MNM_Busstop_Factory *busstop_factory, Bus_Path_Table *bus_path_table,
-                                                           MNM_Walking_Link_Factory *walking_link_factory,
-                                                           MNM_Parking_Lot_Factory *parking_lot_factory);
+                                                           MNM_Transit_Link_Factory *transitlink_factory,
+                                                           MNM_Busstop_Factory *busstop_factory);
 
     int allocate_passenger_path_table_buffer(Passenger_Path_Table *path_table, TInt num);
 
@@ -719,13 +1151,15 @@ public:
 
     MNM_Dta_Multimodal *run_mmdta(bool verbose);
 
+    int check_od_mode_connectivity();
+
     virtual int init_passenger_path_flow();
 
-    virtual int update_vehicle_demand_from_passenger_path_table(MNM_Dta_Multimodal *mmdta);
+    virtual int update_origin_demand_from_passenger_path_table(MNM_Dta_Multimodal *mmdta);
 
-    virtual int clear_vehicle_path_table();
+    virtual int clear_multimodal_path_table_buffer();
 
-    virtual int passenger_path_table_to_vehicle_path_table(MNM_Dta_Multimodal *mmdta);
+    virtual int passenger_path_table_to_multimodal_path_table(MNM_Dta_Multimodal *mmdta);
 
     virtual int update_path_table(MNM_Dta_Multimodal *mmdta, int iter);
 
@@ -735,17 +1169,31 @@ public:
 
     int build_link_cost_map(MNM_Dta_Multimodal *mmdta);
 
-    std::pair<std::pair<std::pair<MNM_Passenger_Path_Base *, TInt>, TFlt>, TInt> get_best_path(TInt o_node_ID, TInt d_node_ID, MNM_TDSP_Tree *tdsp_tree, MNM_Dta_Multimodal *mmdta);
+    std::pair<std::tuple<MNM_Passenger_Path_Base *, TInt, TFlt>, int> get_best_path(TInt o_node_ID, TInt d_node_ID,
+                                                                                    std::unordered_map<TInt, MNM_TDSP_Tree*> &tdsp_tree_map_driving,
+                                                                                    std::unordered_map<TInt, MNM_TDSP_Tree*> &tdsp_tree_map_bus,
+                                                                                    MNM_Dta_Multimodal *mmdta);
 
-    std::pair<std::pair<MNM_Passenger_Path_Driving *, TInt>, TFlt> get_best_driving_path(TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree, MNM_Dta_Multimodal *mmdta);
+    std::tuple<MNM_Passenger_Path_Driving*, TInt, TFlt> get_best_driving_path(TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree_driving, MNM_Dta_Multimodal *mmdta);
 
-    std::pair<std::pair<MNM_Passenger_Path_Bus *, TInt>, TFlt> get_best_bus_path(TInt o_node_ID, TInt d_node_ID, MNM_Dta_Multimodal *mmdta);
+    std::tuple<MNM_Passenger_Path_Bus*, TInt, TFlt> get_best_bus_path(TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree_bus, MNM_Dta_Multimodal *mmdta);
 
-    std::pair<std::pair<std::pair<MNM_Passenger_Path_Base *, TInt>, TFlt>, TInt> get_best_path_for_single_interval(TInt interval, TInt o_node_ID, TInt d_node_ID, MNM_TDSP_Tree *tdsp_tree, MNM_Dta_Multimodal *mmdta);
+    std::tuple<MNM_Passenger_Path_PnR*, TInt, TFlt> get_best_pnr_path(TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree_bus,
+                                                                      std::unordered_map<TInt, MNM_TDSP_Tree*> &tdsp_tree_map_driving,
+                                                                      MNM_Dta_Multimodal *mmdta);
 
-    std::pair<std::pair<MNM_Passenger_Path_Driving *, TInt>, TFlt> get_best_driving_path_for_single_interval(TInt interval, TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree, MNM_Dta_Multimodal *mmdta);
+    std::pair<std::tuple<MNM_Passenger_Path_Base *, TInt, TFlt>, int> get_best_path_for_single_interval(TInt interval, TInt o_node_ID, TInt d_node_ID,
+                                                                                                        std::unordered_map<TInt, MNM_TDSP_Tree*> &tdsp_tree_map_driving,
+                                                                                                        std::unordered_map<TInt, MNM_TDSP_Tree*> &tdsp_tree_map_bus,
+                                                                                                        MNM_Dta_Multimodal *mmdta);
 
-    std::pair<std::pair<MNM_Passenger_Path_Bus *, TInt>, TFlt> get_best_bus_path_for_single_interval(TInt interval, TInt o_node_ID, TInt d_node_ID, MNM_Dta_Multimodal *mmdta);
+    std::tuple<MNM_Passenger_Path_Driving*, TInt, TFlt> get_best_driving_path_for_single_interval(TInt interval, TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree_driving, MNM_Dta_Multimodal *mmdta);
+
+    std::tuple<MNM_Passenger_Path_Bus*, TInt, TFlt> get_best_bus_path_for_single_interval(TInt interval, TInt o_node_ID, MNM_TDSP_Tree* tdsp_tree_bus, MNM_Dta_Multimodal *mmdta);
+
+    std::tuple<MNM_Passenger_Path_PnR*, TInt, TFlt> get_best_pnr_path_for_single_interval(TInt interval, TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree_bus,
+                                                                                          std::unordered_map<TInt, MNM_TDSP_Tree*> &tdsp_tree_map_driving,
+                                                                                          MNM_Dta_Multimodal *mmdta);
 
     TFlt compute_total_passenger_demand_for_one_mode(int mode, TInt origin_node_ID, TInt dest_node_ID, TInt assign_inter);
 
@@ -760,7 +1208,8 @@ public:
     std::string m_file_folder;
     MNM_ConfReader *m_mmdta_config;
     MNM_ConfReader *m_mmdue_config;
-
+    // <origin_node_ID, <dest_node_ID, <mode, true or false>>>
+    std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> m_od_mode_connectivity;
     TInt m_num_modes;
     TFlt m_unit_time;
     TInt m_total_assign_inter; // different from m_mmdta -> m_total_assign_inter, which is actually a releasing interval
@@ -770,12 +1219,12 @@ public:
     std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_passenger_demand;
     // <O_node_ID, <D_node_ID, <mode_ID, passenger_pathset>>>
     Passenger_Path_Table *m_passenger_path_table;
-    Path_Table *m_vehicle_path_table;
-    Path_Table *m_truck_path_table;
-    Bus_Path_Table *m_bus_path_table;
 
-    MNM_Parking_Lot_Factory *m_parkinglot_factory;
-    MNM_Walking_Link_Factory *m_walkinglink_factory;
+    Path_Table *m_driving_path_table;
+    Path_Table *m_truck_path_table;
+    PnR_Path_Table *m_pnr_path_table;
+    Path_Table *m_bustransit_path_table;
+    Bus_Path_Table *m_bus_path_table;
 
     std::vector<MMDue_mode> m_mode_vec;
 
@@ -788,6 +1237,8 @@ public:
     TFlt m_early_penalty;
     TFlt m_late_penalty;
     TFlt m_target_time;
+
+    TInt m_max_iter;
     TFlt m_step_size;
 
     TFlt m_parking_lot_to_destination_walking_time;
@@ -803,6 +1254,7 @@ public:
 
     // time-varying link cost
     std::unordered_map<TInt, TFlt *> m_link_cost_map;
+    std::unordered_map<TInt, TFlt *> m_transitlink_cost_map;
 
 };
 

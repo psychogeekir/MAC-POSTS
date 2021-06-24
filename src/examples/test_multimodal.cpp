@@ -19,23 +19,24 @@ int main()
 
     MNM_Dlink *_link;
     MNM_Dlink_Multiclass *_link_m;
+    MNM_Transit_Link *_transit_link;
 
     printf("BEGIN multimodal test!\n");
 
     // On ubuntu (PC)
     // std::string folder = "/home/alanpi/Desktop/MAC-POSTS/data/input_files_SPC_separate_Routing";
     // std::string folder = "/home/lemma/Documents/MAC-POSTS/src/examples/mcDODE/a6e7b31067d2ead8d3725fc0ed587d06c958f63c";
-    std::string folder = "../../../data/input_files_7link_multimodal_dnl";
+    std::string folder = "../../../data/input_files_7link_multimodal_dta";
 
     // on macOS (Mac air)
     // std::string folder = "/Users/alan-air/Dropbox/MAC-POSTS/data/input_files_MckeesRocks_SPC";
     // std::string folder = "/media/lemma/WD/nhd/experiments/src/temp_input";
 
-    MNM_ConfReader *config = new MNM_ConfReader(folder + "/config.conf", "STAT");
+    auto *config = new MNM_ConfReader(folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
 
 
-    MNM_Dta_Multimodal *test_dta = new MNM_Dta_Multimodal(folder);
+    auto *test_dta = new MNM_Dta_Multimodal(folder);
 
     printf("================================ DTA set! =================================\n");
 
@@ -44,6 +45,9 @@ int main()
 
     test_dta -> hook_up_node_and_link();
     printf("====================== Finished node and link hook-up! ====================\n");
+
+    test_dta -> find_connected_pnr_parkinglot_for_destination();
+    printf("====================== Finished dest node and mid parking lot connectivity check! ====================\n");
 
     test_dta -> is_ok();
     printf("============================ DTA is OK to run! ============================\n");
@@ -56,14 +60,15 @@ int main()
     printf("\n\n\n====================================== Start loading! =======================================\n");
     bool _verbose = false;
     bool output_link_cong = true; // if true output link congestion level every cong_frequency
-    TInt cong_frequency = 180; // 15 minutes
+    TInt cong_frequency = 60; // 15 minutes
     bool output_veh_locs = true; // if true output veh location every vis_frequency
     TInt vis_frequency = 60; // 5 minutes
     bool output_busroute_tt = true; // if true output busroute tt every vis_frequency
     TInt bustt_frequency = 60; // 5 minutes
 
-    MNM_Routing_Biclass_Bus_Hybrid* _routing;
+    MNM_Routing_Multimodal_Hybrid* _routing;
     MNM_Veh_Multimodal* _veh;
+    MNM_Passenger* _passenger;
     std::ofstream _vis_file;
     std::string _str;
     if (output_veh_locs){
@@ -102,8 +107,8 @@ int main()
         // if (_current_inter > 200) break;
     }
 
-    // Output total travels and travel time, before divided by flow_scalar
-    TInt _count_car = 0, _count_truck = 0;
+    // Output vehicles' total count and travel time, before divided by flow_scalar
+    TInt _count_car = 0, _count_truck = 0, _count_bus = 0;
     TFlt _tot_tt = 0.0;
     for (auto _map_it : test_dta -> m_veh_factory -> m_veh_map){
         if (_map_it.second -> m_finish_time > 0) {
@@ -112,19 +117,33 @@ int main()
                 _count_car += 1;
             }
             else {
-                _count_truck += 1;
+                if (_veh -> m_bus_route_ID == TInt(-1)) {
+                    _count_truck += 1;
+                }
+                else {
+                    _count_bus += 1;
+                }
             }
             _tot_tt += (_veh -> m_finish_time - _veh -> m_start_time) * test_dta -> m_unit_time / 3600.0;
         }
     }
-    printf("\n\n\nTotal car: %d, Total truck: %d, Total tt: %.2f hours\n\n\n\n", int(_count_car), int(_count_truck), float(_tot_tt));
+    printf("\n\n\nTotal car: %d, Total truck: %d, Total bus: %d, Total tt: %.2f hours\n\n\n\n", int(_count_car), int(_count_truck), int(_count_bus), float(_tot_tt));
 
-
+    // Output passengers' total count and travel time
+    TInt _count_passenger = 0;
+    _tot_tt = 0.0;
+    for (auto _map_it : test_dta -> m_passenger_factory -> m_passenger_map){
+        if (_map_it.second -> m_finish_time > 0) {
+            _passenger = _map_it.second;
+            _count_passenger += 1;
+            _tot_tt += (_passenger -> m_finish_time - _passenger -> m_start_time) * test_dta -> m_unit_time / 3600.0;
+        }
+    }
+    printf("\n\n\nTotal passenger: %d, Total tt: %.2f hours\n\n\n\n", int(_count_passenger), float(_tot_tt));
 
     if (output_veh_locs){
         if (_vis_file.is_open()) _vis_file.close();
     }
-
 
     std::ofstream _vis_file2;
     if (output_link_cong){
@@ -137,19 +156,34 @@ int main()
         while (_iter < _current_inter){
             if (_iter % cong_frequency == 0 || _iter == _current_inter - 1){
                 printf("Current loading interval: %d\n", int(_iter));
-                for (auto _link_it = test_dta -> m_link_factory -> m_link_map.begin(); _link_it != test_dta -> m_link_factory -> m_link_map.end(); _link_it++){
-                    _link = _link_it -> second;
+                for (auto _link_it : test_dta -> m_link_factory -> m_link_map){
+                    _link = _link_it.second;
                     _link_m = dynamic_cast<MNM_Dlink_Multiclass*>(_link);
                     _str = "\ntimestamp (intervals): " + std::to_string(int(_iter)) + " ";
-                    _str += "link_ID: " + std::to_string(_link -> m_link_ID()) + " ";
-                    _str += "car_inflow: " + std::to_string(MNM_DTA_GRADIENT::get_link_inflow_car(_link_m, _iter, _iter + 1)) + " ";
-                    _str += "truck_inflow: " + std::to_string(MNM_DTA_GRADIENT::get_link_inflow_truck(_link_m, _iter, _iter + 1)) + " ";
-                    _str += "car_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time) * test_dta -> m_unit_time) + " ";
-                    _str += "truck_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time) * test_dta -> m_unit_time) + " ";
+                    _str += "driving_link_ID: " + std::to_string(_link -> m_link_ID()) + " ";
+                    _str += "car_inflow: " + std::to_string(MNM_DTA_GRADIENT::get_link_inflow_car(_link_m, _iter, _iter+1)) + " ";
+                    _str += "truck_inflow: " + std::to_string(MNM_DTA_GRADIENT::get_link_inflow_truck(_link_m, _iter, _iter+1)) + " ";
+                    _str += "car_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), test_dta -> m_unit_time) * test_dta -> m_unit_time) + " ";
+                    _str += "truck_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), test_dta -> m_unit_time) * test_dta -> m_unit_time) + " ";
                     _str += "car_fftt (s): " + std::to_string(_link_m -> get_link_freeflow_tt_car()) + " ";
                     _str += "truck_fftt (s): " + std::to_string(_link_m -> get_link_freeflow_tt_truck()) + " ";
-                    _str += "car_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time) * test_dta -> m_unit_time) * 3600 / 1600) + " ";
-                    _str += "truck_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time) * test_dta -> m_unit_time) * 3600 / 1600) + "\n";
+                    _str += "car_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), test_dta -> m_unit_time) * test_dta -> m_unit_time) * 3600 / 1600) + " ";
+                    _str += "truck_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), test_dta -> m_unit_time) * test_dta -> m_unit_time) * 3600 / 1600) + "\n";
+                    _vis_file2 << _str;
+                }
+                for (auto _link_it : test_dta -> m_transitlink_factory -> m_transit_link_map){
+                    _transit_link = _link_it.second;
+                    _str = "\ntimestamp (intervals): " + std::to_string(int(_iter)) + " ";
+                    _str += "bus_transit_link_ID: " + std::to_string(_transit_link -> m_link_ID()) + " ";
+                    _str += "bus_transit_link_type: " + std::to_string(_transit_link -> m_link_type) + " ";
+                    if (_transit_link -> m_link_type == MNM_TYPE_WALKING_MULTIMODAL) {
+                        _str += "tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transit_link), TFlt(_iter), test_dta -> m_unit_time) * test_dta -> m_unit_time) + " ";
+                        _str += "fftt (s): " + std::to_string(dynamic_cast<MNM_Walking_Link*>(_transit_link) -> m_fftt) + "\n";
+                    }
+                    else {
+                        _str += "tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter), test_dta -> m_unit_time) * test_dta -> m_unit_time) + " ";
+                        _str += "fftt (s): " + std::to_string(dynamic_cast<MNM_Bus_Link*>(_transit_link) -> m_fftt) + "\n";
+                    }
                     _vis_file2 << _str;
                 }
             }
@@ -177,10 +211,9 @@ int main()
 
     // output CC of some special links
     std::cout << "\n\n **************************** link cc ****************************" << std::endl;
-    for (auto _link_it = test_dta->m_link_factory->m_link_map.begin();
-         _link_it != test_dta->m_link_factory->m_link_map.end(); _link_it++) {
-        _link = _link_it->second;
-        if (_link->m_link_ID() == 1) {
+    for (auto _link_it : test_dta->m_link_factory->m_link_map) {
+        _link = _link_it.second;
+        if (_link->m_link_ID() == 2) {
             _link_m = dynamic_cast<MNM_Dlink_Multiclass *>(_link);
             std::cout << "\nlink_ID: " << _link->m_link_ID << std::endl;
             printf("m_N_in_car: \n");
@@ -201,7 +234,7 @@ int main()
             printf("Error happens when open _vis_file3\n");
             exit(-1);
         }
-        _routing = dynamic_cast<MNM_Routing_Biclass_Bus_Hybrid*>(test_dta -> m_routing);
+        _routing = dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(test_dta -> m_routing);
         TInt _iter = 0;
         while (_iter < _current_inter){
             if (_iter % bustt_frequency == 0 || _iter == _current_inter - 1){
@@ -212,20 +245,26 @@ int main()
                      std::cout << "\n\n **************************** busstop cc ****************************" << std::endl;
                      for (auto _busstop_it : test_dta -> m_busstop_factory -> m_busstop_map){
                          auto* _busstop = _busstop_it.second;
-                         if ((_busstop -> m_busstop_ID() == 101) || (_busstop -> m_busstop_ID() == 106) || (_busstop -> m_busstop_ID() == 4)){
-                             for (auto _route_ID : _busstop -> m_routeID_vec) {
-                                 std::cout << "\nbusstop ID: " << _busstop -> m_busstop_ID << std::endl;
-                                 std::cout << "route ID: " << _route_ID << std::endl;
-                                 printf("m_N_in_bus: \n");
-                                 std::cout <<_busstop -> m_N_in_bus.find(_route_ID) -> second -> to_string() << std::endl;
-                                 printf("m_N_out_bus: \n");
-                                 std::cout <<_busstop -> m_N_out_bus.find(_route_ID) -> second -> to_string() << std::endl;
-                             }
+                         if (_busstop -> m_busstop_ID() > 0){
+                             std::cout << "\nbusstop ID: " << _busstop -> m_busstop_ID << std::endl;
+                             std::cout << "route ID: " << _busstop -> m_route_ID << std::endl;
+                             printf("m_N_in_bus: \n");
+                             std::cout <<_busstop -> m_N_in_bus -> to_string() << std::endl;
+                             printf("m_N_out_bus: \n");
+                             std::cout <<_busstop -> m_N_out_bus -> to_string() << std::endl;
+
+                             _str = "\nbusstop ID: " + std::to_string(_busstop -> m_busstop_ID) + "\n";
+                             _str += "route ID: " + std::to_string(_busstop -> m_route_ID) + "\n";
+                             _str += "m_N_in_bus: \n";
+                             _str += _busstop -> m_N_in_bus -> to_string();
+                             _str += "m_N_out_bus: \n";
+                             _str += _busstop -> m_N_out_bus -> to_string();
+                             _vis_file3 << _str;
                          }
                      }
                  }
 
-                for (auto _it : *(_routing -> m_routing_fixed_bus -> m_bus_path_table)) {
+                for (auto _it : *(_routing -> m_routing_bus_fixed -> m_bus_path_table)) {
                     for (auto _it_it : *(_it.second)) {
                         for (auto _it_it_it : *(_it_it.second)) {
                             _str = "\ntimestamp (intervals) " + std::to_string(int(_iter)) + " ";

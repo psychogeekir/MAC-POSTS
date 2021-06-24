@@ -29,8 +29,10 @@ public:
   int finish(TInt finish_time);
   MNM_Origin *get_origin();
   int set_origin(MNM_Origin * origin);
+
   virtual TInt get_class() {return m_class;}; // virtual getter for derived class
   virtual TInt get_bus_route_ID() {return m_bus_route_ID;}; // virtual getter for derived class
+  virtual bool get_ispnr() {return m_pnr;}; // virtual getter for derived class
 // private:
   Vehicle_type m_type;
   MNM_Dlink *m_current_link;
@@ -42,9 +44,12 @@ public:
   // m_path will only be used in Fixed routing (didn't find a better way to encode)
   MNM_Path* m_path; 
   TInt m_assign_interval;
+
   TInt m_class;
   // m_bus_route only used in multimodal loading
   TInt m_bus_route_ID;
+  // m_pnr only used in multimodal loading
+  bool m_pnr;
 };
 
 

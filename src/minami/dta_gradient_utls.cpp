@@ -29,6 +29,13 @@ namespace MNM_DTA_GRADIENT {
         return link->m_N_in->get_result(TFlt(end_time)) - link->m_N_in->get_result(TFlt(start_time));
     }
 
+    TFlt get_travel_time_from_FD(MNM_Dlink* link, TFlt start_time, TFlt unit_interval) {
+        TFlt _flow = link->m_N_in->get_result(start_time) - link->m_N_out->get_result(start_time);
+        if (_flow < 0.) _flow = 0.;
+        TFlt _tt = link ->get_link_tt_from_flow(_flow);
+        return _tt / unit_interval;
+    }
+
     TFlt get_travel_time(MNM_Dlink *link, TFlt start_time, TFlt unit_interval) {
 
         if (link == nullptr) {
@@ -42,11 +49,21 @@ namespace MNM_DTA_GRADIENT {
         if (_cc_flow <= DBL_EPSILON) {
             return fftt; //link->get_link_tt();  // free flow travel time
         }
+
+        // from fundamental diagram
+        TFlt _tt = get_travel_time_from_FD(link, start_time, unit_interval);
+        if (_tt > fftt) fftt = _tt;
+
+        // get the earliest time point in m_N_in that reaches the inflow == _cc_flow as the true start_time
+        TFlt _true_start_time = link -> m_N_in -> get_time(_cc_flow);
+
+        // get the earliest time point in m_N_out that reaches the outflow == _cc_flow as the end_time
         TFlt _end_time = link->m_N_out->get_time(_cc_flow);
-        if (_end_time() < 0 || (_end_time - start_time < 0) || (_end_time - start_time < fftt)) {
+
+        if (_end_time() < 0 || (_end_time - _true_start_time < 0) || (_end_time - _true_start_time < fftt)) {
             return fftt; //link->get_link_tt();  // free flow travel time
         } else {
-            return _end_time - start_time;  // # of unit intervals
+            return _end_time - _true_start_time;  // # of unit intervals
         }
     }
 

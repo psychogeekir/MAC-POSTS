@@ -14,8 +14,8 @@
 class MNM_Statistics
 {
 public:
-  MNM_Statistics(std::string file_folder, MNM_ConfReader *conf_reader, MNM_ConfReader *record_config, 
-                  MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
+  MNM_Statistics(const std::string& file_folder, MNM_ConfReader *conf_reader, MNM_ConfReader *record_config,
+                 MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
   virtual ~MNM_Statistics();
 
   MNM_ConfReader *m_self_config;
@@ -32,11 +32,11 @@ public:
 
 
   /* universal function */
-  int record_loading_interval_condition(TInt timestamp);
-  int record_record_interval_condition(TInt timestamp);
-  int virtual update_record(TInt timestamp){return 0;};
-  int virtual init_record();
-  int virtual post_record();
+  virtual int record_loading_interval_condition(TInt timestamp);
+  virtual int record_record_interval_condition(TInt timestamp);
+  virtual int update_record(TInt timestamp){return 0;};
+  virtual int init_record();
+  virtual int post_record();
 protected:
   int init_record_value();
   bool m_record_volume;
@@ -60,14 +60,13 @@ protected:
 class MNM_Statistics_Lrn : public MNM_Statistics
 {
 public:
-  MNM_Statistics_Lrn(std::string file_folder, MNM_ConfReader *conf_reader, MNM_ConfReader *record_config,
-                  MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
-  ~MNM_Statistics_Lrn();
-  int virtual update_record(TInt timestamp);
-  int virtual init_record();
-  int virtual post_record();
-private:
+  MNM_Statistics_Lrn(const std::string& file_folder, MNM_ConfReader *conf_reader, MNM_ConfReader *record_config,
+                     MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
+  virtual ~MNM_Statistics_Lrn() override;
+  virtual int update_record(TInt timestamp) override;
+  virtual int init_record() override;
   TInt m_n;
+private:
   std::unordered_map<TInt, TFlt> m_to_be_volume;
   std::unordered_map<TInt, TFlt> m_to_be_tt;
 };

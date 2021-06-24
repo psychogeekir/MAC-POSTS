@@ -215,7 +215,7 @@ int MNM_Dlink_Ctm::evolve(TInt timestamp) {
     // printf("update_out_veh\n");
     update_out_veh();
     TInt _num_veh_tomove;
-    // printf("move previou cells\n");
+    // printf("move previous cells\n");
     /* previous cells */
     if (m_num_cells > 1) {
         for (int i = 0; i < m_num_cells - 1; ++i) {
@@ -339,6 +339,26 @@ TFlt MNM_Dlink_Ctm::get_link_tt() {  // in seconds, not in unit time interval, c
     return _cost;
 }
 
+TFlt MNM_Dlink_Ctm::get_link_tt_from_flow(TFlt flow)
+{
+    TFlt _cost, _spd;
+    TFlt _rho = flow / m_number_of_lane / m_length;// get the density in veh/mile
+    TFlt _rhoj = m_lane_hold_cap; //get the jam density
+    TFlt _rhok = m_lane_flow_cap / m_ffs; //get the critical density
+    //  if (abs(rho - rhok) <= 0.0001) cost = POS_INF_INT;
+    if (_rho >= _rhoj) {
+        _cost = MNM_Ults::max_link_cost(); //sean: i think we should use rhoj, not rhok
+    } else {
+        if (_rho <= _rhok) {
+            _spd = m_ffs;
+        } else {
+            _spd = MNM_Ults::max(0.001 * m_ffs, m_lane_flow_cap * (_rhoj - _rho) / ((_rhoj - _rhok) * _rho));
+        }
+        _cost = m_length / _spd;
+    }
+    return _cost;
+}
+
 /**************************************************************************
                           Point Queue
 **************************************************************************/
@@ -434,6 +454,25 @@ TFlt MNM_Dlink_Pq::get_link_tt() {
     return _cost;
 }
 
+TFlt MNM_Dlink_Pq::get_link_tt_from_flow(TFlt flow)
+{
+    TFlt _cost, _spd;
+    TFlt _rho = flow / m_number_of_lane / m_length;// get the density in veh/mile
+    TFlt _rhoj = m_lane_hold_cap; //get the jam density
+    TFlt _rhok = m_lane_flow_cap / m_ffs; //get the critical density
+    //  if (abs(rho - rhok) <= 0.0001) cost = POS_INF_INT;
+    if (_rho >= _rhoj) {
+        _cost = MNM_Ults::max_link_cost(); //sean: i think we should use rhoj, not rhok
+    } else {
+        if (_rho <= _rhok) {
+            _spd = m_ffs;
+        } else {
+            _spd = MNM_Ults::max(DBL_EPSILON * m_ffs, m_lane_flow_cap * (_rhoj - _rho) / ((_rhoj - _rhok) * _rho));
+        }
+        _cost = m_length / _spd;
+    }
+    return _cost;
+}
 
 /**************************************************************************
                           Link Queue
@@ -525,6 +564,26 @@ TFlt MNM_Dlink_Lq::get_link_flow() {
 TFlt MNM_Dlink_Lq::get_link_tt() {
     TFlt _cost, _spd;
     TFlt _rho = get_link_flow() / m_number_of_lane / m_length;// get the density in veh/mile
+    TFlt _rhoj = m_lane_hold_cap; //get the jam density
+    TFlt _rhok = m_lane_flow_cap / m_ffs; //get the critical density
+    //  if (abs(rho - rhok) <= 0.0001) cost = POS_INF_INT;
+    if (_rho >= _rhoj) {
+        _cost = MNM_Ults::max_link_cost(); //sean: i think we should use rhoj, not rhok
+    } else {
+        if (_rho <= _rhok) {
+            _spd = m_ffs;
+        } else {
+            _spd = MNM_Ults::max(DBL_EPSILON * m_ffs, m_lane_flow_cap * (_rhoj - _rho) / ((_rhoj - _rhok) * _rho));
+        }
+        _cost = m_length / _spd;
+    }
+    return _cost;
+}
+
+TFlt MNM_Dlink_Lq::get_link_tt_from_flow(TFlt flow)
+{
+    TFlt _cost, _spd;
+    TFlt _rho = flow / m_number_of_lane / m_length;// get the density in veh/mile
     TFlt _rhoj = m_lane_hold_cap; //get the jam density
     TFlt _rhok = m_lane_flow_cap / m_ffs; //get the critical density
     //  if (abs(rho - rhok) <= 0.0001) cost = POS_INF_INT;
@@ -673,19 +732,32 @@ TFlt MNM_Cumulative_Curve::get_result(TFlt time) {
     if (m_recorder[0].first >= time) {
         return m_recorder[0].second;
     }
-    for (size_t i = 1; i < m_recorder.size(); ++i) {
-        if (m_recorder[i].first > time) {
-            return m_recorder[i - 1].second;  // rounding down
-//        } else if (m_recorder[i].first == time) {
-        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-        } else if (std::abs(m_recorder[i].first - time) <= 1e-6 * std::max(std::abs(m_recorder[i].first), std::abs(time))) { //
-            return m_recorder[i].second;
-        }
 
-//        if (m_recorder[i].first >= time) {
-//            return m_recorder[i].second;  // rounding up
-//        }
+    // considering m_recorder[i].first is also time stamp
+    int j = (int)(time - m_recorder[0].first) - 1;
+    if (j < 1) j = 1;
+    for (int i = j; i < std::min(j+3, (int)m_recorder.size()); ++i) {
+        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
+        if (std::abs(m_recorder[i].first - time) <= 1e-6 * std::max(std::abs(m_recorder[i].first), std::abs(time))) { //
+            return m_recorder[i].second;
+        } else if (m_recorder[i].first > time) {
+            return m_recorder[i - 1].second;  // rounding down
+        }
     }
+
+//    // original, loop over
+//    for (size_t i = 1; i < m_recorder.size(); ++i) {
+//        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
+//        if (std::abs(m_recorder[i].first - time) <= 1e-6 * std::max(std::abs(m_recorder[i].first), std::abs(time))) { //
+//            return m_recorder[i].second;
+//        } else if (m_recorder[i].first > time) {
+//            return m_recorder[i - 1].second;  // rounding down
+//        }
+//
+////        if (m_recorder[i].first >= time) {
+////            return m_recorder[i].second;  // rounding up
+////        }
+//    }
     return m_recorder.back().second;
 }
 
@@ -722,18 +794,41 @@ TFlt MNM_Cumulative_Curve::get_time(TFlt result) {
     if (m_recorder.size() == 1) {
         return TFlt(-1);
     }
-    for (size_t i = 1; i < m_recorder.size(); ++i) {
-        if (m_recorder[i].second > result) {
-            return m_recorder[i - 1].first;  // rounding down
-        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-        } else if (std::abs(m_recorder[i].second - result) <= 1e-6 * std::max(std::abs(m_recorder[i].second), std::abs(result))) { //
-            return m_recorder[i].first;
-        }
 
-//        if (m_recorder[i].second >= result) {
-//            return m_recorder[i].first;  // rounding up
-//        }
+    // considering non-decreasing cc record
+    std::vector<TFlt> _flow_vec = std::vector<TFlt>();
+    for (size_t i = 1; i < m_recorder.size(); ++i) {
+        _flow_vec.push_back(m_recorder[i].second);
     }
+    // Search for first element x such that result ≤ x
+    int i = -1;
+    auto _lower = std::lower_bound(_flow_vec.begin(), _flow_vec.end(), result);
+    if (_lower != _flow_vec.end()) {
+        i = std::distance(_flow_vec.begin(), _lower) + 1;
+        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
+        if (std::abs(m_recorder[i].second - result) <= 1e-6 * std::max(std::abs(m_recorder[i].second), std::abs(result))) { //
+            return m_recorder[i].first;
+        } else if (m_recorder[i].second > result) {
+            return m_recorder[i - 1].first;  // rounding down
+        }
+    }
+    _flow_vec.clear();
+
+//    // original, loop over
+//    for (size_t i = 1; i < m_recorder.size(); ++i) {
+//        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
+//        if (std::abs(m_recorder[i].second - result) <= 1e-6 * std::max(std::abs(m_recorder[i].second), std::abs(result))) { //
+//            return m_recorder[i].first;
+//        } else if (m_recorder[i].second > result) {
+//            return m_recorder[i - 1].first;  // rounding down
+//        }
+//        }
+//
+////        if (m_recorder[i].second >= result) {
+////            return m_recorder[i].first;  // rounding up
+////        }
+//    }
+
     return TFlt(-1);
 }
 
@@ -788,6 +883,26 @@ TFlt MNM_Dlink_Ltm::get_link_flow() {
 TFlt MNM_Dlink_Ltm::get_link_tt() {
     TFlt _cost, _spd;
     TFlt _rho = get_link_flow() / m_number_of_lane / m_length;// get the density in veh/mile
+    TFlt _rhoj = m_lane_hold_cap; //get the jam density
+    TFlt _rhok = m_lane_flow_cap / m_ffs; //get the critical density
+    //  if (abs(rho - rhok) <= 0.0001) cost = POS_INF_INT;
+    if (_rho >= _rhoj) {
+        _cost = MNM_Ults::max_link_cost(); //sean: i think we should use rhoj, not rhok
+    } else {
+        if (_rho <= _rhok) {
+            _spd = m_ffs;
+        } else {
+            _spd = MNM_Ults::max(DBL_EPSILON * m_ffs, m_lane_flow_cap * (_rhoj - _rho) / ((_rhoj - _rhok) * _rho));
+        }
+        _cost = m_length / _spd;
+    }
+    return _cost;
+}
+
+TFlt MNM_Dlink_Ltm::get_link_tt_from_flow(TFlt flow)
+{
+    TFlt _cost, _spd;
+    TFlt _rho = flow / m_number_of_lane / m_length;// get the density in veh/mile
     TFlt _rhoj = m_lane_hold_cap; //get the jam density
     TFlt _rhok = m_lane_flow_cap / m_ffs; //get the critical density
     //  if (abs(rho - rhok) <= 0.0001) cost = POS_INF_INT;

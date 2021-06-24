@@ -29,7 +29,6 @@ public:
   virtual int add_in_link(MNM_Dlink* in_link){printf("Error!\n"); return 0;};
   std::vector<MNM_Dlink*> m_out_link_array;
   std::vector<MNM_Dlink*> m_in_link_array;
-protected:
   TFlt m_flow_scalar;
 };
 

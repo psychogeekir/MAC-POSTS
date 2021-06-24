@@ -15,10 +15,8 @@ MNM_Routing::MNM_Routing(PNEGraph &graph,
 
 MNM_Routing::~MNM_Routing()
 {
-
+    ;
 }
-
-
 
 
 /**************************************************************************
@@ -107,8 +105,10 @@ MNM_Routing_Adaptive::MNM_Routing_Adaptive(const std::string& file_folder, PNEGr
 MNM_Routing_Adaptive::~MNM_Routing_Adaptive()
 {
   for (auto _it = m_od_factory -> m_destination_map.begin(); _it != m_od_factory -> m_destination_map.end(); _it++){
-    m_table -> find(_it -> second) -> second -> clear();
-    delete m_table -> find(_it -> second) -> second;
+    if (m_table -> find(_it -> second) != m_table -> end()) {
+        m_table -> find(_it -> second) -> second -> clear();
+        delete m_table -> find(_it -> second) -> second;
+    }
   }
   m_table -> clear();
   delete m_table;
@@ -131,6 +131,8 @@ int MNM_Routing_Adaptive::init_routing(Path_Table *path_table)
 
 int MNM_Routing_Adaptive::update_routing(TInt timestamp)
 {
+    // relying on m_statistics -> m_record_interval_tt, which is obtained in simulation, not after simulation
+    // link::get_link_tt(), based on density
   MNM_Destination *_dest;
   TInt _dest_node_ID;
   std::unordered_map<TInt, TInt> *_shortest_path_tree;
@@ -167,7 +169,7 @@ int MNM_Routing_Adaptive::update_routing(TInt timestamp)
       if (_veh -> m_type == MNM_TYPE_ADAPTIVE){
         _next_link_ID = m_table -> find(_veh -> get_destination()) -> second -> find(_node_ID) -> second;
         if (_next_link_ID < 0){
-          printf("Something wrong in routing, wrong next link 1\n");
+          printf("Something wrong in adaptive routing, wrong next link 1\n");
           // printf("%d\n", _veh -> get_destination() -> m_Dest_ID);
           // _shortest_path_tree = m_table -> find(_veh -> get_destination()) -> second;
           // printf("%d\n", _shortest_path_tree -> size());
@@ -206,7 +208,7 @@ int MNM_Routing_Adaptive::update_routing(TInt timestamp)
         // }
         _veh_dest = _veh -> get_destination();
         if (_veh_dest -> m_dest_node -> m_node_ID == _node_ID){
-          _veh -> set_next_link(NULL);
+          _veh -> set_next_link(nullptr);
         }
         else{
           _next_link_ID = m_table -> find(_veh -> get_destination()) -> second -> find(_node_ID) -> second;
@@ -225,16 +227,16 @@ int MNM_Routing_Adaptive::update_routing(TInt timestamp)
             }
           }
           _next_link = m_link_factory -> get_link(_next_link_ID);
-          if (_next_link != NULL) {
+          if (_next_link != nullptr) {
             // printf("Checking future\n");
             TInt _next_node_ID = _next_link -> m_to_node -> m_node_ID;
             if (_next_node_ID != _veh -> get_destination() -> m_dest_node -> m_node_ID){
               // printf("Destination node is %d\n", _veh -> get_destination() -> m_dest_node -> m_node_ID());
               if (m_table -> find(_veh -> get_destination()) == m_table -> end()){
-                printf("Cant'f find Destination\n");
+                printf("Cannot find Destination\n");
               }
               if (m_table -> find(_veh -> get_destination()) -> second -> find(_next_node_ID) == m_table -> find(_veh -> get_destination()) -> second -> end()){
-                printf("can't find _next_node_ID\n");
+                printf("Cannot find _next_node_ID\n");
               }
               if (m_table -> find(_veh -> get_destination()) -> second -> find(_next_node_ID) -> second == -1){
                 printf("Something wrong for the future node!\n");
@@ -276,6 +278,7 @@ MNM_Routing_Fixed::MNM_Routing_Fixed(PNEGraph &graph,
     m_buffer_length = buffer_len;
     // m_cur_routing_interval = 0;
   }
+  m_path_table = nullptr;
 }
 
 MNM_Routing_Fixed::~MNM_Routing_Fixed()
@@ -286,7 +289,7 @@ MNM_Routing_Fixed::~MNM_Routing_Fixed()
   }
   m_tracker.clear();
 
-  if ((m_path_table != NULL) && (m_path_table -> size() > 0)){
+  if ((m_path_table != nullptr) && (!m_path_table->empty())){
     // printf("Address of m_path_table is %p\n", (void *)m_path_table);
     // printf("%d\n", m_path_table -> size());
     for (auto _it : *m_path_table){
@@ -303,11 +306,11 @@ MNM_Routing_Fixed::~MNM_Routing_Fixed()
 
 int MNM_Routing_Fixed::init_routing(Path_Table *path_table)
 {
-  if (path_table == NULL && m_path_table == NULL){
+  if (path_table == nullptr && m_path_table == nullptr){
     printf("Path table need to be set in Fixed routing.\n");
     exit(-1);
   }
-  if (path_table != NULL){
+  if (path_table != nullptr){
     set_path_table(path_table);
     // printf("path_table set successfully.\n");
   }
@@ -424,7 +427,7 @@ int MNM_Routing_Fixed::register_veh(MNM_Veh* veh)
   // printf("%d\n", veh -> get_destination() -> m_dest_node  -> m_node_ID);
   MNM_Pathset *_pathset = m_path_table -> find(veh -> get_origin() -> m_origin_node  -> m_node_ID) -> second
                         -> find(veh -> get_destination() -> m_dest_node  -> m_node_ID) -> second;
-  MNM_Path *_route_path = NULL;
+  MNM_Path *_route_path = nullptr;
   // printf("1\n");
   // note m_path_vec is an ordered vector, not unordered
   for (MNM_Path *_path : _pathset -> m_path_vec){
@@ -438,7 +441,7 @@ int MNM_Routing_Fixed::register_veh(MNM_Veh* veh)
     }
   }
   // printf("3\n");
-  if (_route_path == NULL){
+  if (_route_path == nullptr){
     printf("Wrong probability!\n");
     exit(-1);
   }
@@ -607,7 +610,8 @@ int MNM_Routing_Biclass_Fixed::update_routing(TInt timestamp)
 //      TInt tmp3 = _veh -> m_bus_route_ID;
 //      TInt tmp4 = _veh -> get_bus_route_ID();
 
-      if ((_veh -> m_type == MNM_TYPE_STATIC) && (_veh -> get_class() == m_veh_class) && (_veh -> get_bus_route_ID() == TInt(-1))) {
+      if ((_veh -> m_type == MNM_TYPE_STATIC) && (_veh -> get_class() == m_veh_class) &&
+          (_veh -> get_bus_route_ID() == TInt(-1)) && (!_veh -> get_ispnr())) {
       // Here is the difference from single-class fixed routing
 
         if (m_tracker.find(_veh) == m_tracker.end()){
@@ -632,7 +636,8 @@ int MNM_Routing_Biclass_Fixed::update_routing(TInt timestamp)
       _veh = *_veh_it;
 
       // Here is the difference from single-class fixed routing
-      if ((_veh -> m_type == MNM_TYPE_STATIC) && (_veh -> get_class() == m_veh_class) && (_veh -> get_bus_route_ID() == TInt(-1))){
+      if ((_veh -> m_type == MNM_TYPE_STATIC) && (_veh -> get_class() == m_veh_class) &&
+          (_veh -> get_bus_route_ID() == TInt(-1)) && (!_veh -> get_ispnr())){
       // Here is the difference from single-class fixed routing
 
         _veh_dest = _veh -> get_destination();
@@ -641,7 +646,7 @@ int MNM_Routing_Biclass_Fixed::update_routing(TInt timestamp)
             printf("Something wrong in fixed routing!\n");
             exit(-1);
           }
-          _veh -> set_next_link(NULL);
+          _veh -> set_next_link(nullptr);
         }
         else{
           if (m_tracker.find(_veh) == m_tracker.end()){

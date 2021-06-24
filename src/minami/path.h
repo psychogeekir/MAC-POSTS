@@ -34,6 +34,7 @@ public:
 
   inline bool operator==(const MNM_Path& rhs) {
       if (m_link_vec.size() != rhs.m_link_vec.size()) return false;
+      // compare link ID for MultiGraph
       for (size_t i=0; i<rhs.m_link_vec.size(); ++i){
           if (rhs.m_link_vec[i] != m_link_vec[i])
               return false;
@@ -54,10 +55,10 @@ class MNM_Pathset
 {
 public:
   MNM_Pathset();
-  ~MNM_Pathset();
+  virtual ~MNM_Pathset();
   std::vector<MNM_Path*> m_path_vec;
   int normalize_p();
-  bool is_in(MNM_Path* path);
+  virtual bool is_in(MNM_Path* path);
 };
 
 // <O, <D, Pathset>>
@@ -66,7 +67,7 @@ typedef std::unordered_map<TInt, std::unordered_map<TInt, MNM_Pathset*>*> Path_T
 namespace MNM {
   MNM_Path *extract_path(TInt origin_ID, TInt dest_ID, std::unordered_map<TInt, TInt> &output_map, PNEGraph &graph);
   Path_Table *build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path = 0.0);
-  int save_path_table(std::string file_folder, Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer= false);
+  int save_path_table(const std::string& file_folder, Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer= false);
   int print_path_table(Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer= false);
   Path_Table *build_shortest_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory);
   // int save_path_table_w_buffer(Path_Table *path_table, MNM_OD_Factory *od_factory);

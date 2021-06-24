@@ -10,6 +10,7 @@
 #include <deque>
 #include <algorithm>
 
+
 class MNM_Link_Cost;
 class MNM_Path;
 
@@ -74,7 +75,7 @@ public:
 class MNM_TDSP_Tree
 {
 public:
-  MNM_TDSP_Tree(TInt dest_node_ID, PNEGraph graph, TInt max_interval);
+  MNM_TDSP_Tree(TInt dest_node_ID, const PNEGraph& graph, TInt max_interval);
   ~MNM_TDSP_Tree();
 
   int initialize();
@@ -82,7 +83,7 @@ public:
   TFlt get_distance_to_destination(TInt node_ID, TFlt time_stamp);
   int get_tdsp(TInt src_node_ID, TInt time, 
         std::unordered_map<TInt, TFlt*>& cost_map,MNM_Path* path);
-  int static round_time(TFlt time_stamp, TInt m_max_interval);
+  int round_time(TFlt time_stamp);
   std::unordered_map<TInt, TFlt*> m_dist;
   std::unordered_map<TInt, TInt*> m_tree;
   TInt m_dest_node_ID;

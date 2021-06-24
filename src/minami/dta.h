@@ -23,14 +23,14 @@ public:
   virtual ~MNM_Dta();
   virtual int initialize();
   virtual int build_from_files();
-  bool is_ok();
+  virtual bool is_ok();
   int hook_up_node_and_link();
   virtual int loading(bool verbose);
   virtual int load_once(bool verbose, TInt load_int, TInt assign_int);
   int test();
 // private:
-  bool finished_loading(int cur_int);
-  int set_statistics();
+  virtual bool finished_loading(int cur_int);
+  virtual int set_statistics();
   virtual int set_routing();
   int build_workzone();
   int check_origin_destination_connectivity();

@@ -58,7 +58,9 @@ MNM_Dta *MNM_Due::run_dta(bool verbose) {
     // printf("ddd\n");
     update_demand_from_path_table(_dta);
 
+    // now dynamic_cast<MNM_Routing_Fixed*>(dta -> m_routing) -> m_path_table will pointer to m_path_table, watch this before deleting dta
     _dta->m_routing->init_routing(m_path_table);
+
     // printf("dddd\n");
     _dta->hook_up_node_and_link();  // in and out links for node, beginning and ending nodes for link
     // printf("Checking......\n");
@@ -185,10 +187,10 @@ TFlt MNM_Due::get_tt(TFlt depart_time, MNM_Path *path) {
     TFlt _cur_time = depart_time;
     TInt _query_time;
     for (TInt _link_ID : path->m_link_vec) {
-        // rounding down, consistent with MNM_TDSP_Tree::update_tree() in shortest_path.cpp
-        _query_time = MNM_TDSP_Tree::round_time(_cur_time, m_total_loading_inter);
+        // rounding up, consistent with MNM_TDSP_Tree::update_tree() in shortest_path.cpp
+        // _query_time = MNM_Ults::min(int(_cur_time)+1, TInt(m_total_loading_inter - 1));
         // original rounding down
-        // _query_time = MNM_Ults::min(TInt(_cur_time), TInt(m_total_loading_inter - 1));
+        _query_time = MNM_Ults::min(TInt(_cur_time), TInt(m_total_loading_inter - 1));
         _cur_time += m_cost_map[_link_ID][_query_time];
     }
     return _cur_time - depart_time;
@@ -213,7 +215,7 @@ int MNM_Due::build_cost_map(MNM_Dta *dta) {
 
 MNM_Due_Msa::MNM_Due_Msa(std::string file_folder)
         : MNM_Due::MNM_Due(file_folder) {
-    m_base_dta = NULL;
+    m_base_dta = nullptr;
 }
 
 MNM_Due_Msa::~MNM_Due_Msa() {
@@ -346,12 +348,13 @@ int MNM_Due_Msa::update_path_table(MNM_Dta *dta, int iter) {
     MNM_Path *_best_path;
     int _best_time_col;
     int _best_assign_col;
+
+    build_cost_map(dta);
     for (auto _it : dta->m_od_factory->m_destination_map) {
         _dest = _it.second;
         _dest_node_ID = _dest->m_dest_node->m_node_ID;
         MNM_TDSP_Tree *_tdsp_tree = new MNM_TDSP_Tree(_dest_node_ID, dta->m_graph, m_total_loading_inter);
         _tdsp_tree->initialize();
-        build_cost_map(dta);
         // printf("111\n");
         _tdsp_tree->update_tree(m_cost_map);
         for (auto _map_it : dta->m_od_factory->m_origin_map) {
@@ -431,6 +434,7 @@ int MNM_Due_Msa::update_path_table(MNM_Dta *dta, int iter) {
 //                _best_path->m_buffer[_best_assign_col] += _tot_change;
             }
         }
+        delete _tdsp_tree;
     }
     MNM::print_path_table(m_path_table, dta->m_od_factory, true);
     MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);
@@ -449,13 +453,13 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
     MNM_Path *_best_path;
     bool _exist;
 
+    build_cost_map(dta);
     for (auto _it : dta->m_od_factory->m_destination_map) {
         _dest = _it.second;
         _dest_node_ID = _dest->m_dest_node->m_node_ID;
 
         MNM_TDSP_Tree *_tdsp_tree = new MNM_TDSP_Tree(_dest_node_ID, dta->m_graph, m_total_loading_inter);
         _tdsp_tree->initialize();
-        build_cost_map(dta);
         _tdsp_tree->update_tree(m_cost_map);
 
         for (auto _map_it : dta->m_od_factory->m_origin_map) {
@@ -503,6 +507,7 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
                 if (_exist) delete _path;
             }
         }
+        delete _tdsp_tree;
     }
     MNM::print_path_table(m_path_table, dta->m_od_factory, true);
     MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);
@@ -521,13 +526,13 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
     TFlt _tot_path_cost, _tmp_change, _tau, _tmp_tt, _tmp_cost, _min_flow;
     bool _exist;
 
+    build_cost_map(dta);
     for (auto _it : dta->m_od_factory->m_destination_map) {
         _dest = _it.second;
         _dest_node_ID = _dest->m_dest_node->m_node_ID;
 
         MNM_TDSP_Tree *_tdsp_tree = new MNM_TDSP_Tree(_dest_node_ID, dta->m_graph, m_total_loading_inter);
         _tdsp_tree->initialize();
-        build_cost_map(dta);
         _tdsp_tree->update_tree(m_cost_map);
 
         for (auto _map_it : dta->m_od_factory->m_origin_map) {
@@ -600,6 +605,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                 if (_exist) delete _path;
             }
         }
+        delete _tdsp_tree;
     }
     MNM::print_path_table(m_path_table, dta->m_od_factory, true);
     MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);

@@ -53,10 +53,10 @@ int main()
     }
 
     TFlt gap;
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < test_due -> m_max_iter; ++i) {
         printf("---------- Iteration %d ----------\n", i);
 
-        // DNL using dta.cpp, new dta is built from scratch
+        // DNL using dta, new dta is built from scratch
         mmdta = test_due->run_mmdta(false);
 
         // search for the lowest disutility route and update path flow
@@ -74,16 +74,16 @@ int main()
         gap = test_due -> compute_merit_function_fixed_departure_time_choice(mmdta);
         printf("GAP = %lf\n", (float) gap);
         gap_file << std::to_string(gap) + "\n";
-        // delete dta;
+
+        delete mmdta;
     }
 
     gap_file.close();
 
     delete config;
-    delete mmdta;
+    // delete mmdta;
     delete test_due;
     printf("====================== Finished delete test_due! ====================\n");
-
 
     return 0;
 }

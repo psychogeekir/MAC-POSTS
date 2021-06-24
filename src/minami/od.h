@@ -49,7 +49,7 @@ public:
   TInt m_Dest_ID;
   TFlt m_flow_scalar;
   MNM_DMDND *m_dest_node;
-  int receive(TInt current_interval);
+  virtual int receive(TInt current_interval);
 };
 
 namespace MNM{
