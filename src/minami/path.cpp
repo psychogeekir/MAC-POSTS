@@ -104,6 +104,71 @@ int MNM_Path::allocate_buffer(TInt length) {
     return 0;
 }
 
+int MNM_Path::eliminate_cycles() {
+    bool _flg = false;
+    TInt _node_ID;
+    std::vector<bool> _node_reserved = std::vector<bool>();
+    std::vector<bool> _link_reserved = std::vector<bool>();
+    IAssert(m_node_vec.size() == m_link_vec.size() + 1);
+
+    for (size_t i = 0; i < m_node_vec.size(); ++i) {
+        _node_reserved.push_back(true);
+        if (i < m_node_vec.size() - 1) {
+            _link_reserved.push_back(true);
+        }
+    }
+
+    for (size_t i = 0; i < m_node_vec.size()-1; ++i) {
+        if (!_node_reserved[i]) {
+            IAssert(i > 0 && !_link_reserved[i-1]);
+            continue;
+        }
+        _node_ID = m_node_vec[i];
+        // find the position of the last occurrence, https://stackoverflow.com/questions/35822606/remove-last-occurrence-of-an-element-in-a-vector-stl
+        auto _foundIt = std::find(m_node_vec.rbegin(), m_node_vec.rend(), _node_ID);
+        auto _toRemove = --(_foundIt.base());
+        int j = (int)std::distance(m_node_vec.begin(), _toRemove);
+        if ((int)i+1 <= j) {
+            _flg = true;
+            for (int k = (int)i+1; k < j+1; ++k) {
+                _node_reserved[k] = false;
+                _link_reserved[k-1] = false;
+            }
+        }
+    }
+    IAssert(_node_reserved.size() == _link_reserved.size() + 1);
+
+    if (_flg) {
+        std::deque<TInt> _node_vec = m_node_vec;
+        std::deque<TInt> _link_vec = m_link_vec;
+        m_node_vec.clear();
+        m_link_vec.clear();
+        for (size_t i = 0; i < _node_vec.size(); ++i) {
+            if (_node_reserved[i]) {
+                m_node_vec.push_back(_node_vec[i]);
+            }
+            if (i < _node_vec.size() - 1) {
+                if (_link_reserved[i]) {
+                    m_link_vec.push_back(_link_vec[i]);
+                }
+            }
+        }
+
+        if (m_node_vec.size() < _node_vec.size()) {
+            printf("cycles eliminated\n");
+            printf("modified node_vec is: \n");
+            std::cout << node_vec_to_string();
+        }
+        _node_vec.clear();
+        _link_vec.clear();
+    }
+    IAssert(m_node_vec.size() == m_link_vec.size() + 1);
+    _node_reserved.clear();
+    _link_reserved.clear();
+
+    return 0;
+}
+
 /**************************************************************************
                             Path Set
 **************************************************************************/

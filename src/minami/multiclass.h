@@ -35,6 +35,7 @@ public:
 
     virtual TFlt get_link_flow_car(){return 0;};
     virtual TFlt get_link_flow_truck(){return 0;};
+
     virtual TFlt get_link_tt_from_flow_car(TFlt flow){return 0;};
     virtual TFlt get_link_tt_from_flow_truck(TFlt flow){return 0;};
 	TFlt get_link_freeflow_tt_car();

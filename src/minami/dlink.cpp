@@ -733,17 +733,32 @@ TFlt MNM_Cumulative_Curve::get_result(TFlt time) {
         return m_recorder[0].second;
     }
 
-    // considering m_recorder[i].first is also time stamp
-    int j = (int)(time - m_recorder[0].first) - 1;
-    if (j < 1) j = 1;
-    for (int i = j; i < std::min(j+3, (int)m_recorder.size()); ++i) {
+    // considering non-decreasing cc record
+    std::vector<TFlt> _time_vec = std::vector<TFlt>();
+    for (size_t i = 0; i < m_recorder.size(); ++i) {
+        _time_vec.push_back(m_recorder[i].first);
+    }
+
+    // Search for first element x such that result ≤ x
+    int i = -1;
+    int j = -1;
+    auto _lower_j = std::lower_bound(_time_vec.begin(), _time_vec.end(), time);
+    j = std::distance(_time_vec.begin(), _lower_j);
+    IAssert(j >= 1);
+    if (_lower_j != _time_vec.end()) {
         // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-        if (std::abs(m_recorder[i].first - time) <= 1e-6 * std::max(std::abs(m_recorder[i].first), std::abs(time))) { //
-            return m_recorder[i].second;
-        } else if (m_recorder[i].first > time) {
-            return m_recorder[i - 1].second;  // rounding down
+        if (std::abs(m_recorder[j].first - time) <= 1e-4 * std::max(std::abs(m_recorder[j].first), std::abs(time))) { //
+            return m_recorder[j].second;
+        }
+        else if (m_recorder[j].first > time) {
+            IAssert(_time_vec[j-1] < time);
+            auto _lower_i = std::lower_bound(_time_vec.begin(), _lower_j, _time_vec[j-1]);
+            i = std::distance(_time_vec.begin(), _lower_i);
+            IAssert(i < j);
+            return m_recorder[i].second;  // rounding down
         }
     }
+    _time_vec.clear();
 
 //    // original, loop over
 //    for (size_t i = 1; i < m_recorder.size(); ++i) {
@@ -797,19 +812,26 @@ TFlt MNM_Cumulative_Curve::get_time(TFlt result) {
 
     // considering non-decreasing cc record
     std::vector<TFlt> _flow_vec = std::vector<TFlt>();
-    for (size_t i = 1; i < m_recorder.size(); ++i) {
+    for (size_t i = 0; i < m_recorder.size(); ++i) {
         _flow_vec.push_back(m_recorder[i].second);
     }
     // Search for first element x such that result ≤ x
     int i = -1;
-    auto _lower = std::lower_bound(_flow_vec.begin(), _flow_vec.end(), result);
-    if (_lower != _flow_vec.end()) {
-        i = std::distance(_flow_vec.begin(), _lower) + 1;
+    int j = -1;
+    auto _lower_j = std::lower_bound(_flow_vec.begin(), _flow_vec.end(), result);
+    j = std::distance(_flow_vec.begin(), _lower_j);
+    IAssert(j >= 1);
+    if (_lower_j != _flow_vec.end()) {
         // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-        if (std::abs(m_recorder[i].second - result) <= 1e-6 * std::max(std::abs(m_recorder[i].second), std::abs(result))) { //
-            return m_recorder[i].first;
-        } else if (m_recorder[i].second > result) {
-            return m_recorder[i - 1].first;  // rounding down
+        if (std::abs(m_recorder[j].second - result) <= 1e-4 * std::max(std::abs(m_recorder[j].second), std::abs(result))) { //
+            return m_recorder[j].first;
+        }
+        else if (m_recorder[j].second > result) {
+            IAssert(_flow_vec[j-1] < result);
+            auto _lower_i = std::lower_bound(_flow_vec.begin(), _lower_j, _flow_vec[j-1]);
+            i = std::distance(_flow_vec.begin(), _lower_i);
+            IAssert(i < j);
+            return m_recorder[i].first;  // rounding down
         }
     }
     _flow_vec.clear();

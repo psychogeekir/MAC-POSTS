@@ -300,7 +300,6 @@ class MNM_pathset():
     if sum_to_OD:
       return tmp_sum
 
-
   def __str__(self):
     return "MNM_pathset, O node: {}, D node: {}, number_of_paths: {}".format(self.origin_node, self.destination_node, len(self.path_list))
 
@@ -630,7 +629,6 @@ class MNM_network_builder():
       f[:, i] = path.route_portions * self.demand.demand_dict[self.od.O_dict.inv[path.origin_node]][self.od.D_dict.inv[path.destination_node]]
     return f.flatten()
 
-
   def get_route_portion_matrix(self):
     num_intervals = self.config.config_dict['DTA']['max_interval']
     for O_node in self.path_table.path_dict.keys():
@@ -653,5 +651,5 @@ class MNM_network_builder():
           val.append(tmp_path.route_portions[ti])
 
     P = coo_matrix((val, (row, col)), 
-          shape=(num_one_path * num_intervals, num_one_OD * num_intervals)).tocsr()
+                   shape=(num_one_path * num_intervals, num_one_OD * num_intervals)).tocsr()
     return P

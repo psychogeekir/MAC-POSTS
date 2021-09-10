@@ -7,6 +7,7 @@ MNM_Veh::MNM_Veh(TInt ID, TInt start_time) {
   m_start_time = start_time;
   m_finish_time = -1;
   m_assign_interval = -1;
+  m_path = nullptr;
   m_class = TInt(0);
   m_bus_route_ID = TInt(-1);
   m_pnr = false;
@@ -15,6 +16,7 @@ MNM_Veh::MNM_Veh(TInt ID, TInt start_time) {
 MNM_Veh::~MNM_Veh() {
   m_current_link = nullptr;
   m_next_link = nullptr;
+  m_path = nullptr;
 }
 
 int MNM_Veh::set_current_link(MNM_Dlink *link) {

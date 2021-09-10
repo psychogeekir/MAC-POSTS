@@ -17,11 +17,16 @@ endif (APPLE)
 
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 
+# generate libGlib.so
 add_subdirectory (glib-core)
+# generate libSnap.so
 add_subdirectory (snap-core)
+# generate libadv_ds.so and libg3log.so
 add_subdirectory (3rdparty)
+# generate libminami.so
 add_subdirectory (minami)
 add_subdirectory (examples)
+# generate MNMAPI.so
 add_subdirectory (pybinder)
 
 

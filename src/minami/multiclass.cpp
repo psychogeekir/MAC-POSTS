@@ -42,7 +42,7 @@ MNM_Dlink_Multiclass::MNM_Dlink_Multiclass(TInt ID,
 	install_cumulative_curve_multiclass();
 
 	// !!! Close cc_tree if only doing loading to save a lot of memory !!!
-	// install_cumulative_curve_tree_multiclass();
+//	install_cumulative_curve_tree_multiclass();
 
 }
 
@@ -1819,24 +1819,24 @@ int MNM_Dnode_Inout_Multiclass::move_vehicle(TInt timestamp)
 									m_veh_moved_car[i * _offset + j] += 1;
 									_olink = dynamic_cast<MNM_Dlink_Multiclass *>(_out_link);
 									_ilink = dynamic_cast<MNM_Dlink_Multiclass *>(_in_link);
-									// if (_olink -> m_N_out_tree_car != NULL) {
-									// 	_olink -> m_N_out_tree_car -> add_flow(TFlt(timestamp), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
-									// }
-									if (_ilink -> m_N_in_tree_car != nullptr) {
-										_ilink -> m_N_in_tree_car -> add_flow(TFlt(timestamp), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
+									if (_olink -> m_N_in_tree_car != nullptr) {
+									 	_olink -> m_N_in_tree_car -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
 									}
+//									if (_ilink -> m_N_out_tree_car != nullptr) {
+//										_ilink -> m_N_out_tree_car -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
+//									}
 								}
 								else {
 									IAssert(_veh -> m_class == 1);
 									m_veh_moved_truck[i * _offset + j] += 1;
 									_olink = dynamic_cast<MNM_Dlink_Multiclass *>(_out_link);
 									_ilink = dynamic_cast<MNM_Dlink_Multiclass *>(_in_link);
-									// if (_olink -> m_N_out_tree_truck != NULL) {
-									// 	_olink -> m_N_out_tree_truck -> add_flow(TFlt(timestamp), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
-									// }
-									if (_ilink -> m_N_in_tree_truck != nullptr) {
-										_ilink -> m_N_in_tree_truck -> add_flow(TFlt(timestamp), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
+									if (_olink -> m_N_in_tree_truck != nullptr) {
+									 	_olink -> m_N_in_tree_truck -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
 									}
+//									if (_ilink -> m_N_out_tree_truck != nullptr) {
+//										_ilink -> m_N_out_tree_truck -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
+//									}
 								}
 								_veh_it = _in_link -> m_finished_array.erase(_veh_it);
 							}
@@ -1848,24 +1848,24 @@ int MNM_Dnode_Inout_Multiclass::move_vehicle(TInt timestamp)
 								m_veh_moved_car[i * _offset + j] += 1;
 								_olink = dynamic_cast<MNM_Dlink_Multiclass *>(_out_link);
 								_ilink = dynamic_cast<MNM_Dlink_Multiclass *>(_in_link);
-								// if (_olink -> m_N_out_tree_car != NULL) {
-								// 	_olink -> m_N_out_tree_car -> add_flow(TFlt(timestamp), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
-								// }
-								if (_ilink -> m_N_in_tree_car != nullptr) {
-									_ilink -> m_N_in_tree_car -> add_flow(TFlt(timestamp), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
+								if (_olink -> m_N_in_tree_car != nullptr) {
+								 	_olink -> m_N_in_tree_car -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
 								}
+//								if (_ilink -> m_N_out_tree_car != nullptr) {
+//									_ilink -> m_N_out_tree_car -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
+//								}
 							}
 							else {
 								IAssert(_veh -> m_class == 1);
 								m_veh_moved_truck[i * _offset + j] += 1;
 								_olink = dynamic_cast<MNM_Dlink_Multiclass *>(_out_link);
 								_ilink = dynamic_cast<MNM_Dlink_Multiclass *>(_in_link);
-								// if (_olink -> m_N_out_tree_truck != NULL) {
-								// 	_olink -> m_N_out_tree_truck -> add_flow(TFlt(timestamp), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
-								// }
-								if (_ilink -> m_N_in_tree_truck != nullptr) {
-									_ilink -> m_N_in_tree_truck -> add_flow(TFlt(timestamp), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
+								if (_olink -> m_N_in_tree_truck != nullptr) {
+								 	_olink -> m_N_in_tree_truck -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
 								}
+//								if (_ilink -> m_N_out_tree_truck != nullptr) {
+//									_ilink -> m_N_out_tree_truck -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
+//								}
 							}
 							_veh_it = _in_link -> m_finished_array.erase(_veh_it);
 						}
@@ -1909,10 +1909,10 @@ int MNM_Dnode_Inout_Multiclass::record_cumulative_curve(TInt timestamp)
        		_temp_sum_car += m_veh_moved_car[i * _offset + j];
       		_temp_sum_truck += m_veh_moved_truck[i * _offset + j];
     	}
-    	if (_out_link -> m_N_out_car != nullptr) {
+    	if (_out_link -> m_N_in_car != nullptr) {
       		_out_link -> m_N_in_car -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum_car)/m_flow_scalar));
     	}
-    	if (_out_link -> m_N_out_truck != nullptr) {
+    	if (_out_link -> m_N_in_truck != nullptr) {
       		_out_link -> m_N_in_truck -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum_truck)/m_flow_scalar));
     	}
   	}
@@ -1926,10 +1926,10 @@ int MNM_Dnode_Inout_Multiclass::record_cumulative_curve(TInt timestamp)
       		_temp_sum_car += m_veh_moved_car[i * _offset + j];
       		_temp_sum_truck += m_veh_moved_truck[i * _offset + j];
     	}
-    	if (_in_link -> m_N_in_car != nullptr) {
+    	if (_in_link -> m_N_out_car != nullptr) {
       		_in_link -> m_N_out_car -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum_car)/m_flow_scalar));
     	}
-    	if (_in_link -> m_N_in_truck != nullptr) {
+    	if (_in_link -> m_N_out_truck != nullptr) {
       		_in_link -> m_N_out_truck -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum_truck)/m_flow_scalar));
     	}
   	}
@@ -1999,14 +1999,14 @@ int MNM_Dnode_FWJ_Multiclass::compute_flow()
 MNM_Dnode_GRJ_Multiclass::MNM_Dnode_GRJ_Multiclass(TInt ID, TFlt flow_scalar, TFlt veh_convert_factor)
   : MNM_Dnode_Inout_Multiclass::MNM_Dnode_Inout_Multiclass(ID, flow_scalar, veh_convert_factor)
 {
-	m_d_a = NULL;
-	m_C_a = NULL;
+	m_d_a = nullptr;
+	m_C_a = nullptr;
 }
 
 MNM_Dnode_GRJ_Multiclass::~MNM_Dnode_GRJ_Multiclass()
 {
-	if (m_d_a != NULL) free(m_d_a);
-	if (m_C_a != NULL) free(m_C_a);
+	if (m_d_a != nullptr) free(m_d_a);
+	if (m_C_a != nullptr) free(m_C_a);
 }
 
 int MNM_Dnode_GRJ_Multiclass::prepare_loading()
@@ -2039,9 +2039,9 @@ int MNM_Dnode_GRJ_Multiclass::compute_flow()
                           		Origin
 **************************************************************************/
 MNM_Origin_Multiclass::MNM_Origin_Multiclass(TInt ID, 
-											TInt max_interval, 
-											TFlt flow_scalar, 
-											TInt frequency)
+											 TInt max_interval,
+											 TFlt flow_scalar,
+											 TInt frequency)
 	: MNM_Origin::MNM_Origin(ID, max_interval, flow_scalar, frequency)
 {
 	m_demand_car = std::unordered_map<MNM_Destination_Multiclass*, TFlt*>();
@@ -2946,17 +2946,22 @@ TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_
 
 	TFlt fftt = link -> get_link_freeflow_tt_car() / unit_interval;
 
+    TFlt _last_valid_time = get_last_valid_time(link -> m_N_in_car, link -> m_N_out_car);
+    if (_last_valid_time < 0) return fftt;
+    if (start_time > _last_valid_time) start_time = _last_valid_time;
+
 	TFlt _cc_flow = link -> m_N_in_car -> get_result(start_time);
 	if (_cc_flow <= DBL_EPSILON){
 		return fftt;
 	}
 
     // from fundamental diagram
-    TFlt _tt = get_travel_time_from_FD_car(link, start_time, unit_interval);
-    if (_tt > fftt) fftt = _tt;
+//    TFlt _tt = get_travel_time_from_FD_car(link, start_time, unit_interval);
+//    if (_tt > fftt) fftt = _tt;
 
 	// get the earliest time point in m_N_in_car that reaches the inflow == _cc_flow as the true start_time
 	TFlt _true_start_time = link -> m_N_in_car -> get_time(_cc_flow);
+    IAssert(_true_start_time <= _last_valid_time);
 
 	// get the earliest time point in m_N_out_car that reaches the outflow == _cc_flow as the end_time
 	TFlt _end_time = link -> m_N_out_car -> get_time(_cc_flow);
@@ -2993,17 +2998,22 @@ TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt uni
 
     TFlt fftt = link -> get_link_freeflow_tt_truck() / unit_interval;
 
+    TFlt _last_valid_time = get_last_valid_time(link -> m_N_in_truck, link -> m_N_out_truck);
+    if (_last_valid_time < 0) return fftt;
+    if (start_time > _last_valid_time) start_time = _last_valid_time;
+
 	TFlt _cc_flow = link -> m_N_in_truck -> get_result(start_time);
 	if (_cc_flow <= DBL_EPSILON){
 		return fftt;
 	}
 
     // from fundamental diagram
-    TFlt _tt = get_travel_time_from_FD_truck(link, start_time, unit_interval);
-    if (_tt > fftt) fftt = _tt;
+//    TFlt _tt = get_travel_time_from_FD_truck(link, start_time, unit_interval);
+//    if (_tt > fftt) fftt = _tt;
 
 	// get the earliest time point in m_N_in_truck that reaches the inflow == _cc_flow as the true start_time
 	TFlt _true_start_time = link -> m_N_in_truck -> get_time(_cc_flow);
+    IAssert(_true_start_time <= _last_valid_time);
 
 	// get the earliest time point in m_N_out_truck that reaches the outflow == _cc_flow as the end_time
 	TFlt _end_time = link -> m_N_out_truck -> get_time(_cc_flow);
@@ -3017,7 +3027,7 @@ TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt uni
 }
 
 int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
-                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time)
+                        std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time)
 {
   if (link == nullptr){
     throw std::runtime_error("Error, add_dar_records_car link is null");
@@ -3049,7 +3059,7 @@ int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* 
 }
 
 int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
-                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time)
+                          std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time)
 {
   if (link == nullptr){
     throw std::runtime_error("Error, add_dar_records_truck link is null");

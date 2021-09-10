@@ -320,9 +320,6 @@ int MNM_Dta::check_origin_destination_connectivity()
   return true;
 }
 
-
-
-
 int MNM_Dta::pre_loading()
 {
   MNM_Dnode *_node;
@@ -557,7 +554,6 @@ int MNM_Dta::loading(bool verbose)
     if(verbose) printf("Update record!\n");
     // step 5: update record
     m_statistics -> update_record(_cur_int);
-
 
     if(verbose) MNM::print_vehicle_statistics(m_veh_factory);
     

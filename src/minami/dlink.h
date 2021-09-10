@@ -62,6 +62,7 @@ public:
              TFlt length,
              TFlt ffs );
   virtual ~MNM_Dlink();
+
   virtual int evolve(TInt timestamp) {return 0;};
   virtual TFlt get_link_supply() {return TFlt(0);};
   virtual int clear_incoming_array(TInt timestamp) {return 0;};

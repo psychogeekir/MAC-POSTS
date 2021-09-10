@@ -33,10 +33,11 @@ class CMakeBuild(build_ext):
 
     def build_extension(self, ext):
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        # print "DEBUG", os.listdir(extdir)
+        print "extension dir: ", os.listdir(extdir)
         cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + extdir,
                       '-DPYTHON_EXECUTABLE=' + sys.executable]
-
+	# setup.cfg
+	print "Build in Debug mode?: ", self.debug
         cfg = 'Debug' if self.debug else 'Release'
         build_args = ['--config', cfg]
 
@@ -57,7 +58,8 @@ class CMakeBuild(build_ext):
             os.makedirs(self.build_temp)
         # Generate a Project Buildsystem (e.g., Makefile)
         subprocess.check_call(['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp, env=env)
-        # Build a Project ('--build <dir>' specifies the output binary directory)
+        # Build a Project ('--build <dir>' specifies the maek files directory)
+        # If cwd is not None, the function changes the working directory to cwd before executing the child. cwd can be a string, bytes or path-like object. In particular, the function looks for executable (or for the first item in args) relative to cwd if the executable path is a relative path
         subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=self.build_temp)
 
 setup(

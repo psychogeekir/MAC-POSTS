@@ -20,6 +20,7 @@ int main()
     MNM_Dlink *_link;
     MNM_Dlink_Multiclass *_link_m;
     MNM_Transit_Link *_transit_link;
+    MNM_Walking_Link *_walking_link;
 
     printf("BEGIN multimodal test!\n");
 
@@ -189,6 +190,26 @@ int main()
             }
             _iter += 1;
         }
+
+        // save cc of some links
+        _str = "\n\n **************************** driving link cc ****************************";
+        for (auto _link_it : test_dta->m_link_factory->m_link_map) {
+            _link = _link_it.second;
+            if (_link->m_link_ID() == 4) {
+                _link_m = dynamic_cast<MNM_Dlink_Multiclass *>(_link);
+                _str += "\nlink_ID: " + std::to_string(_link->m_link_ID());
+                _str +="\nm_N_in_car: \n";
+                _str += _link_m->m_N_in_car->to_string();
+                _str +="\nm_N_out_car: \n";
+                _str += _link_m->m_N_out_car->to_string();
+                _str +="\nm_N_in_truck: \n";
+                _str += _link_m->m_N_in_truck->to_string();
+                _str +="\nm_N_out_truck: \n";
+                _str += _link_m->m_N_out_truck->to_string();
+                _vis_file2 << _str;
+            }
+        }
+
         if (_vis_file2.is_open()) _vis_file2.close();
     }
 
@@ -210,20 +231,32 @@ int main()
     // }
 
     // output CC of some special links
-    std::cout << "\n\n **************************** link cc ****************************" << std::endl;
+    std::cout << "\n\n **************************** driving link cc ****************************" << std::endl;
     for (auto _link_it : test_dta->m_link_factory->m_link_map) {
         _link = _link_it.second;
-        if (_link->m_link_ID() == 2) {
+        if (_link->m_link_ID() == 4) {
             _link_m = dynamic_cast<MNM_Dlink_Multiclass *>(_link);
             std::cout << "\nlink_ID: " << _link->m_link_ID << std::endl;
-            printf("m_N_in_car: \n");
+            printf("\nm_N_in_car: \n");
             std::cout << _link_m->m_N_in_car->to_string() << std::endl;
-            printf("m_N_out_car: \n");
+            printf("\nm_N_out_car: \n");
             std::cout << _link_m->m_N_out_car->to_string() << std::endl;
-            printf("m_N_in_truck: \n");
+            printf("\nm_N_in_truck: \n");
             std::cout << _link_m->m_N_in_truck->to_string() << std::endl;
-            printf("m_N_out_truck: \n");
+            printf("\nm_N_out_truck: \n");
             std::cout << _link_m->m_N_out_truck->to_string() << std::endl;
+        }
+    }
+
+    std::cout << "\n\n **************************** walking link cc ****************************" << std::endl;
+    for (auto _link_it : test_dta->m_transitlink_factory->m_transit_link_map) {
+        _walking_link = dynamic_cast<MNM_Walking_Link*>(_link_it.second);
+        if (_walking_link != nullptr && _walking_link->m_link_ID() == 1) {
+            std::cout << "\nwalking_link_ID: " << _walking_link->m_link_ID << std::endl;
+            printf("\nm_N_in: \n");
+            std::cout << _walking_link->m_N_in->to_string() << std::endl;
+            printf("\nm_N_out: \n");
+            std::cout << _walking_link->m_N_out->to_string() << std::endl;
         }
     }
 
@@ -244,7 +277,8 @@ int main()
                  if (_iter == _current_inter - 1) {
                      std::cout << "\n\n **************************** busstop cc ****************************" << std::endl;
                      for (auto _busstop_it : test_dta -> m_busstop_factory -> m_busstop_map){
-                         auto* _busstop = _busstop_it.second;
+                         auto* _busstop = dynamic_cast<MNM_Busstop_Virtual*>(_busstop_it.second);
+                         if (_busstop == nullptr) continue;
                          if (_busstop -> m_busstop_ID() > 0){
                              std::cout << "\nbusstop ID: " << _busstop -> m_busstop_ID << std::endl;
                              std::cout << "route ID: " << _busstop -> m_route_ID << std::endl;

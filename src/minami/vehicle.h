@@ -42,6 +42,7 @@ public:
   MNM_Destination *m_dest;
   MNM_Origin *m_origin;
   // m_path will only be used in Fixed routing (didn't find a better way to encode)
+  // m_path for adaptive routing is just nominal, not exactly the actual path
   MNM_Path* m_path; 
   TInt m_assign_interval;
 

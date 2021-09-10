@@ -62,6 +62,7 @@ int MNM_Routing_Random::update_routing(TInt timestamp)
       _out_ID = _node_I.GetOutNId(MNM_Ults::mod(rand(), _node_I.GetOutDeg()));
       _next_link = m_link_factory -> get_link(m_graph -> GetEI(_node_ID, _out_ID).GetId());
       (*_veh_it) -> set_next_link(_next_link);
+      // note that it neither initializes nor updates _veh -> m_path
     }
   }
   // printf("MNM_Routing: route the link vehciles.\n");
@@ -180,6 +181,7 @@ int MNM_Routing_Adaptive::update_routing(TInt timestamp)
         _next_link = m_link_factory -> get_link(_next_link_ID);
         _veh -> set_next_link(_next_link);
         // printf("The next link now it's %d\n", _veh -> get_next_link() -> m_link_ID());
+        // note that it neither initializes nor updates _veh -> m_path
       }
     }
   }  
@@ -361,13 +363,20 @@ int MNM_Routing_Fixed::update_routing(TInt timestamp)
       if (_veh -> m_type == MNM_TYPE_STATIC){
         if (m_tracker.find(_veh) == m_tracker.end()){  // vehicle not in tracker
           // printf("Registering!\n");
-          register_veh(_veh);
+          register_veh(_veh, true);
           // printf("1.3\n");
           _next_link_ID = m_tracker.find(_veh) -> second -> front();
           _next_link = m_link_factory -> get_link(_next_link_ID);
           _veh -> set_next_link(_next_link);
           m_tracker.find(_veh) -> second -> pop_front(); // adjust links left
         }
+      }
+      // according to Dr. Wei Ma, add a nominal path to adaptive users for DAR extraction, not rigorous, but will do the DODE job
+      else if (_veh -> m_type == MNM_TYPE_ADAPTIVE) {
+          if (_veh -> m_path == nullptr) {
+              register_veh(_veh, false);
+          }
+          IAssert(_veh -> m_path != nullptr);
       }
     }
   }
@@ -391,7 +400,7 @@ int MNM_Routing_Fixed::update_routing(TInt timestamp)
             printf("Something wrong in fixed routing!\n");
             exit(-1);
           }
-          _veh -> set_next_link(NULL);
+          _veh -> set_next_link(nullptr);
           // m_tracker.erase(m_tracker.find(_veh));
         }
         else{ // vehicles enroute, adjust _next_link_ID, which is changed by node->evolve() in simulation dta.cpp
@@ -420,7 +429,7 @@ int MNM_Routing_Fixed::update_routing(TInt timestamp)
 }
 
 // register each vehicle with a route based on the portion of path flow
-int MNM_Routing_Fixed::register_veh(MNM_Veh* veh)
+int MNM_Routing_Fixed::register_veh(MNM_Veh* veh, bool track)
 {
   TFlt _r = MNM_Ults::rand_flt();
   // printf("%d\n", veh -> get_origin() -> m_origin_node  -> m_node_ID);
@@ -445,10 +454,12 @@ int MNM_Routing_Fixed::register_veh(MNM_Veh* veh)
     printf("Wrong probability!\n");
     exit(-1);
   }
-  std::deque<TInt> *_link_queue = new std::deque<TInt>();
-  std::copy(_route_path -> m_link_vec.begin(), _route_path -> m_link_vec.end(), std::back_inserter(*_link_queue));  // copy links in the route to _link_queue https://www.cplusplus.com/reference/iterator/back_inserter/
-  // printf("old link q is %d, New link queue is %d\n", _route_path -> m_link_vec.size(), _link_queue -> size());
-  m_tracker.insert(std::pair<MNM_Veh*, std::deque<TInt>*>(veh, _link_queue));
+  if (track) {
+      std::deque<TInt> *_link_queue = new std::deque<TInt>();
+      std::copy(_route_path -> m_link_vec.begin(), _route_path -> m_link_vec.end(), std::back_inserter(*_link_queue));  // copy links in the route to _link_queue https://www.cplusplus.com/reference/iterator/back_inserter/
+      // printf("old link q is %d, New link queue is %d\n", _route_path -> m_link_vec.size(), _link_queue -> size());
+      m_tracker.insert(std::pair<MNM_Veh*, std::deque<TInt>*>(veh, _link_queue));
+  }
   veh -> m_path = _route_path;
   return 0;
 }
@@ -616,12 +627,20 @@ int MNM_Routing_Biclass_Fixed::update_routing(TInt timestamp)
 
         if (m_tracker.find(_veh) == m_tracker.end()){
           // printf("Registering!\n");
-          register_veh(_veh);
+          register_veh(_veh, true);
           _next_link_ID = m_tracker.find(_veh) -> second -> front();
           _next_link = m_link_factory -> get_link(_next_link_ID);
           _veh -> set_next_link(_next_link);
           m_tracker.find(_veh) -> second -> pop_front();
         }
+      }
+      // according to Dr. Wei Ma, add a nominal path to adaptive users for DAR extraction, not rigorous, but will do the DODE job
+      else if ((_veh -> m_type == MNM_TYPE_ADAPTIVE) && (_veh -> get_class() == m_veh_class) &&
+               (_veh -> get_bus_route_ID() == TInt(-1)) && (!_veh -> get_ispnr())) {
+          if (_veh -> m_path == nullptr) {
+              register_veh(_veh, false);
+          }
+          IAssert(_veh -> m_path != nullptr);
       }
     }
   }

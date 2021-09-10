@@ -26,11 +26,14 @@ public:
   TFlt m_p;
   TFlt *m_buffer;
   TInt m_buffer_length;
+  // only used in multimodal
+  int m_path_type = -1;
 
   TFlt get_path_tt(MNM_Link_Factory *link_factory);
   TFlt get_path_fftt(MNM_Link_Factory *link_factory);
   TFlt get_path_length(MNM_Link_Factory *link_factory);
   int allocate_buffer(TInt length);
+  int eliminate_cycles();
 
   inline bool operator==(const MNM_Path& rhs) {
       if (m_link_vec.size() != rhs.m_link_vec.size()) return false;

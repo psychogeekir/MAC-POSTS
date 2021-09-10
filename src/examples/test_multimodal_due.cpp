@@ -17,13 +17,14 @@ int main()
         std::cout << buffer << std::endl;
     }
 
-
     printf("BEGIN multimodal DUE test!\n");
 
     // On ubuntu (PC)
     // std::string folder = "/home/alanpi/Desktop/MAC-POSTS/data/input_files_SPC_separate_Routing";
     // std::string folder = "/home/lemma/Documents/MAC-POSTS/src/examples/mcDODE/a6e7b31067d2ead8d3725fc0ed587d06c958f63c";
-    std::string folder = "../../../data/input_files_7link_multimodal_due";
+
+//    std::string folder = "../../../data/input_files_7link_multimodal_due_columngeneration";
+    std::string folder = "../../../data/input_files_7link_multimodal_due_fixedpath";
 
     // on macOS (Mac air)
     // std::string folder = "/Users/alan-air/Dropbox/MAC-POSTS/data/input_files_MckeesRocks_SPC";
@@ -59,6 +60,17 @@ int main()
         // DNL using dta, new dta is built from scratch
         mmdta = test_due->run_mmdta(false);
 
+        // update time dependent cost and save existing path table
+        test_due -> update_path_table_cost(mmdta);
+
+        // calculate gap
+        // with departure time choice
+        // gap = test_due -> compute_merit_function(mmdta);
+        // fixed departure time choice
+        gap = test_due -> compute_merit_function_fixed_departure_time_choice(mmdta);
+        printf("\n\n*******************GAP = %lf*******************\n\n", (float) gap);
+        gap_file << std::to_string(gap) + "\n";
+
         // search for the lowest disutility route and update path flow
         // with departure time choice
         // test_due->update_path_table(mmdta, i);
@@ -66,14 +78,6 @@ int main()
         // test_due->update_path_table_fixed_departure_time_choice(mmdta, i);
         // gradient projection
         test_due->update_path_table_gp_fixed_departure_time_choice(mmdta, i);
-
-        // calculate gap
-        // with departure time choice
-        // gap = test_due -> compute_merit_function(mmdta);
-        // fixed departure time choice
-        gap = test_due -> compute_merit_function_fixed_departure_time_choice(mmdta);
-        printf("GAP = %lf\n", (float) gap);
-        gap_file << std::to_string(gap) + "\n";
 
         delete mmdta;
     }

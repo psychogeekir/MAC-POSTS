@@ -19,7 +19,7 @@ class MCDODE():
     self.ass_freq = nb.config.config_dict['DTA']['assign_frq']
     self.num_link = nb.config.config_dict['DTA']['num_of_link']
     self.num_path = nb.config.config_dict['FIXED']['num_path']
-    self.num_loading_interval =  self.num_assign_interval * self.ass_freq
+    self.num_loading_interval = self.num_assign_interval * self.ass_freq
     self.data_dict = dict()
     self.num_data = self.config['num_data']
     self.observed_links = self.config['observed_links']
@@ -62,7 +62,7 @@ class MCDODE():
     if self.config['use_truck_link_tt']or self.config['compute_car_link_tt_loss']:
       self._add_truck_link_tt_data(data_dict['truck_link_tt'])
 
-  def _run_simulation(self, f_car, f_truck, counter = 0):
+  def _run_simulation(self, f_car, f_truck, counter=0):
     hash1 = hashlib.sha1()
     hash1.update(str(time.time()) + str(counter))
     new_folder = str(hash1.hexdigest())
@@ -84,41 +84,50 @@ class MCDODE():
     car_dar = csr_matrix((self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
     truck_dar = csr_matrix((self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
     if self.config['use_car_link_flow'] or self.config['use_car_link_tt']:
+      # (num_assign_timesteps x num_links x num_path x num_assign_timesteps) x 5
       raw_car_dar = dta.get_car_dar_matrix(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq)
+                                           np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq)
       # print "raw car dar", raw_car_dar
+      # num_assign_interval * num_e_link, num_assign_interval * num_e_path
       car_dar = self._massage_raw_dar(raw_car_dar, self.ass_freq, f_car, self.num_assign_interval)
     if self.config['use_truck_link_flow'] or self.config['use_truck_link_tt']:
+      # (num_assign_timesteps x num_links x num_path x num_assign_timesteps) x 5
       raw_truck_dar = dta.get_truck_dar_matrix(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq)
+                                               np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq)
+      # num_assign_interval * num_e_link, num_assign_interval * num_e_path
       truck_dar = self._massage_raw_dar(raw_truck_dar, self.ass_freq, f_truck, self.num_assign_interval)
-    # print "dar", car_dar, truck_dar
+    # print("dar", car_dar, truck_dar)
     return (car_dar, truck_dar)
 
   def _massage_raw_dar(self, raw_dar, ass_freq, f, num_assign_interval):
     num_e_path = len(self.paths_list)
     num_e_link = len(self.observed_links)
     small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
+    # raw_dar[:, 2]: link no.
+    # raw_dar[:, 3]: loading interval no. as assign interval
     link_seq = (np.array(map(lambda x: self.observed_links.index(x), raw_dar[:, 2].astype(np.int)))
-                + raw_dar[:, 3] * num_e_link / ass_freq).astype((np.int))
+                + raw_dar[:, 3] * num_e_link / ass_freq).astype(np.int)
+    # raw_dar[:, 0]: path no.
+    # raw_dar[:, 1]: loading interval no. as assign interval
     path_seq = (raw_dar[:, 0] + (raw_dar[:, 1] / small_assign_freq).astype(np.int) * num_e_path).astype(np.int)
     # print path_seq
+    # raw_dar[:, 4]: flow
     p = raw_dar[:, 4] / f[path_seq]
     # print "Creating the coo matrix", time.time()
     mat = coo_matrix((p, (link_seq, path_seq)), 
-                   shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))
+                     shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))
     # pickle.dump((p, link_seq, path_seq), open('test.pickle', 'wb'))
     # print 'converting the csr', time.time()
     mat = mat.tocsr()
     # print 'finish converting', time.time()
     return mat    
 
-  def init_path_flow(self, car_scale = 1, truck_scale = 0.1):
-    f_car =  np.random.rand(self.num_assign_interval * self.num_path) * car_scale
-    f_truck =  np.random.rand(self.num_assign_interval * self.num_path) * truck_scale
-    return (f_car, f_truck)
+  def init_path_flow(self, car_scale=1, truck_scale=0.1):
+    f_car = np.random.rand(self.num_assign_interval * self.num_path) * car_scale
+    f_truck = np.random.rand(self.num_assign_interval * self.num_path) * truck_scale
+    return f_car, f_truck
 
-  def compute_path_flow_grad_and_loss(self, one_data_dict, f_car, f_truck, counter = 0):
+  def compute_path_flow_grad_and_loss(self, one_data_dict, f_car, f_truck, counter=0):
     # print "Running simulation", time.time()
     dta = self._run_simulation(f_car, f_truck, counter)
     # print "Getting DAR", time.time()
@@ -136,13 +145,13 @@ class MCDODE():
     if self.config['use_truck_link_tt']:
       truck_grad += self.config['link_truck_tt_weight'] * self._compute_grad_on_truck_link_tt(dta, one_data_dict)
     # print "Getting Loss", time.time()
-    total_loss, loss_dict  = self._get_loss(one_data_dict, dta)
-    return  car_dar.T.dot(car_grad), truck_dar.T.dot(truck_grad), total_loss, loss_dict
+    total_loss, loss_dict = self._get_loss(one_data_dict, dta)
+    return car_dar.T.dot(car_grad), truck_dar.T.dot(truck_grad), total_loss, loss_dict
 
   def _compute_grad_on_car_link_flow(self, dta, one_data_dict):
     link_flow_array = one_data_dict['car_link_flow']
     x_e = dta.get_link_car_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+                                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
     # print "x_e", x_e, link_flow_array
     if self.config['car_count_agg']:
         x_e = one_data_dict['car_count_agg_L'].dot(x_e)
@@ -155,7 +164,7 @@ class MCDODE():
   def _compute_grad_on_truck_link_flow(self, dta, one_data_dict):
     link_flow_array = one_data_dict['truck_link_flow']
     x_e = dta.get_link_truck_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+                                    np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
     if self.config['truck_count_agg']:
         x_e = one_data_dict['truck_count_agg_L'].dot(x_e)
     grad = -np.nan_to_num(link_flow_array - x_e)
@@ -165,8 +174,8 @@ class MCDODE():
 
   def _compute_grad_on_car_link_tt(self, dta, one_data_dict):
     # tt_e = dta.get_car_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
-    #         np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
-    tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order = 'F')
+    #         np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
+    tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order='F')
     tt_free = np.tile(list(map(lambda x: self.nb.get_link(x).get_car_fft(), self.observed_links)), (self.num_assign_interval))
     tt_e = np.maximum(tt_e, tt_free)
     tt_o = np.maximum(one_data_dict['car_link_tt'], tt_free) 
@@ -182,7 +191,7 @@ class MCDODE():
     return grad
 
   def _compute_grad_on_truck_link_tt(self, dta, one_data_dict):
-    tt_e = dta.get_truck_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order = 'F')
+    tt_e = dta.get_truck_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order='F')
     tt_free = np.tile(list(map(lambda x: self.nb.get_link(x).get_truck_fft(), self.observed_links)), (self.num_assign_interval))
     tt_e = np.maximum(tt_e, tt_free)
     tt_o = np.maximum(one_data_dict['truck_link_tt'], tt_free)
@@ -209,31 +218,30 @@ class MCDODE():
       one_data_dict['truck_count_agg_L'] = self.truck_count_agg_L_list[j]
     return one_data_dict
 
-
   def _get_loss(self, one_data_dict, dta):
     loss_dict = dict()
     if self.config['use_car_link_flow'] or self.config['compute_car_link_flow_loss']:
       x_e = dta.get_link_car_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
       if self.config['car_count_agg']:
         x_e = one_data_dict['car_count_agg_L'].dot(x_e)
       loss = self.config['link_car_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e - one_data_dict['car_link_flow']))
       loss_dict['car_count_loss'] = loss
     if self.config['use_truck_link_flow'] or self.config['compute_truck_link_flow_loss']:
       x_e = dta.get_link_truck_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
       if self.config['truck_count_agg']:
         x_e = one_data_dict['truck_count_agg_L'].dot(x_e)
       loss = self.config['link_truck_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e - one_data_dict['truck_link_flow']))
       loss_dict['truck_count_loss'] = loss
     if self.config['use_car_link_tt'] or self.config['compute_car_link_tt_loss']:
-      x_tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order = 'F')
+      x_tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order='F')
       # x_tt_e = dta.get_car_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
-      #       np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+      #       np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
       loss = self.config['link_car_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e - one_data_dict['car_link_tt']))
       loss_dict['car_tt_loss'] = loss
     if self.config['use_truck_link_tt'] or self.config['compute_truck_link_tt_loss']:
-      x_tt_e = dta.get_truck_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order = 'F')
+      x_tt_e = dta.get_truck_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order='F')
       loss = self.config['link_truck_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e - one_data_dict['truck_link_tt']))
       loss_dict['truck_tt_loss'] = loss
 
@@ -242,13 +250,11 @@ class MCDODE():
       total_loss += loss_value
     return total_loss, loss_dict
 
-
-
-  def estimate_path_flow(self, car_step_size = 0.1, truck_step_size = 0.1, max_epoch = 10, car_init_scale = 10, 
-                              truck_init_scale = 1, store_folder = None, use_file_as_init = None,
-                              adagrad = False):
+  def estimate_path_flow(self, car_step_size=0.1, truck_step_size=0.1, max_epoch=10, car_init_scale=10,
+                         truck_init_scale=1, store_folder=None, use_file_as_init=None, adagrad=False):
+    # here the basic variables to be estimated are path flows, not OD demand, so no route choice model, unlike in sDODE.py
     if use_file_as_init is None:
-      (f_car, f_truck) = self.init_path_flow(car_scale = car_init_scale, truck_scale = truck_init_scale)
+      (f_car, f_truck) = self.init_path_flow(car_scale=car_init_scale, truck_scale=truck_init_scale)
     else:
       (f_car, f_truck, _) = pickle.load(open(use_file_as_init, 'rb'))
     loss_list = list()
@@ -259,7 +265,7 @@ class MCDODE():
       seq = np.random.permutation(self.num_data)
       loss = np.float(0)
       # print "Start iteration", time.time()
-      loss_dict = {'car_count_loss':0.0, 'truck_count_loss':0.0, 'car_tt_loss':0.0, 'truck_tt_loss':0.0}
+      loss_dict = {'car_count_loss': 0.0, 'truck_count_loss': 0.0, 'car_tt_loss': 0.0, 'truck_tt_loss': 0.0}
       for j in seq:
         one_data_dict = self._get_one_data(j)
         car_grad, truck_grad, tmp_loss, tmp_loss_dict = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
@@ -278,20 +284,18 @@ class MCDODE():
         loss += tmp_loss
         for loss_type, loss_value in tmp_loss_dict.items():
           loss_dict[loss_type] += loss_value / np.float(self.num_data)
-      print("Epoch:", i, "Loss:", np.round(loss / np.float(self.num_data),2), self.print_separate_accuracy(loss_dict))
+      print("Epoch:", i, "Loss:", np.round(loss / np.float(self.num_data), 2), self.print_separate_accuracy(loss_dict))
       # print f_car, f_truck
       # break
       if store_folder is not None:
         pickle.dump((f_car, f_truck, loss), open(os.path.join(store_folder, str(i) + 'iteration.pickle'), 'wb'))
       loss_list.append([loss, loss_dict])
-    return (f_car, f_truck, loss_list)
+    return f_car, f_truck, loss_list
 
-
-  def estimate_path_flow_gd(self, car_step_size = 0.1, truck_step_size = 0.1, max_epoch = 10, car_init_scale = 10, 
-                              truck_init_scale = 1, store_folder = None, use_file_as_init = None,
-                              adagrad = False):
+  def estimate_path_flow_gd(self, car_step_size=0.1, truck_step_size=0.1, max_epoch=10, car_init_scale=10,
+                            truck_init_scale=1, store_folder=None, use_file_as_init=None, adagrad=False):
     if use_file_as_init is None:
-      (f_car, f_truck) = self.init_path_flow(car_scale = car_init_scale, truck_scale = truck_init_scale)
+      (f_car, f_truck) = self.init_path_flow(car_scale=car_init_scale, truck_scale=truck_init_scale)
     else:
       (f_car, f_truck, _) = pickle.load(open(use_file_as_init, 'rb'))
     loss_list = list()
@@ -302,7 +306,7 @@ class MCDODE():
       seq = np.random.permutation(self.num_data)
       loss = np.float(0)
       # print "Start iteration", time.time()
-      loss_dict = {'car_count_loss':0.0, 'truck_count_loss':0.0, 'car_tt_loss':0.0, 'truck_tt_loss':0.0}
+      loss_dict = {'car_count_loss': 0.0, 'truck_count_loss': 0.0, 'car_tt_loss': 0.0, 'truck_tt_loss': 0.0}
       for j in seq:
         one_data_dict = self._get_one_data(j)
         car_grad, truck_grad, tmp_loss, tmp_loss_dict = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
@@ -318,27 +322,27 @@ class MCDODE():
       f_truck -= grad_truck_sum * truck_step_size / np.sqrt(i+1) / np.float(self.num_data)
       f_car = np.maximum(f_car, 1e-3)
       f_truck = np.maximum(f_truck, 1e-3)
-      print("Epoch:", i, "Loss:", np.round(loss / np.float(self.num_data),2), self.print_separate_accuracy(loss_dict))
+      print("Epoch:", i, "Loss:", np.round(loss / np.float(self.num_data), 2), self.print_separate_accuracy(loss_dict))
       # print f_car, f_truck
       # break
       if store_folder is not None:
         pickle.dump((f_car, f_truck, loss, loss_dict, time.time() - start_time), open(os.path.join(store_folder, str(i) + 'iteration.pickle'), 'wb'))
       loss_list.append([loss, loss_dict])
-    return (f_car, f_truck, loss_list)
+    return f_car, f_truck, loss_list
 
   def compute_path_flow_grad_and_loss_mpwrapper(self, one_data_dict, f_car, f_truck, j, output):
-    car_grad, truck_grad, tmp_loss, tmp_loss_dict = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck, counter = j)
+    car_grad, truck_grad, tmp_loss, tmp_loss_dict = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck, counter=j)
     # print "finished original grad loss"
     output.put([car_grad, truck_grad, tmp_loss, tmp_loss_dict])
     # output.put(grad)
     # print "finished put"
     return
 
-  def estimate_path_flow_mp(self, car_step_size = 0.1, truck_step_size = 0.1, max_epoch = 10, car_init_scale = 10, 
-                              truck_init_scale = 1, store_folder = None, use_file_as_init = None,
-                              adagrad = False, n_process = 4, record_time = False):
+  def estimate_path_flow_mp(self, car_step_size=0.1, truck_step_size=0.1, max_epoch=10, car_init_scale=10,
+                            truck_init_scale=1, store_folder=None, use_file_as_init=None,
+                            adagrad=False, n_process=4, record_time=False):
     if use_file_as_init is None:
-      (f_car, f_truck) = self.init_path_flow(car_scale = car_init_scale, truck_scale = truck_init_scale)
+      (f_car, f_truck) = self.init_path_flow(car_scale=car_init_scale, truck_scale=truck_init_scale)
     else:
       (f_car, f_truck, _) = pickle.load(open(use_file_as_init, 'rb'))
     loss_list = list()
@@ -351,7 +355,7 @@ class MCDODE():
       seq = np.random.permutation(self.num_data)
       split_seq = np.array_split(seq, np.maximum(1, int(self.num_data/n_process)))
       loss = np.float(0)
-      loss_dict = {'car_count_loss':0.0, 'truck_count_loss':0.0, 'car_tt_loss':0.0, 'truck_tt_loss':0.0}
+      loss_dict = {'car_count_loss': 0.0, 'truck_count_loss': 0.0, 'car_tt_loss': 0.0, 'truck_tt_loss': 0.0}
       for part_seq in split_seq:
         output = mp.Queue()
         processes = [mp.Process(target=self.compute_path_flow_grad_and_loss_mpwrapper, args=(self._get_one_data(j), f_car, f_truck, j, output)) for j in part_seq]
@@ -390,7 +394,7 @@ class MCDODE():
         loss_list.append([loss, loss_dict, time.time() - start_time])
       else:
         loss_list.append([loss, loss_dict])
-    return (f_car, f_truck, loss_list)
+    return f_car, f_truck, loss_list
 
   def generate_route_choice(self):
     pass
@@ -398,7 +402,7 @@ class MCDODE():
   def print_separate_accuracy(self, loss_dict):
     tmp_str = ""
     for loss_type, loss_value in loss_dict.items():
-      tmp_str += loss_type + ": " + str(np.round(loss_value, 2)) +"|"
+      tmp_str += loss_type + ": " + str(np.round(loss_value, 2)) + "|"
     return tmp_str
 
 
@@ -454,7 +458,7 @@ class mcSPSA():
     if self.config['use_truck_link_tt']or self.config['compute_car_link_tt_loss']:
       self._add_truck_link_tt_data(data_dict['truck_link_tt'])
 
-  def _run_simulation(self, f_car, f_truck, counter = 0):
+  def _run_simulation(self, f_car, f_truck, counter=0):
     hash1 = hashlib.sha1()
     hash1.update(str(time.time()) + str(counter))
     new_folder = str(hash1.hexdigest())
@@ -472,10 +476,10 @@ class mcSPSA():
     # print "Finish simulation", time.time()
     return a  
 
-  def init_path_flow(self, car_scale = 1, truck_scale = 0.1):
-    f_car =  np.random.rand(self.num_assign_interval * self.num_path) * car_scale
-    f_truck =  np.random.rand(self.num_assign_interval * self.num_path) * truck_scale
-    return (f_car, f_truck)
+  def init_path_flow(self, car_scale=1, truck_scale=0.1):
+    f_car = np.random.rand(self.num_assign_interval * self.num_path) * car_scale
+    f_truck = np.random.rand(self.num_assign_interval * self.num_path) * truck_scale
+    return f_car, f_truck
 
   def _get_one_data(self, j):
     assert (self.num_data > j)
@@ -498,26 +502,26 @@ class mcSPSA():
     loss_dict = dict()
     if self.config['use_car_link_flow'] or self.config['compute_car_link_flow_loss']:
       x_e = dta.get_link_car_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+                                    np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
       if self.config['car_count_agg']:
         x_e = one_data_dict['car_count_agg_L'].dot(x_e)
       loss = self.config['link_car_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e - one_data_dict['car_link_flow']))
       loss_dict['car_count_loss'] = loss
     if self.config['use_truck_link_flow'] or self.config['compute_truck_link_flow_loss']:
       x_e = dta.get_link_truck_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
       if self.config['truck_count_agg']:
         x_e = one_data_dict['truck_count_agg_L'].dot(x_e)
       loss = self.config['link_truck_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e - one_data_dict['truck_link_flow']))
       loss_dict['truck_count_loss'] = loss
     if self.config['use_car_link_tt'] or self.config['compute_car_link_tt_loss']:
-      x_tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order = 'F')
+      x_tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order='F')
       # x_tt_e = dta.get_car_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
       #       np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
       loss = self.config['link_car_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e - one_data_dict['car_link_tt']))
       loss_dict['car_tt_loss'] = loss
     if self.config['use_truck_link_tt'] or self.config['compute_truck_link_tt_loss']:
-      x_tt_e = dta.get_truck_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order = 'F')
+      x_tt_e = dta.get_truck_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order='F')
       loss = self.config['link_truck_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e - one_data_dict['truck_link_tt']))
       loss_dict['truck_tt_loss'] = loss
 
@@ -526,8 +530,7 @@ class mcSPSA():
       total_loss += loss_value
     return total_loss, loss_dict
 
-
-  def compute_path_flow_grad_and_loss(self, one_data_dict, f_car, f_truck, delta_car_scale = 0.1, delta_truck_scale = 0.01):
+  def compute_path_flow_grad_and_loss(self, one_data_dict, f_car, f_truck, delta_car_scale=0.1, delta_truck_scale=0.01):
     delta_f_car = (np.random.rand(*f_car.shape) * 2 - 1) * delta_car_scale
     delta_f_truck = (np.random.rand(*f_truck.shape) * 2 - 1) * delta_truck_scale
     f_car_1 = np.maximum(f_car + delta_f_car, 1e-3)
@@ -544,14 +547,14 @@ class mcSPSA():
     grad_f_car = (loss_1 - loss_2) / (2 * delta_f_car)
     grad_f_truck = (loss_1 - loss_2) / (2 * delta_f_truck)
     dta = self._run_simulation(f_car, f_truck, 33333)
-    total_loss, loss_dict  = self._get_loss(one_data_dict, dta)
-    return  -grad_f_car, - grad_f_truck, total_loss, loss_dict 
+    total_loss, loss_dict = self._get_loss(one_data_dict, dta)
+    return -grad_f_car, - grad_f_truck, total_loss, loss_dict
 
-  def estimate_path_flow(self, car_step_size = 0.1, truck_step_size = 0.1, max_epoch = 10, car_init_scale = 10, 
-                              truck_init_scale = 1, store_folder = None, use_file_as_init = None,
-                              adagrad = False, delta_car_scale = 0.1, delta_truck_scale = 0.01):
+  def estimate_path_flow(self, car_step_size=0.1, truck_step_size=0.1, max_epoch=10, car_init_scale=10,
+                         truck_init_scale=1, store_folder=None, use_file_as_init=None,
+                         adagrad=False, delta_car_scale=0.1, delta_truck_scale=0.01):
     if use_file_as_init is None:
-      (f_car, f_truck) = self.init_path_flow(car_scale = car_init_scale, truck_scale = truck_init_scale)
+      (f_car, f_truck) = self.init_path_flow(car_scale=car_init_scale, truck_scale=truck_init_scale)
     else:
       (f_car, f_truck, _) = pickle.load(open(use_file_as_init, 'rb'))
     loss_list = list()
@@ -562,10 +565,12 @@ class mcSPSA():
       seq = np.random.permutation(self.num_data)
       loss = np.float(0)
       # print("Start iteration", time.time())
-      loss_dict = {'car_count_loss':0.0, 'truck_count_loss':0.0, 'car_tt_loss':0.0, 'truck_tt_loss':0.0}
+      loss_dict = {'car_count_loss': 0.0, 'truck_count_loss': 0.0, 'car_tt_loss': 0.0, 'truck_tt_loss': 0.0}
       for j in seq:
         one_data_dict = self._get_one_data(j)
-        car_grad, truck_grad, tmp_loss, tmp_loss_dict = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck, delta_car_scale = delta_car_scale, delta_truck_scale = delta_truck_scale)
+        car_grad, truck_grad, tmp_loss, tmp_loss_dict = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck,
+                                                                                             delta_car_scale=delta_car_scale,
+                                                                                             delta_truck_scale=delta_truck_scale)
         # print("gradient", car_grad, truck_grad)
         if adagrad:
           sum_g_square_car = sum_g_square_car + np.power(car_grad, 2)
@@ -587,11 +592,10 @@ class mcSPSA():
       if store_folder is not None:
         pickle.dump((f_car, f_truck, loss), open(os.path.join(store_folder, str(i) + 'iteration.pickle'), 'wb'))
       loss_list.append([loss, loss_dict])
-    return (f_car, f_truck, loss_list)
-
+    return f_car, f_truck, loss_list
 
   def print_separate_accuracy(self, loss_dict):
     tmp_str = ""
     for loss_type, loss_value in loss_dict.items():
-      tmp_str += loss_type + ": " + str(np.round(loss_value, 2)) +"|"
+      tmp_str += loss_type + ": " + str(np.round(loss_value, 2)) + "|"
     return tmp_str

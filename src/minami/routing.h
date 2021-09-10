@@ -19,7 +19,7 @@ public:
   MNM_Routing(PNEGraph &graph,
               MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
   virtual ~MNM_Routing();
-  virtual int init_routing(Path_Table *path_table=NULL){return 0;};
+  virtual int init_routing(Path_Table *path_table=nullptr){return 0;};
   virtual int update_routing(TInt timestamp){return 0;};
   PNEGraph m_graph;
   MNM_OD_Factory *m_od_factory;
@@ -66,11 +66,11 @@ public:
               MNM_Link_Factory *link_factory, 
               TInt route_frq = TInt(-1), TInt buffer_len = TInt(-1));
   virtual ~MNM_Routing_Fixed() override;
-  virtual int init_routing(Path_Table *path_table=NULL) override;
+  virtual int init_routing(Path_Table *path_table=nullptr) override;
   virtual int update_routing(TInt timestamp) override;
 // private:
   int set_path_table(Path_Table *path_table);
-  virtual int register_veh(MNM_Veh* veh);
+  virtual int register_veh(MNM_Veh* veh, bool track = true);
   int add_veh_path(MNM_Veh* veh, std::deque<TInt> *link_que);
   virtual int change_choice_portion(TInt interval);
   Path_Table *m_path_table;
@@ -90,7 +90,7 @@ public:
                     MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory,
                      TInt route_frq_fixed = TInt(-1), TInt buffer_len = TInt(-1));
   virtual ~MNM_Routing_Hybrid() override;
-  virtual int init_routing(Path_Table *path_table=NULL) override;
+  virtual int init_routing(Path_Table *path_table=nullptr) override;
   virtual int update_routing(TInt timestamp) override;
 
   MNM_Routing_Adaptive* m_routing_adaptive;

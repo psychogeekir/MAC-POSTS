@@ -29,6 +29,12 @@ namespace MNM_DTA_GRADIENT {
         return link->m_N_in->get_result(TFlt(end_time)) - link->m_N_in->get_result(TFlt(start_time));
     }
 
+    TFlt get_last_valid_time(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out) {
+        TFlt _cc_flow = N_out -> m_recorder.back().second;
+        TFlt _last_valid_time = N_in -> get_time(_cc_flow);
+        return _last_valid_time;
+    }
+
     TFlt get_travel_time_from_FD(MNM_Dlink* link, TFlt start_time, TFlt unit_interval) {
         TFlt _flow = link->m_N_in->get_result(start_time) - link->m_N_out->get_result(start_time);
         if (_flow < 0.) _flow = 0.;
@@ -45,17 +51,23 @@ namespace MNM_DTA_GRADIENT {
             throw std::runtime_error("Error, get_travel_time link cumulative curve is not installed");
         }
         TFlt fftt = link->m_length/link->m_ffs/unit_interval;
+
+        TFlt _last_valid_time = get_last_valid_time(link -> m_N_in, link -> m_N_out);
+        if (_last_valid_time < 0) return fftt;
+        if (start_time > _last_valid_time) start_time = _last_valid_time;
+
         TFlt _cc_flow = link->m_N_in->get_result(start_time);
         if (_cc_flow <= DBL_EPSILON) {
             return fftt; //link->get_link_tt();  // free flow travel time
         }
 
         // from fundamental diagram
-        TFlt _tt = get_travel_time_from_FD(link, start_time, unit_interval);
-        if (_tt > fftt) fftt = _tt;
+//        TFlt _tt = get_travel_time_from_FD(link, start_time, unit_interval);
+//        if (_tt > fftt) fftt = _tt;
 
         // get the earliest time point in m_N_in that reaches the inflow == _cc_flow as the true start_time
         TFlt _true_start_time = link -> m_N_in -> get_time(_cc_flow);
+        IAssert(_true_start_time <= _last_valid_time);
 
         // get the earliest time point in m_N_out that reaches the outflow == _cc_flow as the end_time
         TFlt _end_time = link->m_N_out->get_time(_cc_flow);
@@ -139,10 +151,14 @@ namespace MNM_DTA_GRADIENT {
                 for (auto depart_it : path_it.second) {
                     TFlt tmp_flow = depart_it.second->get_result(end_time) - depart_it.second->get_result(start_time);
                     if (tmp_flow > DBL_EPSILON) {
-                        _x = link_ind + num_e_link * interval_ind;
-                        _y = (*_path_iter).second + num_e_path * depart_it.first;
+                        _x = link_ind + num_e_link * interval_ind; // # of links * # of intervals
+                        _y = (*_path_iter).second + num_e_path * depart_it.first; // # of paths * # of intervals
                         // printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(),
                         //     new_record -> link_ID(), (float)new_record -> link_start_int(), (float) new_record -> flow());
+
+                        // https://eigen.tuxfamily.org/dox/classEigen_1_1Triplet.html
+                        // https://eigen.tuxfamily.org/dox/SparseUtil_8h_source.html
+                        // (row index, col index, value)
                         record.push_back(Eigen::Triplet<double>((double) _x, (double) _y, tmp_flow() / f_ptr[_y]));
                     }
                 }

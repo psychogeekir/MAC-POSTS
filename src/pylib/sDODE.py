@@ -20,7 +20,7 @@ class SDODE():
     self.ass_freq = nb.config.config_dict['DTA']['assign_frq']
     self.num_link = nb.config.config_dict['DTA']['num_of_link']
     self.num_path = nb.config.config_dict['FIXED']['num_path']
-    self.num_loading_interval =  self.num_assign_interval * self.ass_freq
+    self.num_loading_interval = self.num_assign_interval * self.ass_freq
     self.data_dict = dict()
     self.num_data = self.config['num_data']
     self.observed_links = self.config['observed_links']
@@ -55,13 +55,14 @@ class SDODE():
     if self.config['use_link_tt']:
       self._add_link_tt_data(data_dict['link_tt'])
 
-  def _run_simulation(self, f, counter = 0):
+  def _run_simulation(self, f, counter=0):
     # print "RUN"
     hash1 = hashlib.sha1()
     hash1.update(str(time.time()) + str(counter))
     new_folder = str(hash1.hexdigest())
     self.nb.update_demand_path(f)
     self.nb.config.config_dict['DTA']['total_interval'] = self.num_loading_interval
+    # prepare new input files for C++ program
     self.nb.dump_to_folder(new_folder)
     a = MNMAPI.dta_api()
     a.initialize(new_folder)
@@ -75,10 +76,9 @@ class SDODE():
 
   def get_full_dar(self, dta, f):
     dar = dta.get_complete_dar_matrix(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq, 
-                self.num_assign_interval, f)
+                                      np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq,
+                                      self.num_assign_interval, f)
     return dar
-
 
   def get_path_tt_dict(self, dta):
     path_tt_array = dta.get_path_tt(np.arange(0, self.num_loading_interval, self.ass_freq))
@@ -87,24 +87,27 @@ class SDODE():
       path_ID2tt[path_ID] = path_tt_array[path_ID_idx, :]
     return path_ID2tt
 
-  def assign_route_portions(self, path_ID2tt, theta = 0.1):
+  def assign_route_portions(self, path_ID2tt, theta=0.1):
     for O_node in self.nb.path_table.path_dict.keys():
       for D_node in self.nb.path_table.path_dict[O_node].keys():
         tmp_path_set = self.nb.path_table.path_dict[O_node][D_node]
-        cost_array = np.zeros((len(tmp_path_set.path_list),self.num_assign_interval))
+        cost_array = np.zeros((len(tmp_path_set.path_list), self.num_assign_interval))
         for tmp_path_idx, tmp_path in enumerate(tmp_path_set.path_list):
           cost_array[tmp_path_idx, :] = path_ID2tt[tmp_path.path_ID]
-        p_array = generate_portion_array(cost_array, theta = theta)
+        p_array = generate_portion_array(cost_array, theta=theta)
         for tmp_path_idx, tmp_path in enumerate(tmp_path_set.path_list):
           tmp_path.attach_route_choice_portions(p_array[tmp_path_idx])
 
-  def init_demand_flow(self, init_scale = 0.1):
+  def init_demand_flow(self, init_scale=0.1):
     return np.random.rand(self.num_assign_interval * len(self.demand_list)) * init_scale
 
-  def compute_path_flow_grad_and_loss(self, one_data_dict, f, counter = 0):
+  def compute_path_flow_grad_and_loss(self, one_data_dict, f, counter=0):
     # print "Running simulation"
+    # f: path flow time-dependent demand = p*q, num_path * num_assign_interval
     dta = self._run_simulation(f, counter)
     # print "Getting DAR"
+    # only partial links in partial intervals are observed, dar = L * rou
+    # (num_assign_interval * num_observed_links, num_assign_interval * num_path)
     dar = self.get_full_dar(dta, f)[self.get_full_observed_link_index(), :]
     # print "Evaluating grad"
     grad = np.zeros(len(self.observed_links) * self.num_assign_interval)
@@ -115,11 +118,11 @@ class SDODE():
     # print "Getting Loss"
     loss = self._get_loss(one_data_dict, dta)
     new_path_cost_array = dta.get_path_tt(np.arange(0, self.num_loading_interval, self.ass_freq))
-    return  dar.T.dot(grad), loss, new_path_cost_array
+    return dar.T.dot(grad), loss, new_path_cost_array
 
   def _compute_grad_on_link_flow(self, dta, link_flow_array):
     x_e = dta.get_link_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+                              np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
     grad = -np.nan_to_num(link_flow_array - x_e[self.get_full_observed_link_index()])
     return grad
 
@@ -143,11 +146,9 @@ class SDODE():
     loss = np.float(0)
     if self.config['use_link_flow']:
       x_e = dta.get_link_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
-                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
-      loss += self.config['link_flow_weight'] * np.linalg.norm(
-                np.nan_to_num(x_e[self.get_full_observed_link_index()] - one_data_dict['link_flow']))
+                                np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order = 'F')
+      loss += self.config['link_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e[self.get_full_observed_link_index()] - one_data_dict['link_flow']))
     return loss
-
 
   def get_full_observed_link_index(self):
     link_list = list()
@@ -160,46 +161,49 @@ class SDODE():
     link_list = list(range(len(self.all_links) * self.num_assign_interval))
     return link_list
 
-
-
-  def estimate_demand(self, init_scale = 0.1, step_size = 0.1, 
-                      max_epoch = 100, adagrad = False,
-                      theta = 0.1, save_folder = None):
+  def estimate_demand(self, init_scale=0.1, step_size=0.1,
+                      max_epoch=100, adagrad=False,
+                      theta=0.1, save_folder=None):
     loss_list = list()
-    q_e = self.init_demand_flow(init_scale = init_scale)
+    # q_e: num_assign_interval * num_OD
+    q_e = self.init_demand_flow(init_scale=init_scale)
     for i in range(max_epoch):
       seq = np.random.permutation(self.num_data)
       loss = np.float(0)
       sum_g_square = 1e-6
       for j in seq:
+        # retrieve one record of observed data
         one_data_dict = self._get_one_data(j)
+        # P: (num_path * num_assign_interval, num_OD * num_assign_interval)
         P = self.nb.get_route_portion_matrix()
+        # f_e: num_path * num_assign_interval
         f_e = P.dot(q_e)
+        # f_grad: num_path * num_assign_interval
         f_grad, tmp_loss, path_cost = self.compute_path_flow_grad_and_loss(one_data_dict, f_e)
+        # q_grad: num_OD * num_assign_interval
         q_grad = P.T.dot(f_grad)
         sum_g_square = sum_g_square + np.power(q_grad, 2)
         q_e -= q_grad * step_size / np.sqrt(sum_g_square)
         q_e = np.maximum(q_e, 1e-6)
         loss += tmp_loss
-        self.assign_route_portions(path_cost, theta = theta)
-      print "Epoch:", i, "Loss:", loss / np.float(self.num_data)
+        # adjust path flow portion based on path cost and logit choice model
+        self.assign_route_portions(path_cost, theta=theta)
+      print("Epoch:", i, "Loss:", loss / np.float(self.num_data))
       loss_list.append(loss / np.float(self.num_data))
       if save_folder is not None:
         pickle.dump([loss / np.float(self.num_data), q_e], open(os.path.join(save_folder, str(i)+'iteration.pickle'), 'wb'))
     return q_e, loss_list
 
-
-
-  def estimate_demand_cov(self, O_dist, D_dist, init_mean_scale = 0.1, 
-                      init_std_scale = 0.01, init_O_cov_scale = 0.1,
-                      init_D_cov_scale = 0.1, step_size = 0.1, 
-                      max_epoch = 100, adagrad = False,
-                      theta = 0.1, known_path_cost = None, save_folder = None):
+  def estimate_demand_cov(self, O_dist, D_dist, init_mean_scale=0.1,
+                          init_std_scale=0.01, init_O_cov_scale=0.1,
+                          init_D_cov_scale=0.1, step_size=0.1,
+                          max_epoch=100, adagrad=False,
+                          theta=0.1, known_path_cost=None, save_folder=None):
     loss_list = list()
     q_para = OD_parameter_server(self.demand_list, self.num_assign_interval)
     q_para.construct(O_dist, D_dist)
-    q_para.initialize(mean_scale = init_mean_scale, std_scale= init_std_scale, 
-                        O_cov_scale = init_O_cov_scale, D_cov_scale = init_D_cov_scale)
+    q_para.initialize(mean_scale=init_mean_scale, std_scale=init_std_scale,
+                      O_cov_scale=init_O_cov_scale, D_cov_scale=init_D_cov_scale)
     self.q_para_save = q_para
     iter_counter = 0
     for i in range(max_epoch):
@@ -227,13 +231,13 @@ class SDODE():
 
 
 ###  Behavior related function
-def generate_portion_array(cost_array, theta = 0.1):
+def generate_portion_array(cost_array, theta=0.1):
   p_array = np.zeros(cost_array.shape)
   for i in range(cost_array.shape[1]):
     p_array[:, i] = logit_fn(cost_array[:,i], theta)
   return p_array
 
-def logit_fn(cost, theta, max_cut = True):
+def logit_fn(cost, theta, max_cut=True):
   scale_cost = - theta * cost
   if max_cut:
     e_x = np.exp(scale_cost - np.max(scale_cost))

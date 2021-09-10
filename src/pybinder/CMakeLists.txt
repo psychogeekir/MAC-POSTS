@@ -2,7 +2,7 @@
 
 add_subdirectory(pybind11)
 
-file(GLOB_RECURSE mimamiapi_src "src/*.cpp" "src/*.h")
-
-pybind11_add_module(MNMAPI ${mimamiapi_src})
+file(GLOB_RECURSE minamiapi_src "src/*.cpp" "src/*.h")
+# define the output python library
+pybind11_add_module(MNMAPI ${minamiapi_src})
 target_link_libraries (MNMAPI PRIVATE Snap minami Eigen3::Eigen)

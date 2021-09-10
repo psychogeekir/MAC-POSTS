@@ -108,8 +108,7 @@ class DODE(object):
       grad += self.config['link_tt_weight'] * self._compute_grad_on_link_tt(dta, one_data_dict['link_tt'])
     # print "Getting Loss"
     loss = self._get_loss(one_data_dict, dta)
-    return  dar.T.dot(grad), loss
-
+    return dar.T.dot(grad), loss
 
   def compute_path_flow_grad_and_loss_mpwrapper(self, one_data_dict, f, j, output):
     grad, tmp_loss = self.compute_path_flow_grad_and_loss(one_data_dict, f, counter = j)
@@ -131,7 +130,6 @@ class DODE(object):
     for i in range(tt_e.shape[0]):
       pass
     return 0
-
 
   def _get_one_data(self, j):
     assert (self.num_data > j)
