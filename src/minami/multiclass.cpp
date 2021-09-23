@@ -3044,8 +3044,10 @@ int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* 
         if (tmp_flow > DBL_EPSILON){
           auto new_record = new dar_record();
           new_record -> path_ID = path_it.first -> m_path_ID;
+          // the count of 1 min intervals, the vehicles record this assign_int
           new_record -> assign_int = depart_it.first;
           new_record -> link_ID = link -> m_link_ID;
+          // the count of unit time interval (5s)
           new_record -> link_start_int = start_time;
           new_record -> flow = tmp_flow;
           // printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(), 
@@ -3076,8 +3078,10 @@ int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass
         if (tmp_flow > DBL_EPSILON){
           auto new_record = new dar_record();
           new_record -> path_ID = path_it.first -> m_path_ID;
+          // the count of 1 min intervals, the vehicles record this assign_int
           new_record -> assign_int = depart_it.first;
           new_record -> link_ID = link -> m_link_ID;
+          // the count of unit time interval (5s)
           new_record -> link_start_int = start_time;
           new_record -> flow = tmp_flow;
           // printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(), 

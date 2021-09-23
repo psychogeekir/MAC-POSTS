@@ -6005,6 +6005,10 @@ int MNM_Dta_Multimodal::load_once(bool verbose, TInt load_int, TInt assign_int)
     //   _origin = _origin_it -> second;
     //   _origin -> release(m_veh_factory, _cur_int);
     // }
+
+    // m_assign_freq = 12 intervals x 5 s = 1 min
+    // m_total_assign_inter = total number of 1 min intervals
+    // assign_int = the count of 1 min intervals, the vehicles and passengers record this assign_int
     if (load_int % m_assign_freq == 0 || load_int==0){
         for (auto _origin_it : m_od_factory -> m_origin_map){
             _origin = _origin_it.second;  // base origin class pointer to multimodal origin object
@@ -6343,8 +6347,10 @@ int add_dar_records_bus(std::vector<dar_record*> &record, MNM_Bus_Link* link,
                 if (tmp_flow > DBL_EPSILON){
                     auto new_record = new dar_record();
                     new_record -> path_ID = path_it.first -> m_path_ID;  // not bus route ID, the reordered path ID
+                    // the count of 1 min intervals, the vehicles record this assign_int
                     new_record -> assign_int = depart_it.first;
                     new_record -> link_ID = link -> m_link_ID;
+                    // the count of unit time interval (5s)
                     new_record -> link_start_int = start_time;
                     new_record -> flow = tmp_flow;
                     // printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(),
@@ -6360,6 +6366,7 @@ int add_dar_records_bus(std::vector<dar_record*> &record, MNM_Bus_Link* link,
 int add_dar_records_passenger(std::vector<dar_record*> &record, MNM_Transit_Link* link,
                               std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time)
 {
+    // link includes bus and walking links
     // pathset includes PnR and transit paths
     if (link == nullptr){
         throw std::runtime_error("Error, add_dar_records_passenger link is null");
@@ -6376,8 +6383,10 @@ int add_dar_records_passenger(std::vector<dar_record*> &record, MNM_Transit_Link
                 if (tmp_flow > DBL_EPSILON){
                     auto new_record = new dar_record();
                     new_record -> path_ID = path_it.first -> m_path_ID;
+                    // the count of 1 min intervals, the passengers record this assign_int
                     new_record -> assign_int = depart_it.first;
                     new_record -> link_ID = link -> m_link_ID;
+                    // the count of unit time interval (5s)
                     new_record -> link_start_int = start_time;
                     new_record -> flow = tmp_flow;
                     // printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(),
@@ -7418,9 +7427,9 @@ int get_ID_path_mapping_all_mode(std::unordered_map<TInt, std::pair<MNM_Path*, M
                     IAssert(_p_pathset -> m_path_vec.size() ==
                             pnr_path_table -> find(_it.first) -> second -> find(_it_it.first) -> second -> m_path_vec.size());
                     for (auto *_p_path : _p_pathset -> m_path_vec) {
-                        _p_path -> m_path -> m_path_ID = _path_count;
-                        _p_path -> m_path -> m_path_type = pnr;
-                        dict[_path_count] = std::make_pair(_p_path -> m_path, _p_path);
+                        dynamic_cast<MNM_Passenger_Path_PnR*>(_p_path) -> m_path -> m_path_ID = _path_count;
+                        dynamic_cast<MNM_Passenger_Path_PnR*>(_p_path) -> m_path -> m_path_type = pnr;
+                        dict[_path_count] = std::make_pair(dynamic_cast<MNM_Passenger_Path_PnR*>(_p_path) -> m_path, _p_path);
                         _path_count += 1;
                     }
                 }

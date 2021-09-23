@@ -11,46 +11,54 @@ DNODE_ENUM = ['FWJ', 'DMOND', 'DMDND']
 
 
 class MNM_dlink():
-  def __init__(self):
-    # link ID
-    self.ID = None
-    # length (unit: mile)
-    self.length = None
-    # link type: CTM, LQ, PQ
-    self.typ = None
-    # free flow speed for car (unit: mile/hour)
-    self.ffs_car = None
-    # capacity for car (unit: vehicles/hour/lane)
-    self.cap_car = None 
-    # jam density for car (unit: vehicles/mile/lane)
-    self.rhoj_car = None
-    # number of lanes
-    self.lanes = None
-    # free flow speed for truck (unit: mile/hour)
-    self.ffs_truck = None
-    # capacity for truck (unit: vehicles/hour/lane)
-    self.cap_truck = None
-    # jam density for truck (unit: vehicles/mile/lane)
-    self.rhoj_truck = None
-    # factor for converting truck flow to equivalent car flow, only for calculating node demand for Inout, FWJ, and GRJ node types
-    self.convert_factor = None
+  # Python Does Not Support Multiple Constructors, the last one overwrites the previous ones
+  # def __init__(self):
+  #   # link ID
+  #   self.ID = None
+  #   # length (unit: mile)
+  #   self.length = None
+  #   # link type: CTM, LQ, PQ
+  #   self.typ = None
+  #   # free flow speed for car (unit: mile/hour)
+  #   self.ffs_car = None
+  #   # capacity for car (unit: vehicles/hour/lane)
+  #   self.cap_car = None 
+  #   # jam density for car (unit: vehicles/mile/lane)
+  #   self.rhoj_car = None
+  #   # number of lanes
+  #   self.lanes = None
+  #   # free flow speed for truck (unit: mile/hour)
+  #   self.ffs_truck = None
+  #   # capacity for truck (unit: vehicles/hour/lane)
+  #   self.cap_truck = None
+  #   # jam density for truck (unit: vehicles/mile/lane)
+  #   self.rhoj_truck = None
+  #   # factor for converting truck flow to equivalent car flow, only for calculating node demand for Inout, FWJ, and GRJ node types
+  #   self.convert_factor = None
 
   def __init__(self, ID, length, typ, ffs_car, cap_car, rhoj_car, lanes, 
-                  ffs_truck, cap_truck, rhoj_truck, convert_factor):
+                ffs_truck, cap_truck, rhoj_truck, convert_factor):
+    # link ID
     self.ID = ID
+    # length (unit: mile)
     self.length = length  #mile
+    # link type: CTM, LQ, PQ
     self.typ = typ        #type
-
+    # free flow speed for car (unit: mile/hour)
     self.ffs_car = ffs_car        #mile/h
+    # capacity for car (unit: vehicles/hour/lane)
     self.cap_car = cap_car        #v/hour/lane
+    # jam density for car (unit: vehicles/mile/lane)
     self.rhoj_car = rhoj_car      #v/mile/lane
-
+    # number of lanes
     self.lanes = lanes    #num of lanes
-
+    # free flow speed for truck (unit: mile/hour)
     self.ffs_truck = ffs_truck        #mile/h
+    # capacity for truck (unit: vehicles/hour/lane)
     self.cap_truck = cap_truck        #v/hour/lane
+    # jam density for truck (unit: vehicles/mile/lane)
     self.rhoj_truck = rhoj_truck      #v/mile/lane
-
+    # factor for converting truck flow to equivalent car flow, only for calculating node demand for Inout, FWJ, and GRJ node types
     self.convert_factor = convert_factor
 
 
@@ -94,16 +102,21 @@ class MNM_dlink():
 
 
 class MNM_dnode():
-  def __init__(self):
-    # node ID
-    self.ID = None
-    # node type: FWJ, DMOND, DMDND
-    self.typ = None
-    # factor for converting truck flow to equivalent car flow, only for calculating node demand for Inout, FWJ, and GRJ node types
-    self.convert_factor = None
+  # Python Does Not Support Multiple Constructors, the last one overwrites the previous ones
+  # def __init__(self):
+  #   # node ID
+  #   self.ID = None
+  #   # node type: FWJ, DMOND, DMDND
+  #   self.typ = None
+  #   # factor for converting truck flow to equivalent car flow, only for calculating node demand for Inout, FWJ, and GRJ node types
+  #   self.convert_factor = None
+
   def __init__(self, ID, typ, convert_factor):
+    # node ID
     self.ID = ID
+    # node type: FWJ, DMOND, DMDND
     self.typ = typ
+    # factor for converting truck flow to equivalent car flow, only for calculating node demand for Inout, FWJ, and GRJ node types
     self.convert_factor = convert_factor
 
   def is_ok(self):
@@ -254,7 +267,7 @@ class MNM_graph():
     elif (not create_node) and s in self.G.nodes():
       raise("Error, exists start node of edge in graph")
     elif (not create_node) and e in self.G.nodes():
-      raige("Error, exists end node of edge in graph")
+      raise("Error, exists end node of edge in graph")
     else:
       self.G.add_edge(s, e, ID = ID)
       self.edgeID_dict[ID] = (s, e)
@@ -300,6 +313,7 @@ class MNM_graph():
     return tmp_str
 
 class MNM_path():
+  # Python Does Not Support Multiple Constructors, the last one overwrites the previous ones
   # class of one path: a sequence of node IDs
   def __init__(self):
     # print("MNM_path")
@@ -307,8 +321,9 @@ class MNM_path():
     self.origin_node = None
     self.destination_node = None
     self.node_list = list()
-    # 
+    # car
     self.route_portions = None
+    # truck
     self.truck_route_portions = None
 
   def __init__(self, node_list, path_ID):
@@ -421,13 +436,13 @@ class MNM_pathtable():
     if pathset.origin_node not in self.path_dict.keys():
       self.path_dict[pathset.origin_node] = dict()
     if (not overwriting) and (pathset.destination_node in self.path_dict[pathset.origin_node]):
-      raise ("Error: exists pathset in the pathtable")
+      raise ("Error, pathset exists in the pathtable")
     else:
       self.path_dict[pathset.origin_node][pathset.destination_node] = pathset
 
-  def build_from_file(self, file_name, w_ID = False):
+  def build_from_file(self, file_name, w_ID = False, starting_ID=0):
     if w_ID:
-      raise ("Error, path table build_from_file not implemented")
+      raise ("Error, path table build_from_file with ID not implemented")
     self.path_dict = dict()
     self.ID2path = OrderedDict()
     # path_table: no title line
@@ -453,9 +468,9 @@ class MNM_pathtable():
       tmp_node_list = list(map(lambda x : np.int(x), words))
       tmp_path = MNM_path(tmp_node_list, i)
       self.path_dict[origin_node][destination_node].add_path(tmp_path)
-      self.ID2path[i] = tmp_path
+      self.ID2path[starting_ID + i] = tmp_path
 
-  def load_route_choice_from_file(self, file_name, w_ID = False, buffer_length = None):
+  def load_route_choice_from_file(self, file_name, w_ID = False, buffer_length = None, starting_ID=0):
     if w_ID:
       raise ("Error, pathtable load_route_choice_from_file not implemented")
     # path_table_buffer: each entry is a sequence of time-dependent portions using each corresponding path, the first half for car, the last half for truck
@@ -467,14 +482,16 @@ class MNM_pathtable():
     for i in range(len(log)):
       tmp_portions = np.array(log[i].strip().split()).astype(np.float)
       if buffer_length is not None:
+        if len(tmp_portions) == buffer_length:
+          buffer_length = buffer_length // 2
         assert(len(tmp_portions) == buffer_length * 2)
-        self.ID2path[i].attach_route_choice_portions(tmp_portions[:buffer_length])
-        self.ID2path[i].attach_route_choice_portions_truck(tmp_portions[buffer_length:])
+        self.ID2path[starting_ID + i].attach_route_choice_portions(tmp_portions[:buffer_length])
+        self.ID2path[starting_ID + i].attach_route_choice_portions_truck(tmp_portions[buffer_length:])
       else:
         raise("deprecated")
 
   def __str__(self):
-    return "MNM_pathtable, number of paths:" + str(len(self.ID2path)) 
+    return "MNM_pathtable, number of paths: " + str(len(self.ID2path)) 
 
   def __repr__(self):
     return self.__str__()
@@ -526,7 +543,7 @@ class MNM_config():
                       'rec_volume': np.int, 'volume_load_automatic_rec': np.int, 'volume_record_automatic_rec': np.int,
                       'rec_tt': np.int, 'tt_load_automatic_rec':np.int, 'tt_record_automatic_rec':np.int,
                       'route_frq': np.int, 'path_file_name': str, 'num_path': np.int,
-                      'choice_portion': str, 'route_frq': np.int, 'adaptive_ratio':np.float,
+                      'choice_portion': str, 'adaptive_ratio':np.float,
                       'buffer_length':np.int, 'adaptive_ratio_car': np.float, 
                       'adaptive_ratio_truck': np.float}
 
@@ -728,7 +745,7 @@ class MNM_network_builder():
     return node_list
 
   def generate_link_text(self):
-    tmp_str = '''#ID Type LEN(mile) FFS_car(mile/h) Cap_car(v/hour) RHOJ_car(v/miles) Lane FFS_truck(mile/h) Cap_truck(v/hour) RHOJ_truck(v/miles) Convert_factor(1)\n'''
+    tmp_str = '#ID Type LEN(mile) FFS_car(mile/h) Cap_car(v/hour) RHOJ_car(v/miles) Lane FFS_truck(mile/h) Cap_truck(v/hour) RHOJ_truck(v/miles) Convert_factor(1)\n'
     for link in self.link_list:
       tmp_str += link.generate_text() + '\n'
     return tmp_str

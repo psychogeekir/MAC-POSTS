@@ -75,3 +75,6 @@ target_link_libraries (test_multimodal_due Snap minami adv_ds)
 
 #add_executable (test_tree_cc test_tree_cc.cpp)
 #target_link_libraries (test_tree_cc Snap minami adv_ds)
+
+add_executable (test_python_api test_python_api.cpp)
+target_link_libraries (test_python_api Snap minami adv_ds)

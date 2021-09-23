@@ -66,6 +66,7 @@ int MNM_Dta::initialize()
   m_config = new MNM_ConfReader(m_file_folder + "/config.conf", "DTA");
   m_unit_time = m_config -> get_int("unit_time");
   m_flow_scalar = m_config -> get_int("flow_scalar");
+  // note the difference in m_assign_freq and m_total_assign_inter between MNM_Dta and MNM_Dta_Multiclass and MNM_Dta_Multimodal
   m_assign_freq = m_config -> get_int("assign_frq");
   m_start_assign_interval = m_config -> get_int("start_assign_interval");
   m_total_assign_inter = m_config -> get_int("max_interval");

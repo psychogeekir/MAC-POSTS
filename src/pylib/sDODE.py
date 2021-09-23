@@ -20,7 +20,10 @@ class SDODE():
     self.ass_freq = nb.config.config_dict['DTA']['assign_frq']
     self.num_link = nb.config.config_dict['DTA']['num_of_link']
     self.num_path = nb.config.config_dict['FIXED']['num_path']
-    self.num_loading_interval = self.num_assign_interval * self.ass_freq
+    if nb.config.config_dict['DTA']['total_interval'] > 0 and nb.config.config_dict['DTA']['total_interval'] > self.num_assign_interval * self.ass_freq:
+      self.num_loading_interval = nb.config.config_dict['DTA']['total_interval']
+    else:
+      self.num_loading_interval = self.num_assign_interval * self.ass_freq  # not long enough
     self.data_dict = dict()
     self.num_data = self.config['num_data']
     self.observed_links = self.config['observed_links']

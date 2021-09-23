@@ -176,10 +176,12 @@ public:
     py::array_t<double> get_waiting_time_at_intersections();
     py::array_t<int> get_link_spillback();
 
-    py::array_t<double> get_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
-    py::array_t<double> get_truck_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_car_dar_matrix_driving(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_truck_dar_matrix_driving(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_car_dar_matrix_pnr(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
     py::array_t<double> get_bus_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
-    py::array_t<double> get_passenger_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_passenger_dar_matrix_bustransit(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_passenger_dar_matrix_pnr(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
 
     MNM_MM_Due *m_mmdue;
     MNM_Dta_Multimodal *m_mmdta;
