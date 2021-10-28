@@ -88,7 +88,8 @@ class MNM_demand():
 
   def build_from_file(self, file_name):
     self.demand_list = list()
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, "r")
     log = f.readlines()[1:]
     f.close()
     for i in range(len(log)):
@@ -137,7 +138,8 @@ class MNM_od():
     self.O_dict = bidict()
     self.D_dict = bidict()
     flip = False
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, "r")
     log = f.readlines()[1:]
     f.close()
     for i in range(len(log)):
@@ -157,10 +159,16 @@ class MNM_od():
 
   def generate_text(self):
     tmp_str = '#Origin_ID <-> node_ID\n'
-    for O_ID, node_ID in self.O_dict.iteritems():
+    # python 2
+    # for O_ID, node_ID in self.O_dict.iteritems():
+    # python 3  
+    for O_ID, node_ID in self.O_dict.items():
       tmp_str += ' '.join([str(e) for e in [O_ID, node_ID]]) + '\n'
     tmp_str += '#Dest_ID <-> node_ID\n'
-    for D_ID, node_ID in self.D_dict.iteritems():
+    # python 2
+    # for D_ID, node_ID in self.D_dict.iteritems():
+    # python 3
+    for D_ID, node_ID in self.D_dict.items():
       tmp_str += ' '.join([str(e) for e in [D_ID, node_ID]]) + '\n'
     return tmp_str
 
@@ -181,7 +189,7 @@ class MNM_graph():
     elif (not create_node) and s in self.G.nodes():
       raise("Error, exists start node of edge in graph")
     elif (not create_node) and e in self.G.nodes():
-      raige("Error, exists end node of edge in graph")
+      raise("Error, exists end node of edge in graph")
     else:
       self.G.add_edge(s, e, ID = ID)
       self.edgeID_dict[ID] = (s, e)
@@ -195,7 +203,8 @@ class MNM_graph():
   def build_from_file(self, file_name):
     self.G = nx.DiGraph()
     self.edgeID_dict = OrderedDict()
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, "r")
     log = f.readlines()[1:]
     f.close()
     for i in range(len(log)):
@@ -217,7 +226,10 @@ class MNM_graph():
 
   def generate_text(self):
     tmp_str = '# EdgeId FromNodeId  ToNodeId\n'
-    for edge_id, (from_id, to_id) in self.edgeID_dict.iteritems():
+    # python 2
+    # for edge_id, (from_id, to_id) in self.edgeID_dict.iteritems():
+    # python 3
+    for edge_id, (from_id, to_id) in self.edgeID_dict.items():
       tmp_str += ' '.join([str(e) for e in [edge_id, from_id, to_id]]) + '\n'
     return tmp_str
 
@@ -308,7 +320,7 @@ class MNM_pathset():
 
 class MNM_pathtable():
   def __init__(self):
-    print "MNM_pathtable"
+    print("MNM_pathtable")
     self.path_dict = dict()
     self.ID2path = OrderedDict()
 
@@ -326,7 +338,8 @@ class MNM_pathtable():
       raise ("Error, path table build_from_file no implemented")
     self.path_dict = dict()
     self.ID2path = OrderedDict()
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, "r")
     log = f.readlines()
     f.close()
     for i in range(len(log)):
@@ -351,7 +364,8 @@ class MNM_pathtable():
   def load_route_choice_from_file(self, file_name, w_ID = False):
     if w_ID:
       raise ("Error, pathtable load_route_choice_from_file not implemented")
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, "r")
     log = list(filter(lambda x: not x.strip() == '', f.readlines()))
     f.close()
     assert(len(log) == len(self.ID2path))
@@ -367,13 +381,19 @@ class MNM_pathtable():
 
   def generate_table_text(self):
     tmp_str = ""
-    for path_ID, path in self.ID2path.iteritems():
+    # python 2
+    # for path_ID, path in self.ID2path.iteritems():
+    # python 3
+    for path_ID, path in self.ID2path.items():
       tmp_str += path.generate_node_list_text() + '\n'
     return tmp_str
 
   def generate_portion_text(self):
     tmp_str = ""
-    for path_ID, path in self.ID2path.iteritems():
+    # python 2
+    # for path_ID, path in self.ID2path.iteritems():
+    # python 3
+    for path_ID, path in self.ID2path.items():
       tmp_str += path.generate_portion_text() + '\n'
     return tmp_str    
 
@@ -402,7 +422,7 @@ class MNM_pathtable():
 
 class MNM_config():
   def __init__(self):
-    print "MNM_config"
+    print("MNM_config")
     self.config_dict = OrderedDict()
     self.type_dict = {'network_name' : str, 'unit_time': np.int, 'total_interval': np.int,
                       'assign_frq' : np.int, 'start_assign_interval': np.int, 'max_interval': np.int,
@@ -416,7 +436,8 @@ class MNM_config():
 
   def build_from_file(self, file_name):
     self.config_dict = OrderedDict()
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, "r")
     log = f.readlines()
     f.close()
     for i in range(len(log)):
@@ -437,14 +458,23 @@ class MNM_config():
   def __str__(self):
     tmp_str = ''
     tmp_str += '[DTA]\n'
-    for name, value in self.config_dict['DTA'].iteritems():
+    # python 2
+    # for name, value in self.config_dict['DTA'].iteritems():
+    # python 3
+    for name, value in self.config_dict['DTA'].items():
       tmp_str += "{} = {}\n".format(str(name), str(value))
     tmp_str += '\n[STAT]\n'
-    for name, value in self.config_dict['STAT'].iteritems():
+    # python 2
+    # for name, value in self.config_dict['STAT'].iteritems():
+    # python 3
+    for name, value in self.config_dict['STAT'].items():
       tmp_str += "{} = {}\n".format(str(name), str(value))    
     if self.config_dict['DTA']['routing_type'] == 'Fixed':
       tmp_str += '\n[FIXED]\n'
-      for name, value in self.config_dict['FIXED'].iteritems():
+      # python 2
+      # for name, value in self.config_dict['FIXED'].iteritems():
+      # python 3
+      for name, value in self.config_dict['FIXED'].items():
         tmp_str += "{} = {}\n".format(str(name), str(value))  
     return tmp_str
 
@@ -478,29 +508,29 @@ class MNM_network_builder():
     if os.path.isfile(os.path.join(path, config_file_name)):
       self.config.build_from_file(os.path.join(path, config_file_name))
     else:
-      print "No config file"
+      print("No config file")
     if os.path.isfile(os.path.join(path, link_file_name)):
       self.link_list = self.read_link_input(os.path.join(path, link_file_name))
     else:
-      print "No link input"
+      print("No link input")
     if os.path.isfile(os.path.join(path, node_file_name)):
       self.node_list = self.read_node_input(os.path.join(path, node_file_name))
     else:
-      print "No node input"
+      print("No node input")
     if os.path.isfile(os.path.join(path, graph_file_name)):
       self.graph.build_from_file(os.path.join(path, graph_file_name))
     else:
-      print "No graph input"
+      print("No graph input")
 
     if os.path.isfile(os.path.join(path, od_file_name)):
       self.od.build_from_file(os.path.join(path, od_file_name))
     else:
-      print "No OD input"
+      print("No OD input")
 
     if os.path.isfile(os.path.join(path, demand_file_name)):
       self.demand.build_from_file(os.path.join(path, demand_file_name))
     else:
-      print "No demand input"
+      print("No demand input")
 
     if os.path.isfile(os.path.join(path, pathtable_file_name)):
       self.path_table.build_from_file(os.path.join(path, pathtable_file_name))
@@ -509,9 +539,9 @@ class MNM_network_builder():
         self.route_choice_flag = True
       else:
         self.route_choice_flag = False
-        print "No route choice portition for path table"
+        print("No route choice portition for path table")
     else:
-      print "No path table input"
+      print("No path table input")
 
 
   def dump_to_folder(self, path, config_file_name = 'config.conf',
@@ -521,42 +551,68 @@ class MNM_network_builder():
                                     demand_file_name = 'MNM_input_demand'):
     if not os.path.isdir(path):
       os.makedirs(path)
-    f = open(os.path.join(path, link_file_name), 'wb')
+
+    # python 2
+    # f = open(os.path.join(path, link_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, link_file_name), 'w')
     f.write(self.generate_link_text())
     f.close()
 
-    f = open(os.path.join(path, node_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, node_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, node_file_name), 'w')
     f.write(self.generate_node_text())
     f.close()
 
-    f = open(os.path.join(path, config_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, config_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, config_file_name), 'w')
     f.write(str(self.config))
     f.close()
 
-    f = open(os.path.join(path, od_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, od_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, od_file_name), 'w')
     f.write(self.od.generate_text())
     f.close()
 
-    f = open(os.path.join(path, demand_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, demand_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, demand_file_name), 'w')
     f.write(self.demand.generate_text())
     f.close()
 
-    f = open(os.path.join(path, graph_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, graph_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, graph_file_name), 'w')
     f.write(self.graph.generate_text())
     f.close()
 
-    f = open(os.path.join(path, pathtable_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, pathtable_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, pathtable_file_name), 'w')
     f.write(self.path_table.generate_table_text())
     f.close()
 
     if self.route_choice_flag:
-      f = open(os.path.join(path, path_p_file_name), 'wb')
+      # python 2
+      # f = open(os.path.join(path, path_p_file_name), 'wb')
+      # python 3
+      f = open(os.path.join(path, path_p_file_name), 'w')
       f.write(self.path_table.generate_portion_text())
       f.close()
 
   def read_link_input(self, file_name):
     link_list = list()
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, "r")
     log = f.readlines()[1:]
     f.close()
     for i in range(len(log)):

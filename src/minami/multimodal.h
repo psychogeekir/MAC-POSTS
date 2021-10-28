@@ -1024,9 +1024,11 @@ TFlt get_travel_time_walking(MNM_Walking_Link *link, TFlt start_time, TFlt unit_
 
 TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval);
 
+TFlt get_link_inflow_bus(MNM_Bus_Link *link, TFlt start_time, TFlt end_time);
+
 TFlt get_busstop_inflow_bus(MNM_Busstop_Virtual *busstop, TFlt start_time, TFlt end_time);
 
-TFlt get_link_inflow_passenger(MNM_Walking_Link *link, TFlt start_time, TFlt end_time);
+TFlt get_link_inflow_passenger(MNM_Transit_Link *link, TFlt start_time, TFlt end_time);
 
 int add_dar_records_bus(std::vector<dar_record*> &record, MNM_Bus_Link* link,
                         std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time);
@@ -1093,6 +1095,7 @@ public:
 
     MNM_Parking_Lot *m_parking_lot;
 
+    TFlt get_travel_time_truck(TFlt start_time, MNM_Dta_Multimodal *mmdta);
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     TFlt get_carpool_cost();
@@ -1174,6 +1177,31 @@ public:
 };
 
 
+/**************************************************************************
+					           Ride & Drive
+**************************************************************************/
+class MNM_Passenger_Path_RnD : public MNM_Passenger_Path_Base
+{
+public:
+    MNM_Passenger_Path_RnD(int mode, MNM_PnR_Path *path, TFlt vot, TFlt early_penalty, TFlt late_penalty, TFlt target_time,
+                           TFlt walking_time_before_driving, MNM_Parking_Lot* parking_lot, TFlt bus_fare,
+                           TFlt rnd_inconvenience);
+    virtual ~MNM_Passenger_Path_RnD() override;
+
+    MNM_PnR_Path *m_path;
+    MNM_Passenger_Path_Bus *m_bus_part;
+    MNM_Passenger_Path_Driving *m_driving_part;
+    MNM_Parking_Lot *m_mid_parking_lot;
+    TFlt m_rnd_inconvenience;
+
+    virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
+    virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
+
+    virtual bool is_equal(MNM_Passenger_Path_Base* path) override;
+    virtual std::string info2str() override;
+};
+
+
 /******************************************************************************************************************
 *******************************************************************************************************************
 										Passenger Path Set
@@ -1218,10 +1246,30 @@ namespace MNM {
 
     int allocate_passenger_path_table_buffer(Passenger_Path_Table *path_table, TInt num);
 
+    int generate_init_mode_demand_file(MNM_MM_Due *mmdue, const std::string &file_folder,
+                                       const std::string &driving_demand_file_name="driving_demand",
+                                       const std::string &bustransit_demand_file_name="bustransit_demand",
+                                       const std::string &pnr_demand_file_name="pnr_demand");
+
     int save_passenger_path_table(Passenger_Path_Table *passenger_path_table, const std::string &file_folder,
                                   const std::string &path_file_name="passenger_path_table",
                                   const std::string &buffer_file_name="passenger_path_table_buffer",
                                   bool w_buffer=true, bool w_cost=false);
+
+    int save_driving_path_table(const std::string& file_folder, Path_Table *path_table,
+                                const std::string &path_file_name="driving_path_table",
+                                const std::string &buffer_file_name="driving_path_table_buffer",
+                                bool w_buffer=true);
+
+    int save_bustransit_path_table(const std::string& file_folder, Path_Table *path_table,
+                                   const std::string &path_file_name="bustransit_path_table",
+                                   const std::string &buffer_file_name="bustransit_path_table_buffer",
+                                   bool w_buffer=true);
+
+    int save_pnr_path_table(const std::string& file_folder, PnR_Path_Table *path_table,
+                            const std::string &path_file_name="pnr_path_table",
+                            const std::string &buffer_file_name="pnr_path_table_buffer",
+                            bool w_buffer=true);
 
     int get_ID_path_mapping_all_mode(std::unordered_map<TInt, std::pair<MNM_Path*, MNM_Passenger_Path_Base*>>& dict,
                                      Path_Table *driving_path_table,

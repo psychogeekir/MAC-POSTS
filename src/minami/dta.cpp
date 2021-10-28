@@ -162,6 +162,10 @@ int MNM_Dta::set_routing()
                       m_graph, _tmp_conf -> get_int("num_path"), false);
     }
     TInt _buffer_len = _tmp_conf -> get_int("buffer_length");
+    // for bi-class problem
+    if (_buffer_len < 2 * m_config -> get_int("max_interval")) {
+      _buffer_len = 2 * m_config -> get_int("max_interval");
+    }
     TInt _route_freq_fixed = _tmp_conf -> get_int("route_frq");
     m_routing = new MNM_Routing_Biclass_Hybrid(m_file_folder, m_graph, m_statistics, m_od_factory, 
                                                m_node_factory, m_link_factory,

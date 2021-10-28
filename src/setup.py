@@ -33,11 +33,11 @@ class CMakeBuild(build_ext):
 
     def build_extension(self, ext):
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
-        print "extension dir: ", os.listdir(extdir)
+        print("extension dir: ", os.listdir(extdir))
         cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + extdir,
                       '-DPYTHON_EXECUTABLE=' + sys.executable]
-	# setup.cfg
-	print "Build in Debug mode?: ", self.debug
+        # setup.cfg
+        print("Build in Debug mode?: ", self.debug)
         cfg = 'Debug' if self.debug else 'Release'
         build_args = ['--config', cfg]
 
@@ -64,7 +64,7 @@ class CMakeBuild(build_ext):
 
 setup(
     name='MNMAPI',
-    version='0.0.1',
+    version='0.0.2',
     author='Wei Ma',
     author_email='lemma171@gmail.com',
     description='A API library for MAC-POSTS (MNM)',

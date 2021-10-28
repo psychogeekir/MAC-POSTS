@@ -420,8 +420,7 @@ namespace MNM {
         }
         TInt _dest_node_ID, _origin_node_ID;
         // printf("ssssssma\n");
-        for (auto _d_it = od_factory->m_destination_map.begin();
-             _d_it != od_factory->m_destination_map.end(); _d_it++) {
+        for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
             // printf("---\n");
             _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
             for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {

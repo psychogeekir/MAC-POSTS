@@ -24,10 +24,7 @@ import scipy
 
 
 # %%
-import matplotlib.pyplot as plt
-
 from matplotlib import colors
-import matplotlib
 import six
 import matplotlib.dates as mdates
 import datetime
@@ -241,10 +238,13 @@ dode.add_data(data_dict)
 #                                                          delta_car_scale = 0.1, 
 #                                                          delta_truck_scale = 0.01)
 # Computational graph
-(car_flow, truck_flow, l_list) = dode.estimate_path_flow(max_epoch = 100, car_step_size = 0.1, 
-                                                         truck_step_size = 0.01, car_init_scale = 100, 
-                                                         truck_init_scale = 10, adagrad = True)
-print r2_score(car_flow, true_car_f), r2_score(truck_flow, true_truck_f)
+# (car_flow, truck_flow, l_list) = dode.estimate_path_flow(max_epoch = 100, car_step_size = 0.1, 
+#                                                          truck_step_size = 0.01, car_init_scale = 100, 
+#                                                          truck_init_scale = 10, adagrad = True)
+(car_flow, truck_flow, l_list) = dode.estimate_path_flow_pytorch(max_epoch = 100, car_step_size = 0.1, 
+                                                                truck_step_size = 0.01, car_init_scale = 100, 
+                                                                truck_init_scale = 10)
+print(r2_score(car_flow, true_car_f), r2_score(truck_flow, true_truck_f))
 
 
 # %%

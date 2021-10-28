@@ -21,7 +21,7 @@ int main()
 	// On ubuntu (PC)
 	// std::string folder = "/home/alanpi/Desktop/MAC-POSTS/data/input_files_SPC_separate_Routing";
 	// std::string folder = "/home/lemma/Documents/MAC-POSTS/src/examples/mcDODE/a6e7b31067d2ead8d3725fc0ed587d06c958f63c";
-	std::string folder = "../../../data/input_files_7link_multiclass";
+	std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multiclass";
 
 	// on macOS (Mac air)
 	// std::string folder = "/Users/alan-air/Dropbox/MAC-POSTS/data/input_files_MckeesRocks_SPC";

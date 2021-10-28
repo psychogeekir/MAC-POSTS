@@ -6,6 +6,7 @@ import time
 import shutil
 from scipy.sparse import coo_matrix
 import multiprocessing as mp
+import torch
 
 import MNMAPI
 
@@ -18,10 +19,11 @@ class DODE(object):
     self.ass_freq = nb.config.config_dict['DTA']['assign_frq']
     self.num_link = nb.config.config_dict['DTA']['num_of_link']
     self.num_path = nb.config.config_dict['FIXED']['num_path']
-    if nb.config.config_dict['DTA']['total_interval'] > 0 and nb.config.config_dict['DTA']['total_interval'] > self.num_assign_interval * self.ass_freq:
-      self.num_loading_interval = nb.config.config_dict['DTA']['total_interval']
-    else:
-      self.num_loading_interval = self.num_assign_interval * self.ass_freq  # not long enough
+    # if nb.config.config_dict['DTA']['total_interval'] > 0 and nb.config.config_dict['DTA']['total_interval'] > self.num_assign_interval * self.ass_freq:
+    #   self.num_loading_interval = nb.config.config_dict['DTA']['total_interval']
+    # else:
+    #   self.num_loading_interval = self.num_assign_interval * self.ass_freq  # not long enough
+    self.num_loading_interval = self.num_assign_interval * self.ass_freq
     self.data_dict = dict()
     self.num_data = self.config['num_data']
     self.observed_links = self.config['observed_links']
@@ -56,7 +58,10 @@ class DODE(object):
   def _run_simulation(self, f, counter):
     # print("RUN")
     hash1 = hashlib.sha1()
-    hash1.update(str(time.time()) + str(counter))
+    # python 2
+    # hash1.update(str(time.time()) + str(counter))
+    # python 3
+    hash1.update((str(time.time()) + str(counter)).encode('utf-8'))
     new_folder = str(hash1.hexdigest())
     self.nb.update_demand_path(f)
     self.nb.config.config_dict['DTA']['total_interval'] = self.num_loading_interval
@@ -88,11 +93,12 @@ class DODE(object):
     num_e_link = len(self.observed_links)
     # raw_dar[:, 2]: link no.
     # raw_dar[:, 3]: the count of unit time interval (5s)
-    link_seq = (np.array(map(lambda x: self.observed_links.index(x), raw_dar[:, 2].astype(np.int)))
-                + (raw_dar[:, 3] / ass_freq).astype(np.int) * num_e_link).astype(np.int)
+    # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
+    link_seq = (np.array(list(map(lambda x: self.observed_links.index(x), raw_dar[:, 2].astype(int))))
+                + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
     # raw_dar[:, 0]: path no.
     # raw_dar[:, 1]: the count of 15 min interval
-    path_seq = (raw_dar[:, 0].astype(np.int) + raw_dar[:, 1].astype(np.int) * num_e_path).astype(np.int)
+    path_seq = (raw_dar[:, 0].astype(int) + raw_dar[:, 1].astype(int) * num_e_path).astype(int)
     # raw_dar[:, 4]: flow
     p = raw_dar[:, 4] / f[path_seq]
 
@@ -156,6 +162,41 @@ class DODE(object):
       loss += self.config['link_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e - one_data_dict['link_flow']))
     return loss
 
+  def estimate_path_flow_pytorch(self, init_scale = 0.1, step_size = 0.1, max_epoch = 100):
+    # print("Init")
+    f_e = self.init_path_flow(init_scale)
+
+    f_e_tensor = torch.from_numpy(f_e)
+
+    f_e_tensor.requires_grad = True
+
+    optimizer = torch.optim.Adam([
+        {'params': f_e_tensor, 'lr': step_size}
+    ])
+
+    # print("Start loop")
+    for i in range(max_epoch):
+      
+      seq = np.random.permutation(self.num_data)
+      loss = np.float(0)
+      for j in seq:
+        # print(j)
+        one_data_dict = self._get_one_data(j)
+        grad, tmp_loss = self.compute_path_flow_grad_and_loss(one_data_dict, f_e)
+
+        optimizer.zero_grad()
+
+        f_e_tensor.grad = torch.from_numpy(grad)
+
+        optimizer.step()
+        
+        f_e_tensor = torch.maximum(f_e_tensor, torch.tensor(1e-3))
+        f_e = f_e_tensor.data.cpu().numpy()
+       
+        loss += tmp_loss
+      print("Epoch:", i, "Loss:", loss / np.float(self.num_data))
+    return f_e
+
   def estimate_path_flow(self, init_scale = 0.1, step_size = 0.1, max_epoch = 100, adagrad = False):
     # print("Init")
     f_e = self.init_path_flow(init_scale)
@@ -176,6 +217,55 @@ class DODE(object):
           f_e -= grad * step_size / np.sqrt(i+1)
         f_e = np.maximum(f_e, 1e-3)
         loss += tmp_loss
+      print("Epoch:", i, "Loss:", loss / np.float(self.num_data))
+    return f_e
+
+  def estimate_path_flow_mp_pytorch(self, init_scale = 0.1, step_size = 0.1, max_epoch = 100, n_process = 4):
+    # print("Init")
+    f_e = self.init_path_flow(init_scale)
+
+    f_e_tensor = torch.from_numpy(f_e)
+
+    f_e_tensor.requires_grad = True
+
+    optimizer = torch.optim.Adam([
+        {'params': f_e_tensor, 'lr': step_size}
+    ])
+
+    # print("Start loop")
+    for i in range(max_epoch):
+      
+      seq = np.random.permutation(self.num_data)
+      split_seq = np.array_split(seq, np.maximum(1, int(self.num_data/n_process)))
+      loss = np.float(0)
+      for part_seq in split_seq:
+        output = mp.Queue()
+        processes = [mp.Process(target=self.compute_path_flow_grad_and_loss_mpwrapper, 
+                                args=(self._get_one_data(j), f_e, j, output)) for j in part_seq]
+        for p in processes:
+          p.start()
+        results = list()
+        while 1:
+          running = any(p.is_alive() for p in processes)
+          while not output.empty():
+             results.append(output.get())
+          if not running:
+              break
+        for p in processes:
+          p.join()
+        # results = [output.get() for p in processes]
+        for res in results:
+          loss += res[1]
+          grad = res[0]
+          
+          optimizer.zero_grad()
+
+          f_e_tensor.grad = torch.from_numpy(grad)
+
+          optimizer.step()
+          
+          f_e_tensor = torch.maximum(f_e_tensor, torch.tensor(1e-3))
+          f_e = f_e_tensor.data.cpu().numpy()
       print("Epoch:", i, "Loss:", loss / np.float(self.num_data))
     return f_e
 
@@ -239,6 +329,51 @@ class PDODE(DODE, object):
 
   def dod_backward(self, stdnorm, f_u, f_sigma, g):
     return (g, stdnorm * g)
+
+  def estimate_path_flow_pytorch(self, init_scale = 0.1, step_size = 0.1, max_epoch = 100):
+    # print "Init"
+    (f_u, f_sigma) = self.init_path_distribution(init_scale)
+
+    f_u_tensor = torch.from_numpy(f_u)
+    f_sigma_tensor = torch.from_numpy(f_sigma)
+
+    f_u_tensor.requires_grad = True
+    f_sigma_tensor.requires_grad = True
+
+    optimizer = torch.optim.Adam([
+        {'params': f_u_tensor, 'lr': step_size},
+        {'params': f_sigma_tensor, 'lr': step_size},
+    ])
+
+    # print "Start loop"
+    for i in range(max_epoch):
+      
+      seq = np.random.permutation(self.num_data)
+      loss = np.float(0)
+      for j in seq:
+        # print j
+        stdnorm = self.generate_standard_normal()
+        f_e_one = self.dod_forward(stdnorm, f_u, f_sigma)
+        f_e_one = np.maximum(f_e_one, 1e-3)
+        one_data_dict = self._get_one_data(j)
+        grad, tmp_loss = self.compute_path_flow_grad_and_loss(one_data_dict, f_e_one)
+        (g_u, g_sigma) = self.dod_backward(stdnorm, f_u, f_sigma, grad)
+        
+        optimizer.zero_grad()
+
+        f_u_tensor.grad = torch.from_numpy(g_u)
+        f_sigma_tensor.grad = torch.from_numpy(g_sigma)
+
+        optimizer.step()
+        
+        f_u_tensor = torch.maximum(f_u_tensor, torch.tensor(1e-3))
+        f_sigma_tensor = torch.maximum(f_sigma_tensor, torch.tensor(1e-3))
+        f_u = f_u_tensor.data.cpu().numpy()
+        f_sigma = f_sigma_tensor.data.cpu().numpy()
+
+        loss += tmp_loss
+      print("Epoch:", i, "Loss:", loss / np.float(self.num_data))
+    return f_u, f_sigma
 
   def estimate_path_flow(self, init_scale = 0.1, step_size = 0.1, max_epoch = 100, adagrad = False):
     # print "Init"

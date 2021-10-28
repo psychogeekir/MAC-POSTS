@@ -7,6 +7,7 @@ import shutil
 from scipy.sparse import coo_matrix
 import multiprocessing as mp
 import pickle
+import torch
 
 import MNMAPI
 from DODE import *
@@ -20,10 +21,11 @@ class SDODE():
     self.ass_freq = nb.config.config_dict['DTA']['assign_frq']
     self.num_link = nb.config.config_dict['DTA']['num_of_link']
     self.num_path = nb.config.config_dict['FIXED']['num_path']
-    if nb.config.config_dict['DTA']['total_interval'] > 0 and nb.config.config_dict['DTA']['total_interval'] > self.num_assign_interval * self.ass_freq:
-      self.num_loading_interval = nb.config.config_dict['DTA']['total_interval']
-    else:
-      self.num_loading_interval = self.num_assign_interval * self.ass_freq  # not long enough
+    # if nb.config.config_dict['DTA']['total_interval'] > 0 and nb.config.config_dict['DTA']['total_interval'] > self.num_assign_interval * self.ass_freq:
+    #   self.num_loading_interval = nb.config.config_dict['DTA']['total_interval']
+    # else:
+    #   self.num_loading_interval = self.num_assign_interval * self.ass_freq  # not long enough
+    self.num_loading_interval = self.num_assign_interval * self.ass_freq
     self.data_dict = dict()
     self.num_data = self.config['num_data']
     self.observed_links = self.config['observed_links']
@@ -61,7 +63,10 @@ class SDODE():
   def _run_simulation(self, f, counter=0):
     # print "RUN"
     hash1 = hashlib.sha1()
-    hash1.update(str(time.time()) + str(counter))
+    # python 2
+    # hash1.update(str(time.time()) + str(counter))
+    # python 3
+    hash1.update((str(time.time()) + str(counter)).encode('utf-8'))
     new_folder = str(hash1.hexdigest())
     self.nb.update_demand_path(f)
     self.nb.config.config_dict['DTA']['total_interval'] = self.num_loading_interval
@@ -164,6 +169,54 @@ class SDODE():
     link_list = list(range(len(self.all_links) * self.num_assign_interval))
     return link_list
 
+  def estimate_demand_pytorch(self, init_scale=0.1, step_size=0.1,
+                              max_epoch=100, theta=0.1, save_folder=None):
+    loss_list = list()
+    # q_e: num_assign_interval * num_OD
+    q_e = self.init_demand_flow(init_scale=init_scale)
+
+    q_e_tensor = torch.from_numpy(q_e)
+
+    q_e_tensor.requires_grad = True
+
+    optimizer = torch.optim.Adam([
+        {'params': q_e_tensor, 'lr': step_size},
+    ])
+
+    for i in range(max_epoch):
+      seq = np.random.permutation(self.num_data)
+      loss = np.float(0)
+      for j in seq:
+        # retrieve one record of observed data
+        one_data_dict = self._get_one_data(j)
+        # P: (num_path * num_assign_interval, num_OD * num_assign_interval)
+        P = self.nb.get_route_portion_matrix()
+        # f_e: num_path * num_assign_interval
+        f_e = P.dot(q_e)
+        # f_grad: num_path * num_assign_interval
+        f_grad, tmp_loss, path_cost = self.compute_path_flow_grad_and_loss(one_data_dict, f_e)
+        # q_grad: num_OD * num_assign_interval
+        q_grad = P.T.dot(f_grad)
+
+        optimizer.zero_grad()
+
+        q_e_tensor.grad = torch.from_numpy(q_grad)
+
+        optimizer.step()
+        
+        q_e_tensor = torch.maximum(q_e_tensor, torch.tensor(1e-3))
+
+        q_e = q_e_tensor.data.cpu().numpy()
+
+        loss += tmp_loss
+        # adjust path flow portion based on path cost and logit choice model
+        self.assign_route_portions(path_cost, theta=theta)
+      print("Epoch:", i, "Loss:", loss / np.float(self.num_data))
+      loss_list.append(loss / np.float(self.num_data))
+      if save_folder is not None:
+        pickle.dump([loss / np.float(self.num_data), q_e], open(os.path.join(save_folder, str(i)+'iteration.pickle'), 'wb'))
+    return q_e, loss_list
+
   def estimate_demand(self, init_scale=0.1, step_size=0.1,
                       max_epoch=100, adagrad=False,
                       theta=0.1, save_folder=None):
@@ -226,7 +279,7 @@ class SDODE():
         iter_counter += 1
         loss += tmp_loss
         self.assign_route_portions(path_cost, theta = theta)
-      print "Epoch:", i, "Loss:", loss / np.float(self.num_data)
+      print("Epoch:", i, "Loss:", loss / np.float(self.num_data))
       loss_list.append(loss / np.float(self.num_data))
       if save_folder is not None:
         pickle.dump([loss / np.float(self.num_data), q_para], open(os.path.join(save_folder, str(i)+'iteration.pickle'), 'wb'))

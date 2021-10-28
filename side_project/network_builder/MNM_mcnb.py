@@ -135,6 +135,7 @@ class MNM_dnode():
 class MNM_demand():
   def __init__(self):
     self.demand_dict = dict()
+    self.demand_list = None
 
   def add_demand(self, O, D, car_demand, truck_demand, overwriting = False):
     # check if car_demand is a 1D np.ndarray
@@ -154,7 +155,9 @@ class MNM_demand():
       self.demand_dict[O][D] = [car_demand, truck_demand]
 
   def build_from_file(self, file_name):
-    f = file(file_name)
+    self.demand_list = list()
+    # f = file(file_name)
+    f = open(file_name, 'r')
     # MNM_input_demand: the first line is the title line, keep lines from second to end
     log = f.readlines()[1:]
     f.close()
@@ -171,10 +174,11 @@ class MNM_demand():
       # check the total demand array consists of two demand arrays (car and truck) with equal length
       assert (total_l % 2 == 0)
       # the first half is car_demand, the last half is truck demand
-      self.add_demand(O_ID, D_ID, demand[0: total_l /2], demand[- total_l /2:])
+      self.add_demand(O_ID, D_ID, demand[0: total_l // 2], demand[- total_l // 2:])
+      self.demand_list.append((O_ID, D_ID))
 
   def __str__(self):
-    return "MNM_demand, number of O: {}".format(len(self.demand_dict))
+    return "MNM_demand, number of O: {}, number of OD: {}".format(len(self.demand_dict), len(self.demand_list))
 
   def __repr__(self):
     return self.__str__()
@@ -211,7 +215,8 @@ class MNM_od():
     self.O_dict = bidict()
     self.D_dict = bidict()
     flip = False
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, 'r')
     # MNM_input_od: the first line is the title line, keep lines from second to end
     log = f.readlines()[1:]
     f.close()
@@ -239,10 +244,16 @@ class MNM_od():
   def generate_text(self):
     # generate OD node mapping in text
     tmp_str = '#Origin_ID <-> node_ID\n'
-    for O_ID, node_ID in self.O_dict.iteritems():
+    # python 2
+    # for O_ID, node_ID in self.O_dict.iteritems():
+    # python 3
+    for O_ID, node_ID in self.O_dict.items():
       tmp_str += ' '.join([str(e) for e in [O_ID, node_ID]]) + '\n'
     tmp_str += '#Dest_ID <-> node_ID\n'
-    for D_ID, node_ID in self.D_dict.iteritems():
+    # python 2
+    # for D_ID, node_ID in self.D_dict.iteritems():
+    # python 3
+    for D_ID, node_ID in self.D_dict.items():
       tmp_str += ' '.join([str(e) for e in [D_ID, node_ID]]) + '\n'
     return tmp_str
 
@@ -281,7 +292,8 @@ class MNM_graph():
   def build_from_file(self, file_name):
     self.G = nx.DiGraph()
     self.edgeID_dict = OrderedDict()
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, 'r')
     # Snap_graph: the first line is the title line, keep lines from second to end
     log = f.readlines()[1:]
     f.close()
@@ -308,32 +320,44 @@ class MNM_graph():
   def generate_text(self):
     # generate graph topology info in text
     tmp_str = '# EdgeId FromNodeId  ToNodeId\n'
-    for edge_id, (from_id, to_id) in self.edgeID_dict.iteritems():
+    # python 2
+    # for edge_id, (from_id, to_id) in self.edgeID_dict.iteritems():
+    # python 3
+    for edge_id, (from_id, to_id) in self.edgeID_dict.items():
       tmp_str += ' '.join([str(e) for e in [edge_id, from_id, to_id]]) + '\n'
     return tmp_str
 
 class MNM_path():
   # Python Does Not Support Multiple Constructors, the last one overwrites the previous ones
   # class of one path: a sequence of node IDs
-  def __init__(self):
+  # def __init__(self):
+  #   # print("MNM_path")
+  #   self.path_ID = None
+  #   self.origin_node = None
+  #   self.destination_node = None
+  #   self.node_list = list()
+  #   # car
+  #   self.route_portions = None
+  #   # truck
+  #   self.truck_route_portions = None
+
+  def __init__(self, node_list, path_ID):
     # print("MNM_path")
-    self.path_ID = None
-    self.origin_node = None
-    self.destination_node = None
-    self.node_list = list()
+    self.path_ID = path_ID
+    self.origin_node = node_list[0]
+    self.destination_node = node_list[-1]
+    self.node_list = node_list
     # car
     self.route_portions = None
     # truck
     self.truck_route_portions = None
 
-  def __init__(self, node_list, path_ID):
-    self.path_ID = path_ID
-    self.origin_node = node_list[0]
-    self.destination_node = node_list[-1]
-    self.node_list = node_list
-    self.route_portions = None
+    self.path_cost_car = None
+    self.path_cost_truck = None
 
   def __eq__(self, other):
+    if not isinstance(other, MNM_path):
+      return False
     # determine if two paths are equal
     if ((self.origin_node is None) or (self.destination_node is None) or 
          (other.origin_node is None) or (other.destination_node is None)):
@@ -446,7 +470,8 @@ class MNM_pathtable():
     self.path_dict = dict()
     self.ID2path = OrderedDict()
     # path_table: no title line
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, 'r')
     log = f.readlines()
     f.close()
     for i in range(len(log)):
@@ -466,7 +491,7 @@ class MNM_pathtable():
         self.add_pathset(tmp_path_set)
       # node IDs are integers
       tmp_node_list = list(map(lambda x : np.int(x), words))
-      tmp_path = MNM_path(tmp_node_list, i)
+      tmp_path = MNM_path(tmp_node_list, starting_ID + i)
       self.path_dict[origin_node][destination_node].add_path(tmp_path)
       self.ID2path[starting_ID + i] = tmp_path
 
@@ -475,7 +500,8 @@ class MNM_pathtable():
       raise ("Error, pathtable load_route_choice_from_file not implemented")
     # path_table_buffer: each entry is a sequence of time-dependent portions using each corresponding path, the first half for car, the last half for truck
     # buffer_length = number of total intervals
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, 'r')
     log = list(filter(lambda x: not x.strip() == '', f.readlines()))
     f.close()
     assert(len(log) == len(self.ID2path))
@@ -498,13 +524,19 @@ class MNM_pathtable():
 
   def generate_table_text(self):
     tmp_str = ""
-    for path_ID, path in self.ID2path.iteritems():
+    # python 2
+    # for path_ID, path in self.ID2path.iteritems():
+    # python 3
+    for path_ID, path in self.ID2path.items():
       tmp_str += path.generate_node_list_text() + '\n'
     return tmp_str
 
   def generate_portion_text(self):
     tmp_str = ""
-    for path_ID, path in self.ID2path.iteritems():
+    # python 2
+    # for path_ID, path in self.ID2path.iteritems():
+    # python 3
+    for path_ID, path in self.ID2path.items():
       tmp_str += path.generate_portion_text() + '\n'
     return tmp_str    
 
@@ -550,7 +582,8 @@ class MNM_config():
   def build_from_file(self, file_name):
     self.config_dict = OrderedDict()
     # config.conf
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, 'r')
     log = f.readlines()
     f.close()
     for i in range(len(log)):
@@ -572,20 +605,32 @@ class MNM_config():
   def __str__(self):
     tmp_str = ''
     tmp_str += '[DTA]\n'
-    for name, value in self.config_dict['DTA'].iteritems():
+    # python 2
+    # for name, value in self.config_dict['DTA'].iteritems():
+    # python 3
+    for name, value in self.config_dict['DTA'].items():
       tmp_str += "{} = {}\n".format(str(name), str(value))
     tmp_str += '\n[STAT]\n'
-    for name, value in self.config_dict['STAT'].iteritems():
+    # python 2
+    # for name, value in self.config_dict['STAT'].iteritems():
+    # python 3
+    for name, value in self.config_dict['STAT'].items():
       tmp_str += "{} = {}\n".format(str(name), str(value))    
     if (self.config_dict['DTA']['routing_type'] == 'Fixed' or self.config_dict['DTA']['routing_type'] == 'Hybrid'
         or self.config_dict['DTA']['routing_type'] == 'Biclass_Hybrid'):
       tmp_str += '\n[FIXED]\n'
-      for name, value in self.config_dict['FIXED'].iteritems():
+      # python 2
+      # for name, value in self.config_dict['FIXED'].iteritems():
+      # python 3
+      for name, value in self.config_dict['FIXED'].items():
         tmp_str += "{} = {}\n".format(str(name), str(value))  
     if (self.config_dict['DTA']['routing_type'] == 'Adaptive' or self.config_dict['DTA']['routing_type'] == 'Hybrid'
         or self.config_dict['DTA']['routing_type'] == 'Biclass_Hybrid'):
       tmp_str += '\n[ADAPTIVE]\n'
-      for name, value in self.config_dict['ADAPTIVE'].iteritems():
+      # python 2
+      # for name, value in self.config_dict['ADAPTIVE'].iteritems():
+      # python 3
+      for name, value in self.config_dict['ADAPTIVE'].items():
         tmp_str += "{} = {}\n".format(str(name), str(value))  
     return tmp_str
 
@@ -618,16 +663,20 @@ class MNM_network_builder():
                                     demand_file_name = 'MNM_input_demand'):
     if os.path.isfile(os.path.join(path, config_file_name)):
       self.config.build_from_file(os.path.join(path, config_file_name))
+      self.config.config_dict['FIXED']['buffer_length'] = 2 * self.config.config_dict['DTA']['max_interval']
     else:
       print("No config file")
+
     if os.path.isfile(os.path.join(path, link_file_name)):
       self.link_list = self.read_link_input(os.path.join(path, link_file_name))
     else:
       print("No link input")
+
     if os.path.isfile(os.path.join(path, node_file_name)):
       self.node_list = self.read_node_input(os.path.join(path, node_file_name))
     else:
       print("No node input")
+
     if os.path.isfile(os.path.join(path, graph_file_name)):
       self.graph.build_from_file(os.path.join(path, graph_file_name))
     else:
@@ -648,7 +697,7 @@ class MNM_network_builder():
       self.path_table.build_from_file(os.path.join(path, pathtable_file_name))
       if os.path.isfile(os.path.join(path, path_p_file_name)):
         self.path_table.load_route_choice_from_file(os.path.join(path, path_p_file_name), 
-                    buffer_length = self.config.config_dict['FIXED']['buffer_length'])
+                                                    buffer_length = self.config.config_dict['FIXED']['buffer_length'])
         self.route_choice_flag = True
       else:
         self.route_choice_flag = False
@@ -665,42 +714,68 @@ class MNM_network_builder():
                                     demand_file_name = 'MNM_input_demand'):
     if not os.path.isdir(path):
       os.makedirs(path)
-    f = open(os.path.join(path, link_file_name), 'wb')
+    
+    # python 2
+    # f = open(os.path.join(path, link_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, link_file_name), 'w')
     f.write(self.generate_link_text())
     f.close()
 
-    f = open(os.path.join(path, node_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, node_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, node_file_name), 'w')
     f.write(self.generate_node_text())
     f.close()
 
-    f = open(os.path.join(path, config_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, config_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, config_file_name), 'w')
     f.write(str(self.config))
     f.close()
 
-    f = open(os.path.join(path, od_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, od_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, od_file_name), 'w')
     f.write(self.od.generate_text())
     f.close()
 
-    f = open(os.path.join(path, demand_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, demand_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, demand_file_name), 'w')
     f.write(self.demand.generate_text())
     f.close()
 
-    f = open(os.path.join(path, graph_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, graph_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, graph_file_name), 'w')
     f.write(self.graph.generate_text())
     f.close()
 
-    f = open(os.path.join(path, pathtable_file_name), 'wb')
+    # python 2
+    # f = open(os.path.join(path, pathtable_file_name), 'wb')
+    # python 3
+    f = open(os.path.join(path, pathtable_file_name), 'w')
     f.write(self.path_table.generate_table_text())
     f.close()
 
     if self.route_choice_flag:
-      f = open(os.path.join(path, path_p_file_name), 'wb')
+      # python 2
+      # f = open(os.path.join(path, path_p_file_name), 'wb')
+      # python 3
+      f = open(os.path.join(path, path_p_file_name), 'w')
       f.write(self.path_table.generate_portion_text())
       f.close()
 
   def read_link_input(self, file_name):
     link_list = list()
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, 'r')
     log = f.readlines()[1:]
     f.close()
     for i in range(len(log)):
@@ -727,7 +802,8 @@ class MNM_network_builder():
 
   def read_node_input(self, file_name):
     node_list = list()
-    f = file(file_name)
+    # f = file(file_name)
+    f = open(file_name, 'r')
     log = f.readlines()[1:]
     f.close()
     for i in range(len(log)):

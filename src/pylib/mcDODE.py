@@ -7,6 +7,7 @@ import shutil
 from scipy.sparse import coo_matrix, csr_matrix
 import pickle
 import multiprocessing as mp
+import torch
 
 import MNMAPI
 
@@ -19,10 +20,11 @@ class MCDODE():
     self.ass_freq = nb.config.config_dict['DTA']['assign_frq']
     self.num_link = nb.config.config_dict['DTA']['num_of_link']
     self.num_path = nb.config.config_dict['FIXED']['num_path']
-    if nb.config.config_dict['DTA']['total_interval'] > 0 and nb.config.config_dict['DTA']['total_interval'] > self.num_assign_interval * self.ass_freq:
-      self.num_loading_interval = nb.config.config_dict['DTA']['total_interval']
-    else:
-      self.num_loading_interval = self.num_assign_interval * self.ass_freq  # not long enough
+    # if nb.config.config_dict['DTA']['total_interval'] > 0 and nb.config.config_dict['DTA']['total_interval'] > self.num_assign_interval * self.ass_freq:
+    #   self.num_loading_interval = nb.config.config_dict['DTA']['total_interval']
+    # else:
+    #   self.num_loading_interval = self.num_assign_interval * self.ass_freq  # not long enough
+    self.num_loading_interval = self.num_assign_interval * self.ass_freq
     self.data_dict = dict()
     self.num_data = self.config['num_data']
     self.observed_links = self.config['observed_links']
@@ -68,7 +70,10 @@ class MCDODE():
   def _run_simulation(self, f_car, f_truck, counter=0):
     # create a new_folder with a unique name
     hash1 = hashlib.sha1()
-    hash1.update(str(time.time()) + str(counter))
+    # python 2
+    # hash1.update(str(time.time()) + str(counter))
+    # python 3
+    hash1.update((str(time.time()) + str(counter)).encode('utf-8'))
     new_folder = str(hash1.hexdigest())
     # modify demand based on input path flows
     self.nb.update_demand_path2(f_car, f_truck)
@@ -118,11 +123,12 @@ class MCDODE():
     small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
     # raw_dar[:, 2]: link no.
     # raw_dar[:, 3]: the count of unit time interval (5s)
-    link_seq = (np.array(map(lambda x: self.observed_links.index(x), raw_dar[:, 2].astype(np.int)))
-                + (raw_dar[:, 3] / ass_freq).astype(np.int) * num_e_link).astype(np.int)
+    # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
+    link_seq = (np.array(list(map(lambda x: self.observed_links.index(x), raw_dar[:, 2].astype(int))))
+                + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
     # raw_dar[:, 0]: path no.
     # raw_dar[:, 1]: the count of 1 min interval
-    path_seq = (raw_dar[:, 0].astype(np.int) + (raw_dar[:, 1] / small_assign_freq).astype(np.int) * num_e_path).astype(np.int)
+    path_seq = (raw_dar[:, 0].astype(int) + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
     # print(path_seq)
     # raw_dar[:, 4]: flow
     p = raw_dar[:, 4] / f[path_seq]
@@ -167,7 +173,7 @@ class MCDODE():
                                   np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
     # print("x_e", x_e, link_flow_array)
     if self.config['car_count_agg']:
-        x_e = one_data_dict['car_count_agg_L'].dot(x_e)
+      x_e = one_data_dict['car_count_agg_L'].dot(x_e)
     grad = -np.nan_to_num(link_flow_array - x_e)
     if self.config['car_count_agg']:
       grad = one_data_dict['car_count_agg_L'].T.dot(grad)
@@ -262,6 +268,62 @@ class MCDODE():
     for loss_type, loss_value in loss_dict.items():
       total_loss += loss_value
     return total_loss, loss_dict
+
+  def estimate_path_flow_pytorch(self, car_step_size=0.1, truck_step_size=0.1, max_epoch=10, car_init_scale=10,
+                                 truck_init_scale=1, store_folder=None, use_file_as_init=None):
+    # here the basic variables to be estimated are path flows, not OD demand, so no route choice model, unlike in sDODE.py
+    if use_file_as_init is None:
+      (f_car, f_truck) = self.init_path_flow(car_scale=car_init_scale, truck_scale=truck_init_scale)
+    else:
+      (f_car, f_truck, _) = pickle.load(open(use_file_as_init, 'rb'))
+    loss_list = list()
+
+    f_car_tensor = torch.from_numpy(f_car)
+    f_truck_tensor = torch.from_numpy(f_truck)
+
+    f_car_tensor.requires_grad = True
+    f_truck_tensor.requires_grad = True
+
+    optimizer = torch.optim.Adam([
+        {'params': f_car_tensor, 'lr': car_step_size},
+        {'params': f_truck_tensor, 'lr': truck_step_size}
+    ])
+
+    for i in range(max_epoch):
+      
+      seq = np.random.permutation(self.num_data)
+      loss = np.float(0)
+      # print("Start iteration", time.time())
+      loss_dict = {'car_count_loss': 0.0, 'truck_count_loss': 0.0, 'car_tt_loss': 0.0, 'truck_tt_loss': 0.0}
+      for j in seq:
+        one_data_dict = self._get_one_data(j)
+        car_grad, truck_grad, tmp_loss, tmp_loss_dict = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
+        # print("gradient", car_grad, truck_grad)
+
+        optimizer.zero_grad()
+
+        f_car_tensor.grad = torch.from_numpy(car_grad)
+        f_truck_tensor.grad = torch.from_numpy(truck_grad)
+
+        optimizer.step()
+        
+        f_car_tensor = torch.maximum(f_car_tensor, torch.tensor(1e-3))
+        f_truck_tensor = torch.maximum(f_truck_tensor, torch.tensor(1e-3))
+        # f_truck_tensor = torch.minimum(f_truck_tensor, torch.tensor(30))
+
+        f_car = f_car_tensor.data.cpu().numpy()
+        f_truck = f_truck_tensor.data.cpu().numpy()
+
+        loss += tmp_loss
+        for loss_type, loss_value in tmp_loss_dict.items():
+          loss_dict[loss_type] += loss_value / np.float(self.num_data)
+      print("Epoch:", i, "Loss:", np.round(loss / np.float(self.num_data), 2), self.print_separate_accuracy(loss_dict))
+      # print(f_car, f_truck)
+      # break
+      if store_folder is not None:
+        pickle.dump((f_car, f_truck, loss), open(os.path.join(store_folder, str(i) + 'iteration.pickle'), 'wb'))
+      loss_list.append([loss, loss_dict])
+    return f_car, f_truck, loss_list
 
   def estimate_path_flow(self, car_step_size=0.1, truck_step_size=0.1, max_epoch=10, car_init_scale=10,
                          truck_init_scale=1, store_folder=None, use_file_as_init=None, adagrad=False):
