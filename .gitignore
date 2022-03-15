@@ -305,10 +305,10 @@ Mkfile.old
 dkms.conf
 
 #large files
-# data/input_files_PGH_emission/MNM_input_demand_whole
-# data/input_files_PGH_emission/MNM_input_demand
-# data/input_files_PGH_emission/record/MNM_output_load_interval_tt
-# data/input_files_PGH_emission/record/MNM_output_load_interval_volume
-# data/input_files_PGH_tdsp_node_cost/td_node_cost
-# data/input_files_PGH_tdsp_node_cost/td_link_cost
+data/input_files_PGH_emission/MNM_input_demand_whole
+data/input_files_PGH_emission/MNM_input_demand
+data/input_files_PGH_emission/record/MNM_output_load_interval_tt
+data/input_files_PGH_emission/record/MNM_output_load_interval_volume
+data/input_files_PGH_tdsp_node_cost/td_node_cost
+data/input_files_PGH_tdsp_node_cost/td_link_cost
 side_project/TNM2MNM/SR41_bak/SR41_db.veh
