@@ -10,11 +10,6 @@ src/cmake-build-release-remote/
 .vscode
 git_wei_ma/
 
-#large files
-/data/input_files_PGH_tdsp_node_cost/
-/data/input_files_PGH_emission/
-
-
 #Shapefile
 *.cpg
 *.dbf
@@ -308,3 +303,14 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+#large files
+data/input_files_PGH_emission/MNM_input_demand_whole
+data/input_files_PGH_emission/MNM_input_demand
+data/input_files_PGH_emission/record/MNM_output_load_interval_tt
+data/input_files_PGH_emission/record/MNM_output_load_interval_volume
+data/input_files_PGH_tdsp_node_cost/td_node_cost
+data/input_files_PGH_tdsp_node_cost/td_link_cost
+git_wei_ma/objects/pack/pack-eaa7bad65191d4518ae9fff59572af6999f6d360.pack
+git_wei_ma/objects/pack/pack-c5a70f5200ea43255f7f19ba61aa1c5047cab725.pack
+side_project/TNM2MNM/SR41_bak/SR41_db.veh
