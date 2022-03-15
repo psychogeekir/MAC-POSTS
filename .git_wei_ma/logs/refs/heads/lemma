@@ -1,0 +1,86 @@
+0000000000000000000000000000000000000000 65080135bf59b2a36defdfda7b57df4ca81a4dcd Lemma1 <lemma171@gmail.com> 1520558742 -0500	branch: Created from HEAD
+65080135bf59b2a36defdfda7b57df4ca81a4dcd 164d4e19997e91e4a62dbaa9d4fa1317e589ee49 Lemma1 <lemma171@gmail.com> 1520558872 -0500	commit: add test notebook
+164d4e19997e91e4a62dbaa9d4fa1317e589ee49 f14d6ec026591d677e4d55b9e62eb9f8262b5bad Lemma1 <lemma171@gmail.com> 1520559147 -0500	commit: test
+f14d6ec026591d677e4d55b9e62eb9f8262b5bad 6345e54c7fbcfa07856053b6a1733c3711f61f37 Lemma1 <lemma171@gmail.com> 1520574018 -0500	commit: add cumulative tree for DAR matrix
+6345e54c7fbcfa07856053b6a1733c3711f61f37 18f2440ed487b0f176003e40564705587ea6d40c Lemma1 <lemma171@gmail.com> 1520579389 -0500	commit: add tree cc tester
+18f2440ed487b0f176003e40564705587ea6d40c b6b24fdc45b82bdc956e402465d024aaca1e242c Lemma1 <lemma171@gmail.com> 1520624876 -0500	commit: add 7 link fixed data
+b6b24fdc45b82bdc956e402465d024aaca1e242c 0be7c8dffee6d00ee5a647bad2b9f5eb6a3ff49e Lemma1 <lemma171@gmail.com> 1523316827 -0400	pull origin master: Fast-forward
+0be7c8dffee6d00ee5a647bad2b9f5eb6a3ff49e a7f26180d4fc1bef3086b1d18a0859c08c099cdb Lemma1 <lemma171@gmail.com> 1523424165 -0400	commit: almost finish network builder
+a7f26180d4fc1bef3086b1d18a0859c08c099cdb 3d6ac7f1ce8c42d2ab9deae95a6c2058f35a0ac2 Lemma1 <lemma171@gmail.com> 1523426073 -0400	commit: finished network builder v0.0.1
+3d6ac7f1ce8c42d2ab9deae95a6c2058f35a0ac2 2142de04a1a3ae0309a2a3911e8724bde8f5b7b9 Lemma1 <lemma171@gmail.com> 1523920953 -0400	commit: clean pybinder
+2142de04a1a3ae0309a2a3911e8724bde8f5b7b9 4fb7627b1581e4cfed9c5dcfccbdc80a49ae8e54 Lemma1 <lemma171@gmail.com> 1523922057 -0400	commit: add pybind11
+4fb7627b1581e4cfed9c5dcfccbdc80a49ae8e54 63d2fb7fc069f4d90cd35dff1cda496fcef3fe44 Lemma1 <lemma171@gmail.com> 1525141319 -0400	commit: add dode
+63d2fb7fc069f4d90cd35dff1cda496fcef3fe44 8ddafdae8035cd3a0cdbf0d9f0445f5c0846630b Lemma1 <lemma171@gmail.com> 1525655264 -0400	pull origin master: Merge made by the 'recursive' strategy.
+8ddafdae8035cd3a0cdbf0d9f0445f5c0846630b 280c4f86b1f012fe46396850b0999f82e1a2949a Lemma1 <lemma171@gmail.com> 1526332812 -0400	pull origin master: Merge made by the 'recursive' strategy.
+280c4f86b1f012fe46396850b0999f82e1a2949a 6d2ba5d28d88458795f6987a26bfb0e183d56bb0 Lemma1 <lemma171@gmail.com> 1526333376 -0400	pull origin master: Merge made by the 'recursive' strategy.
+6d2ba5d28d88458795f6987a26bfb0e183d56bb0 774833ab80c4b7f5f63ffa483a21378185c85856 Lemma1 <lemma171@gmail.com> 1527821133 -0400	commit: update dta
+774833ab80c4b7f5f63ffa483a21378185c85856 c5d152a129cc4bc171403da74271b43eeaddcc2f Lemma1 <lemma171@gmail.com> 1527821174 -0400	commit: modify cmakelist
+c5d152a129cc4bc171403da74271b43eeaddcc2f 7a6305674b404ea521dc0ce45355f00acaef2090 Lemma1 <lemma171@gmail.com> 1527821380 -0400	pull origin master: Fast-forward
+7a6305674b404ea521dc0ce45355f00acaef2090 898c2c13a4894aa88555f16e5440bdbe9403c062 Lemma1 <lemma171@gmail.com> 1527821957 -0400	commit: dode unfinished
+898c2c13a4894aa88555f16e5440bdbe9403c062 8873089c9aedf231ca317e1c0c2039633a454fd5 Lemma1 <lemma171@gmail.com> 1527822121 -0400	commit: stronger ignore file
+8873089c9aedf231ca317e1c0c2039633a454fd5 cc95dad7751f5a65d362e0578a1f32b54b057d2a Lemma1 <lemma171@gmail.com> 1527916442 -0400	commit: add multi class builder
+cc95dad7751f5a65d362e0578a1f32b54b057d2a 0ecf1054e990d62ca1ebf37ae003f6e203c816ea Lemma1 <lemma171@gmail.com> 1529870378 -0400	commit: refresh from long time ago
+0ecf1054e990d62ca1ebf37ae003f6e203c816ea 648d150fcdec6662299a10e6a5d9ad1c5653ecb8 Lemma1 <lemma171@gmail.com> 1529870578 -0400	pull origin master: Fast-forward
+648d150fcdec6662299a10e6a5d9ad1c5653ecb8 bad67965d0fd0f7f99a6f071582607dd1c846f86 Lemma1 <lemma171@gmail.com> 1529872520 -0400	commit: minor update
+bad67965d0fd0f7f99a6f071582607dd1c846f86 04f1e146c4ec06879b2fb28ed756bdefa0f47980 Lemma1 <lemma171@gmail.com> 1529877924 -0400	commit: remove cache files
+04f1e146c4ec06879b2fb28ed756bdefa0f47980 593cb1d56c5d2a4693ae250bb3fe7305349a9570 Lemma1 <lemma171@gmail.com> 1530072110 -0400	pull origin master: Fast-forward
+593cb1d56c5d2a4693ae250bb3fe7305349a9570 8c7bb36897dba53fc5aacab717f3829ea3d45c4a Lemma1 <lemma171@gmail.com> 1530079509 -0400	commit: update multiclass gradient functions
+8c7bb36897dba53fc5aacab717f3829ea3d45c4a e880c8b68cea8da569e9b1966bfc45282a3c243a Lemma1 <lemma171@gmail.com> 1530131754 -0400	commit: add adaptive ratio
+e880c8b68cea8da569e9b1966bfc45282a3c243a 217876da43980bb9f03beb2399f0d4d0e868f5fe Lemma1 <lemma171@gmail.com> 1530162162 -0400	commit: update mc_dta
+217876da43980bb9f03beb2399f0d4d0e868f5fe e880c8b68cea8da569e9b1966bfc45282a3c243a Lemma1 <lemma171@gmail.com> 1530162322 -0400	reset: moving to HEAD~1
+e880c8b68cea8da569e9b1966bfc45282a3c243a 8d2075e1f33817aa264bbf8f9ad57e2b83fb99a0 Lemma1 <lemma171@gmail.com> 1530162502 -0400	pull origin master: Fast-forward
+8d2075e1f33817aa264bbf8f9ad57e2b83fb99a0 ac591655eda56573c679d197900e05a0e11f5159 Lemma1 <lemma171@gmail.com> 1530162991 -0400	commit: update mcnb and mcdta
+ac591655eda56573c679d197900e05a0e11f5159 7169471d1ef885159c4b06cd3faf2ff87a8f15f4 Lemma1 <lemma171@gmail.com> 1530163096 -0400	commit: fixed bug
+7169471d1ef885159c4b06cd3faf2ff87a8f15f4 8fcc571b7f34a7b2b4dd1cf1497cd97cd2645186 Lemma1 <lemma171@gmail.com> 1530236217 -0400	commit: update multiclase dode
+8fcc571b7f34a7b2b4dd1cf1497cd97cd2645186 23bfeb3671e694570725d98aad04fb976b7f299f Lemma1 <lemma171@gmail.com> 1530242937 -0400	commit: pass test for mcDODE on 7links
+23bfeb3671e694570725d98aad04fb976b7f299f e2cbf939b59bbd3ccad0c0c707602aec040d2c9c Lemma1 <lemma171@gmail.com> 1530250774 -0400	commit: finalize mcDODE
+e2cbf939b59bbd3ccad0c0c707602aec040d2c9c ec8ccda63464d437fd9fa9c38f0a1bc1a29b895b Lemma1 <lemma171@gmail.com> 1530290346 -0400	commit: update
+ec8ccda63464d437fd9fa9c38f0a1bc1a29b895b bea83a8410389ff14efcaa07f31f6f2b4a4bcca7 Lemma1 <lemma171@gmail.com> 1530290362 -0400	commit: remove cache
+bea83a8410389ff14efcaa07f31f6f2b4a4bcca7 31fb0098d0305a64e90c4c7f0cd73cda2397fdef Lemma1 <lemma171@gmail.com> 1530290757 -0400	commit: add runner
+31fb0098d0305a64e90c4c7f0cd73cda2397fdef cf18e527115cdb71750ecebfd9abe8aa192591ff Lemma1 <lemma171@gmail.com> 1530309593 -0400	commit: add init method
+cf18e527115cdb71750ecebfd9abe8aa192591ff 57c694dba343d61011aa0ec8fc09095f705f4e17 Lemma1 <lemma171@gmail.com> 1530315289 -0400	commit: update dode verbose
+57c694dba343d61011aa0ec8fc09095f705f4e17 19e1e6a9d95f95abb420d316213eeb3d7d4b9f84 Lemma1 <lemma171@gmail.com> 1530501728 -0400	commit: update for DODE hybrid
+19e1e6a9d95f95abb420d316213eeb3d7d4b9f84 104b3426227dad0f6bee87bdac9aab6b6cc3b858 Lemma1 <lemma171@gmail.com> 1530501747 -0400	pull origin lemma: Merge made by the 'recursive' strategy.
+104b3426227dad0f6bee87bdac9aab6b6cc3b858 0567662d3131339acda467f1769d5c05b242cce9 Lemma1 <lemma171@gmail.com> 1530501966 -0400	commit: resolve conflict
+0567662d3131339acda467f1769d5c05b242cce9 edcf3136aa733455bc258a802c613a933a3d47fa Lemma1 <lemma171@gmail.com> 1530595459 -0400	commit (merge): resolve conflict
+edcf3136aa733455bc258a802c613a933a3d47fa bf323c32feb521b64bebde164c264ebe54fa05db Lemma1 <lemma171@gmail.com> 1530595499 -0400	pull origin master: Fast-forward
+bf323c32feb521b64bebde164c264ebe54fa05db 015cb4bc6bf335f64f77db2eabb9c2a3a7e62039 Lemma1 <lemma171@gmail.com> 1530595744 -0400	commit: resolve conflict in dta api
+015cb4bc6bf335f64f77db2eabb9c2a3a7e62039 6afc4bafee081d5cc78c25f5b46de8cb162babf5 Lemma1 <lemma171@gmail.com> 1537505180 -0400	commit: fix a potential bug in dta.cpp, set m_emission = NULL, add eigen library, update a fancy dar construction(to be tested)
+6afc4bafee081d5cc78c25f5b46de8cb162babf5 f90bb50817938bbbed2b520d9a8180de89ade473 Lemma1 <lemma171@gmail.com> 1537508594 -0400	commit: new dar matrix construction function done, reduce construction time by 20%
+f90bb50817938bbbed2b520d9a8180de89ade473 589be735396aaf5fb94bf3a97d216a8a75ec7e0d Lemma1 <lemma171@gmail.com> 1537630220 -0400	commit: add multi-porcessing, super faster for large dataset, no use for one data
+589be735396aaf5fb94bf3a97d216a8a75ec7e0d 74f440a8874127d8360263cc7a7d615cdba3897f Lemma1 <lemma171@gmail.com> 1537937320 -0400	commit: add probablistic DODE, works well, cannot model corelation, not very interesting
+74f440a8874127d8360263cc7a7d615cdba3897f 86ef6e071e27b8dcd99d004adfbd7caed20fefff Lemma1 <lemma171@gmail.com> 1537937387 -0400	pull origin lemma: Merge made by the 'recursive' strategy.
+86ef6e071e27b8dcd99d004adfbd7caed20fefff 307158dd7bf33012827bf5bfc47939be2a4bb9d8 Lemma1 <lemma171@gmail.com> 1541272901 -0400	commit: fix bug in tdsp
+307158dd7bf33012827bf5bfc47939be2a4bb9d8 71b9a4e44b08d98feb4711d441fa6f49ed5bd0d7 Lemma1 <lemma171@gmail.com> 1548664641 -0500	commit: draft first DUE
+71b9a4e44b08d98feb4711d441fa6f49ed5bd0d7 307158dd7bf33012827bf5bfc47939be2a4bb9d8 Lemma1 <lemma171@gmail.com> 1548664769 -0500	reset: moving to HEAD~
+307158dd7bf33012827bf5bfc47939be2a4bb9d8 c25e6fa14be654c8c0c71bb221a7998f04beb385 Lemma1 <lemma171@gmail.com> 1548664798 -0500	commit: update DUE initial version
+c25e6fa14be654c8c0c71bb221a7998f04beb385 0a24aa8146272611e2ab9e0b820232d9dec8c59d Lemma1 <lemma171@gmail.com> 1548751429 -0500	commit: due msa seems work on link 2, still weird
+0a24aa8146272611e2ab9e0b820232d9dec8c59d 51b70bd29e7a857776ebac9cd4a0316f9f7c9082 Lemma1 <lemma171@gmail.com> 1549411982 -0500	commit: add support to tt data
+51b70bd29e7a857776ebac9cd4a0316f9f7c9082 9ec3b72e471b6ecbcab54633286b663a9aa49050 Lemma1 <lemma171@gmail.com> 1549435245 -0500	commit: add multiprocessing for mcDODE
+9ec3b72e471b6ecbcab54633286b663a9aa49050 f4aaa41ed1ee6547b4452e9c77ce94c98008c4fc Lemma1 <lemma171@gmail.com> 1549595271 -0500	pull origin master: Fast-forward
+f4aaa41ed1ee6547b4452e9c77ce94c98008c4fc 0994e9b358f9c5c932afe92efb0791c138c9c1b7 Lemma1 <lemma171@gmail.com> 1549603898 -0500	commit: update network builder for biclass routing
+0994e9b358f9c5c932afe92efb0791c138c9c1b7 0a84463212c88fa4f5bbf9208ea46918cc300913 Lemma1 <lemma171@gmail.com> 1549695844 -0500	commit: fake update
+0a84463212c88fa4f5bbf9208ea46918cc300913 19f65afcd8db63f10f31adf7f359771d7b03aeb1 Lemma1 <lemma171@gmail.com> 1549695928 -0500	pull origin master: Fast-forward
+19f65afcd8db63f10f31adf7f359771d7b03aeb1 a8d3be793b5719cf7d7952dcca8646009006db64 Lemma1 <lemma171@gmail.com> 1549702018 -0500	commit: fixed several issues, now should work, need tune step sizes
+a8d3be793b5719cf7d7952dcca8646009006db64 8da9782b3644495cb7ec5d5e0b249aaf71f9f8a5 Lemma1 <lemma171@gmail.com> 1549702465 -0500	commit: two more files
+8da9782b3644495cb7ec5d5e0b249aaf71f9f8a5 0702877eac3adeaa0254643a5195ab232e0430b9 Lemma1 <lemma171@gmail.com> 1549770380 -0500	commit: update to evalute travel time
+0702877eac3adeaa0254643a5195ab232e0430b9 82ce34cd22d9f2791023bfe889af179e459d7364 Lemma1 <lemma171@gmail.com> 1549868535 -0500	commit: fixed bug in biclass routing
+82ce34cd22d9f2791023bfe889af179e459d7364 e3cfced39d7bda62d14262b626c28cdadce6843e Lemma1 <lemma171@gmail.com> 1551061483 -0500	commit: update a final version for mcDODE
+e3cfced39d7bda62d14262b626c28cdadce6843e da9a0d63539eba29e9666e6e627223458f52b91d Lemma1 <lemma171@gmail.com> 1551150574 -0500	commit: update for MCDODE paper
+da9a0d63539eba29e9666e6e627223458f52b91d 7c5b2cc759063a555643745830ec2a93925b719d Lemma1 <lemma171@gmail.com> 1551154237 -0500	commit: update final DODE results
+7c5b2cc759063a555643745830ec2a93925b719d bc1b492281f93ac0069bad0b7052d11caff86724 Lemma1 <lemma171@gmail.com> 1551154272 -0500	commit: update final DODE results
+bc1b492281f93ac0069bad0b7052d11caff86724 77a3a99fd7006d9d1a8195b45adc223d18d3ae74 Lemma1 <lemma171@gmail.com> 1560407935 -0400	commit: more features for structured DODE (construct P, path costs, cov tree, etc)
+77a3a99fd7006d9d1a8195b45adc223d18d3ae74 b46cbf154556cc4cd907f7a6bffdae8a4737694b Lemma1 <lemma171@gmail.com> 1560491235 -0400	commit: finishe logit based DODE, attempt for structured DODE
+b46cbf154556cc4cd907f7a6bffdae8a4737694b 2ee3b0ffbd9fff0a1fb20c1ba72309f59747f2c0 Lemma1 <lemma171@gmail.com> 1560493416 -0400	commit: finish all components for structured DODE, not debuged
+2ee3b0ffbd9fff0a1fb20c1ba72309f59747f2c0 d9dc8abde2479a731610466a95cc495f1c35d718 Lemma1 <lemma171@gmail.com> 1560573682 -0400	commit: finish structured DODE, plus a new network
+d9dc8abde2479a731610466a95cc495f1c35d718 429ee0d0083ec8a0788d7c736965044be4b8da39 Lemma1 <lemma171@gmail.com> 1560573830 -0400	commit: update for merge
+429ee0d0083ec8a0788d7c736965044be4b8da39 b46e1c353a13d8c2f987fd3489b4e19161eea436 Lemma1 <lemma171@gmail.com> 1560575587 -0400	commit: remove update
+b46e1c353a13d8c2f987fd3489b4e19161eea436 dfc67ac600031a37affcb3a71f3a74dbe39583a0 Lemma1 <lemma171@gmail.com> 1560576495 -0400	commit: checkout from master
+dfc67ac600031a37affcb3a71f3a74dbe39583a0 64f4da9b6dd2db658f628fcfd3ef8d29e31a5ded Lemma1 <lemma171@gmail.com> 1560577119 -0400	pull origin lemma: Fast-forward
+64f4da9b6dd2db658f628fcfd3ef8d29e31a5ded e3b00fca18ee25aa453f8c31f389a18b6356b48c Lemma1 <lemma171@gmail.com> 1560577199 -0400	pull origin master: Fast-forward
+e3b00fca18ee25aa453f8c31f389a18b6356b48c e99781aea3240d97c3ff0f7cbd7b33c9c47139f3 Lemma1 <lemma171@gmail.com> 1560628135 -0400	commit: fix a fatal bug buried 3 years ago.....
+e99781aea3240d97c3ff0f7cbd7b33c9c47139f3 805c0f1b8023752f0a1fc6effb386ac27c493594 Lemma1 <lemma171@gmail.com> 1560628188 -0400	pull origin master: Fast-forward
+805c0f1b8023752f0a1fc6effb386ac27c493594 29ef49b10cc0dee4d8a410eb59caa2952451e697 Lemma1 <lemma171@gmail.com> 1560722837 -0400	commit: sdode running script
+29ef49b10cc0dee4d8a410eb59caa2952451e697 ee48d52bb06eaccb1cc14f7d17f7fc1f59cef3c2 Lemma1 <lemma171@gmail.com> 1568612548 -0400	commit: add SR41 MCDODE
+ee48d52bb06eaccb1cc14f7d17f7fc1f59cef3c2 ee48d52bb06eaccb1cc14f7d17f7fc1f59cef3c2 QILING <qiling@qiling-VirtualBox.(none)> 1618590438 -0600	Branch: renamed refs/heads/lemma to refs/heads/qiling
+ee48d52bb06eaccb1cc14f7d17f7fc1f59cef3c2 ee48d52bb06eaccb1cc14f7d17f7fc1f59cef3c2 QILING <qiling@qiling-VirtualBox.(none)> 1618593832 -0600	Branch: renamed refs/heads/qiling to refs/heads/lemma

@@ -1,0 +1,26 @@
+0000000000000000000000000000000000000000 f47f6575917ab80dce82ab9542770caebfe7a544 Lemma1 <lemma171@gmail.com> 1494900292 -0400	clone: from https://github.com/Lemma1/MAC-POSTS.git
+f47f6575917ab80dce82ab9542770caebfe7a544 d859f63f10645c76d7776e846a01a3091e93d658 Lemma1 <lemma171@gmail.com> 1494923325 -0400	commit: add release version
+d859f63f10645c76d7776e846a01a3091e93d658 c14898fb0f44e0c19ba474cf54c1bdd9d765834d Lemma1 <lemma171@gmail.com> 1495009298 -0400	commit: fix veh copy bugs
+c14898fb0f44e0c19ba474cf54c1bdd9d765834d 7aefbfd234a0c486542f58e9a676b03040c981c1 Lemma1 <lemma171@gmail.com> 1495083843 -0400	commit: real time server
+7aefbfd234a0c486542f58e9a676b03040c981c1 c7a0797076f7039bb506f5443c0c6c6a109e88f9 Lemma1 <lemma171@gmail.com> 1495243631 -0400	pull: Fast-forward
+c7a0797076f7039bb506f5443c0c6c6a109e88f9 496edd22c7d2ae033d2a5bfbe2d94d635ee66025 Lemma1 <lemma171@gmail.com> 1495244081 -0400	commit: update ctm test
+496edd22c7d2ae033d2a5bfbe2d94d635ee66025 82e75051b64ba1be96f2791913e208f7ba1fd0fd Lemma1 <lemma171@gmail.com> 1495337316 -0400	commit: tdsp test
+82e75051b64ba1be96f2791913e208f7ba1fd0fd 5de98c2b22d6743ab57cdedee3ee8a25ee668e9a Lemma1 <lemma171@gmail.com> 1501288270 -0400	commit: final
+5de98c2b22d6743ab57cdedee3ee8a25ee668e9a 2c549503a931b8ddf6b7155fa2d156bd7cb252d5 Lemma1 <lemma171@gmail.com> 1501637167 -0400	commit: doc
+2c549503a931b8ddf6b7155fa2d156bd7cb252d5 defa4e942303bc86267ca6b83998be388f40a694 Lemma1 <lemma171@gmail.com> 1503368546 -0400	commit: test tdsp
+defa4e942303bc86267ca6b83998be388f40a694 f3b720b96446d2473e62cada6216cebffcaac4c9 Lemma1 <lemma171@gmail.com> 1503368555 -0400	pull: Merge made by the 'recursive' strategy.
+f3b720b96446d2473e62cada6216cebffcaac4c9 f6dbd84370e28232e04207b29825e3b287236c53 Lemma1 <lemma171@gmail.com> 1508475426 -0400	commit: add google analytics to doc
+f6dbd84370e28232e04207b29825e3b287236c53 5debbe04e5f0571f81e76f3ac5f67610d04f349c Lemma1 <lemma171@gmail.com> 1519622456 -0500	commit: add more path related functions
+5debbe04e5f0571f81e76f3ac5f67610d04f349c 170792d151561d35694512caf4e2350091993fbb Lemma1 <lemma171@gmail.com> 1519625069 -0500	commit: update load path file function
+170792d151561d35694512caf4e2350091993fbb 8febe04ba36344010d3d2220d972fc9424a01505 Lemma1 <lemma171@gmail.com> 1519713063 -0500	commit: Finished fix routing
+8febe04ba36344010d3d2220d972fc9424a01505 4855c1a368f33d81291fd77733e3440c3cde0832 Lemma1 <lemma171@gmail.com> 1519775979 -0500	commit: python binder prototype
+4855c1a368f33d81291fd77733e3440c3cde0832 b1035e900173344390c9165837461b6c191f9b5f Lemma1 <lemma171@gmail.com> 1519876182 -0500	commit: network consolidate script
+b1035e900173344390c9165837461b6c191f9b5f afe7bc09261c84c0d36d890bf451fbbfb5133381 Lemma1 <lemma171@gmail.com> 1520050516 -0500	commit: modify pybinder
+afe7bc09261c84c0d36d890bf451fbbfb5133381 cfabe41b0d2f0cea143360fa1610baaaa87f8946 Lemma1 <lemma171@gmail.com> 1520062359 -0500	commit: add python wrapper for network builder
+cfabe41b0d2f0cea143360fa1610baaaa87f8946 8c9c3d6a9fdd4911b426e056f7985351db1d908c Lemma1 <lemma171@gmail.com> 1520231246 -0500	commit: update on python interface
+8c9c3d6a9fdd4911b426e056f7985351db1d908c 85a29dc2a706ee24b0d37bd9420cd15e6718f9f9 Lemma1 <lemma171@gmail.com> 1520307060 -0500	commit: update pybind dta-api
+85a29dc2a706ee24b0d37bd9420cd15e6718f9f9 63c9630cb05b84ef22db155d3cfb1d457c3aa58e Lemma1 <lemma171@gmail.com> 1520321882 -0500	commit: add install_cc
+63c9630cb05b84ef22db155d3cfb1d457c3aa58e 1a42aec7fa80a78ad87b980930084153d198e37a Lemma1 <lemma171@gmail.com> 1520378803 -0500	commit: add cc and get link flow, get link spd
+1a42aec7fa80a78ad87b980930084153d198e37a 9dcdfd3f3a068bbdc7cdecb8d1606adb0652685a Lemma1 <lemma171@gmail.com> 1520399437 -0500	commit: add guardians
+9dcdfd3f3a068bbdc7cdecb8d1606adb0652685a de7c35928b5a0848ff8bdfd50b763e4e3b252e83 Lemma1 <lemma171@gmail.com> 1520554332 -0500	commit: remove doc
+de7c35928b5a0848ff8bdfd50b763e4e3b252e83 65080135bf59b2a36defdfda7b57df4ca81a4dcd Lemma1 <lemma171@gmail.com> 1520558017 -0500	pull: Fast-forward
