@@ -10,7 +10,6 @@ src/cmake-build-release-remote/
 .vscode
 .ipynb_checkpoints
 .git_wei_ma
-data/
 
 
 #MINAMI related

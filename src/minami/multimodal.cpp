@@ -9046,16 +9046,20 @@ int MNM_MM_Due::update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int 
                 
                 if (_origin -> m_demand_car.find(_dest) == _origin -> m_demand_car.end()) {
                     TFlt* _demand_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    memset(_demand_vector_tmp, 0x0, sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
                     _origin -> m_demand_car.insert(std::pair<MNM_Destination_Multimodal*, TFlt*>(_dest, _demand_vector_tmp));
                 }
                 _demand_vector = _origin -> m_demand_car.find(_dest) -> second;
-                memset(_demand_vector, 0x0, sizeof(TFlt) * mmdta->m_total_assign_inter);
 
                 _demand = _mode_split.find(driving) -> second * _tot_passenger_demand;
                 m_mode_share.find(driving) -> second += _demand;
 
                 if (mmdta -> m_init_demand_split == 0) {
                     _demand_vector[assign_inter * _num_of_minute] = _demand;
+                    for (int k = 1; k < _num_of_minute; ++k){
+                        // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
+                        _demand_vector[assign_inter * _num_of_minute + k] = 0;
+                    }
                 }
                 else if (mmdta -> m_init_demand_split == 1) {
                     _max_num_of_minute = _num_of_minute;
@@ -9068,9 +9072,14 @@ int MNM_MM_Due::update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int 
                     }
                     IAssert(_max_num_of_minute > 0 && _max_num_of_minute <= _num_of_minute);
                     _demand = _demand / TFlt(_max_num_of_minute);
-                    for (int k = 0; k < _max_num_of_minute; ++k){
+                    for (int k = 0; k < _num_of_minute; ++k){
                         // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
-                        _demand_vector[assign_inter * _num_of_minute + k] = _demand;
+                        if (k < _max_num_of_minute) {
+                            _demand_vector[assign_inter * _num_of_minute + k] = _demand;
+                        }
+                        else {
+                            _demand_vector[assign_inter * _num_of_minute + k] = 0;
+                        }
                     }
                 }
                 else {
@@ -9095,16 +9104,20 @@ int MNM_MM_Due::update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int 
 
                 if (_origin -> m_demand_pnr_car.find(_dest) == _origin -> m_demand_pnr_car.end()) {
                     TFlt* _demand_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    memset(_demand_vector_tmp, 0x0, sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
                     _origin -> m_demand_pnr_car.insert(std::pair<MNM_Destination_Multimodal*, TFlt*>(_dest, _demand_vector_tmp));
                 }
                 _demand_vector = _origin -> m_demand_pnr_car.find(_dest) -> second;
-                memset(_demand_vector, 0x0, sizeof(TFlt) * mmdta->m_total_assign_inter);
                     
                 _demand = _mode_split.find(pnr) -> second * _tot_passenger_demand;
                 m_mode_share.find(pnr) -> second += _demand;
 
                 if (mmdta -> m_init_demand_split == 0) {
                     _demand_vector[assign_inter * _num_of_minute] = _demand;
+                    for (int k = 1; k < _num_of_minute; ++k){
+                        // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
+                        _demand_vector[assign_inter * _num_of_minute + k] = 0;
+                    }
                 }
                 else if (mmdta -> m_init_demand_split == 1) {
                     _max_num_of_minute = _num_of_minute;
@@ -9117,9 +9130,14 @@ int MNM_MM_Due::update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int 
                     }
                     IAssert(_max_num_of_minute > 0 && _max_num_of_minute <= _num_of_minute);
                     _demand = _demand / TFlt(_max_num_of_minute);
-                    for (int k = 0; k < _max_num_of_minute; ++k){
+                    for (int k = 0; k < _num_of_minute; ++k){
                         // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
-                        _demand_vector[assign_inter * _num_of_minute + k] = _demand;
+                        if (k < _max_num_of_minute) {
+                            _demand_vector[assign_inter * _num_of_minute + k] = _demand;
+                        }
+                        else {
+                            _demand_vector[assign_inter * _num_of_minute + k] = 0;
+                        }
                     }
                 }
                 else {
@@ -9144,16 +9162,20 @@ int MNM_MM_Due::update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int 
 
                 if (_origin -> m_demand_passenger_bus.find(_dest) == _origin -> m_demand_passenger_bus.end()) {
                     TFlt* _demand_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    memset(_demand_vector_tmp, 0x0, sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
                     _origin -> m_demand_passenger_bus.insert(std::pair<MNM_Destination_Multimodal*, TFlt*>(_dest, _demand_vector_tmp));
                 }
                 _demand_vector = _origin -> m_demand_passenger_bus.find(_dest) -> second;
-                memset(_demand_vector, 0x0, sizeof(TFlt) * mmdta->m_total_assign_inter);
 
                 _demand = _mode_split.find(transit) -> second * _tot_passenger_demand;
                 m_mode_share.find(transit) -> second += _demand;
 
                 if (mmdta -> m_init_demand_split == 0) {
                     _demand_vector[assign_inter * _num_of_minute] = _demand;
+                    for (int k = 1; k < _num_of_minute; ++k){
+                        // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
+                        _demand_vector[assign_inter * _num_of_minute + k] = 0;
+                    }
                 }
                 else if (mmdta -> m_init_demand_split == 1) {
                     // uniform
@@ -9166,10 +9188,15 @@ int MNM_MM_Due::update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int 
                     }
                     IAssert(_max_num_of_minute > 0 && _max_num_of_minute <= _num_of_minute);
                     _demand = _demand / TFlt(_max_num_of_minute);
-                    for (int k = 0; k < _max_num_of_minute; ++k){
+                    for (int k = 0; k < _num_of_minute; ++k){
                         // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
-                        _demand_vector[assign_inter * _num_of_minute + k] = _demand;
-                    }   
+                        if (k < _max_num_of_minute) {
+                            _demand_vector[assign_inter * _num_of_minute + k] = _demand;
+                        }
+                        else {
+                            _demand_vector[assign_inter * _num_of_minute + k] = 0;
+                        }
+                    }  
                 }
                 else {
                     printf("Wrong init_demand_split\n");
