@@ -8,7 +8,7 @@ src/cmake-build-debug-remote/
 src/cmake-build-release/
 src/cmake-build-release-remote/
 .vscode
-git_wei_ma/
+.git_wei_ma
 
 #Shapefile
 *.cpg
@@ -311,6 +311,4 @@ data/input_files_PGH_emission/record/MNM_output_load_interval_tt
 data/input_files_PGH_emission/record/MNM_output_load_interval_volume
 data/input_files_PGH_tdsp_node_cost/td_node_cost
 data/input_files_PGH_tdsp_node_cost/td_link_cost
-git_wei_ma/objects/pack/pack-eaa7bad65191d4518ae9fff59572af6999f6d360.pack
-git_wei_ma/objects/pack/pack-c5a70f5200ea43255f7f19ba61aa1c5047cab725.pack
 side_project/TNM2MNM/SR41_bak/SR41_db.veh
