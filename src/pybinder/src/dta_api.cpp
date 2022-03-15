@@ -158,18 +158,18 @@ py::array_t<double> Tdsp_Api::extract_tdsp(int origin_node_ID, int timestamp)
     double *result_prt = (double *) result_buf.ptr;
 
     for (int i = 0; i < new_shape[0]; ++i) {
-        result_prt[i * 2] = _path -> m_node_vec[i];
+        result_prt[i * new_shape[1]] = _path -> m_node_vec[i];
         if (i < new_shape[0] - 1) {
-            result_prt[i * 2 + 1] = _path -> m_link_vec[i];
+            result_prt[i * new_shape[1] + 1] = _path -> m_link_vec[i];
         }
         else {
-            result_prt[i * 2 + 1] = -1;
+            result_prt[i * new_shape[1] + 1] = -1;
         }
         if (i == 0) {
-            result_prt[i * 2 + 2] = tmp_tt;
+            result_prt[i * new_shape[1] + 2] = tmp_tt;
         }
         else {
-            result_prt[i * 2 + 2] = -1;
+            result_prt[i * new_shape[1] + 2] = -1;
         }
     }
     delete _path;
