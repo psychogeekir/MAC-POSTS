@@ -8,7 +8,8 @@ src/cmake-build-debug-remote/
 src/cmake-build-release/
 src/cmake-build-release-remote/
 .vscode
-.git_wei_ma
+.git_wei_ma/
+*.jar
 
 #Shapefile
 *.cpg
