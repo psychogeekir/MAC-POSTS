@@ -1,0 +1,168 @@
+
+timestamp (intervals): 0 link_ID: 7 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 0.036000 truck_tt (s): 0.036000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 99999.000000 truck_speed (mph): 99999.000000
+
+timestamp (intervals): 0 link_ID: 6 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 0 link_ID: 5 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 0 link_ID: 1 car_inflow: 6.600000 truck_inflow: 0.600000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 0 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 0 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 0 link_ID: 4 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 180 link_ID: 7 car_inflow: 0.000000 truck_inflow: 0.100000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 180 link_ID: 6 car_inflow: 2.600000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 180 link_ID: 5 car_inflow: 2.300000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 180 link_ID: 1 car_inflow: 6.700000 truck_inflow: 0.600000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 180 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 180 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 180 link_ID: 4 car_inflow: 1.800000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 360 link_ID: 7 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 360 link_ID: 6 car_inflow: 2.200000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 360 link_ID: 5 car_inflow: 2.600000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 360 link_ID: 1 car_inflow: 6.700000 truck_inflow: 1.000000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 360 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 360 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 360 link_ID: 4 car_inflow: 1.900000 truck_inflow: 0.100000 car_tt (s): 56.571429 truck_tt (s): 80.000000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 24.750000
+
+timestamp (intervals): 540 link_ID: 7 car_inflow: 0.600000 truck_inflow: 0.100000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 540 link_ID: 6 car_inflow: 2.500000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 540 link_ID: 5 car_inflow: 2.400000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 540 link_ID: 1 car_inflow: 6.700000 truck_inflow: 0.400000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 540 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 540 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 540 link_ID: 4 car_inflow: 1.700000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 80.000000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 24.750000
+
+timestamp (intervals): 720 link_ID: 7 car_inflow: 0.000000 truck_inflow: 0.100000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 720 link_ID: 6 car_inflow: 3.100000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 720 link_ID: 5 car_inflow: 1.300000 truck_inflow: 0.100000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 720 link_ID: 1 car_inflow: 6.600000 truck_inflow: 0.800000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 720 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 60.000000 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 33.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 720 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 720 link_ID: 4 car_inflow: 2.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 95.000000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 20.842105
+
+timestamp (intervals): 900 link_ID: 7 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 900 link_ID: 6 car_inflow: 1.800000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 900 link_ID: 5 car_inflow: 3.000000 truck_inflow: 0.000000 car_tt (s): 60.000000 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 33.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 900 link_ID: 1 car_inflow: 6.600000 truck_inflow: 0.500000 car_tt (s): 10.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 360.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 900 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 900 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 900 link_ID: 4 car_inflow: 1.900000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 95.000000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 20.842105
+
+timestamp (intervals): 1080 link_ID: 7 car_inflow: 0.200000 truck_inflow: 0.000000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1080 link_ID: 6 car_inflow: 3.100000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1080 link_ID: 5 car_inflow: 2.800000 truck_inflow: 0.000000 car_tt (s): 60.000000 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 33.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1080 link_ID: 1 car_inflow: 6.600000 truck_inflow: 0.500000 car_tt (s): 10.000000 truck_tt (s): 10.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 360.000000 truck_speed (mph): 360.000000
+
+timestamp (intervals): 1080 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1080 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1080 link_ID: 4 car_inflow: 0.900000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1260 link_ID: 7 car_inflow: 0.900000 truck_inflow: 0.000000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1260 link_ID: 6 car_inflow: 3.100000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1260 link_ID: 5 car_inflow: 3.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1260 link_ID: 1 car_inflow: 6.700000 truck_inflow: 0.700000 car_tt (s): 10.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 360.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1260 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 60.000000 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 33.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1260 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1260 link_ID: 4 car_inflow: 0.200000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 80.000000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 24.750000
+
+timestamp (intervals): 1440 link_ID: 7 car_inflow: 0.400000 truck_inflow: 0.100000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1440 link_ID: 6 car_inflow: 3.100000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1440 link_ID: 5 car_inflow: 3.200000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1440 link_ID: 1 car_inflow: 6.700000 truck_inflow: 0.600000 car_tt (s): 10.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 360.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1440 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1440 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1440 link_ID: 4 car_inflow: 0.300000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 85.000000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 23.294118
+
+timestamp (intervals): 1620 link_ID: 7 car_inflow: 0.400000 truck_inflow: 0.000000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1620 link_ID: 6 car_inflow: 3.100000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1620 link_ID: 5 car_inflow: 3.000000 truck_inflow: 0.000000 car_tt (s): 60.000000 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 33.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1620 link_ID: 1 car_inflow: 6.600000 truck_inflow: 0.700000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1620 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1620 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1620 link_ID: 4 car_inflow: 0.900000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1800 link_ID: 7 car_inflow: 0.000000 truck_inflow: 0.100000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1800 link_ID: 6 car_inflow: 2.200000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1800 link_ID: 5 car_inflow: 1.900000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1800 link_ID: 1 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 0.036000 truck_tt (s): 0.036000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 99999.000000 truck_speed (mph): 99999.000000
+
+timestamp (intervals): 1800 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1800 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1800 link_ID: 4 car_inflow: 2.700000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1839 link_ID: 7 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 5.000000 truck_tt (s): 5.000000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 720.000000 truck_speed (mph): 720.000000
+
+timestamp (intervals): 1839 link_ID: 6 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1839 link_ID: 5 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1839 link_ID: 1 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 0.036000 truck_tt (s): 0.036000 car_fftt (s): 0.036000 truck_fftt (s): 0.036000 car_speed (mph): 99999.000000 truck_speed (mph): 99999.000000
+
+timestamp (intervals): 1839 link_ID: 2 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1839 link_ID: 3 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000
+
+timestamp (intervals): 1839 link_ID: 4 car_inflow: 0.000000 truck_inflow: 0.000000 car_tt (s): 56.571429 truck_tt (s): 79.200000 car_fftt (s): 56.571429 truck_fftt (s): 79.200000 car_speed (mph): 35.000000 truck_speed (mph): 25.000000

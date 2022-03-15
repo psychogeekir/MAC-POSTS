@@ -1,0 +1,4 @@
+#OriginNodeID DestNodeID RouteID <driving node IDs>
+101 106 1 101 2 3 5 106
+101 106 2 101 2 3 4 5 106
+101 106 3 101 2 4 5 106

@@ -8,8 +8,42 @@ src/cmake-build-debug-remote/
 src/cmake-build-release/
 src/cmake-build-release-remote/
 .vscode
-.ipynb_checkpoints
-.git_wei_ma
+git_wei_ma/
+
+/data/input_files_PGH_tdsp_node_cost/
+/data/input_files_PGH_emission/
+
+
+#Shapefile
+*.cpg
+*.dbf
+*.sbn
+*.sbx
+*.shp
+*.shx
+*.prj
+*.geojson
+*.dmd
+*.lin
+*.lip
+*.odp
+*.net
+*.nod
+*.asn
+*.cum
+*.dlk
+*.ems
+*.pth
+*.sum
+*.sim
+*.vet
+*.rpt
+*.veh
+*.ite
+*.lfp
+*.pfp
+*.nod
+.veh
 
 
 #MINAMI related
