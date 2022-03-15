@@ -1,5 +1,0 @@
-#OriginNodeID DestNodeID RouteID <driving node IDs>
-14 17 1 14 3 6 9 17
-14 18 2 14 3 4 7 10 11 18
-15 18 3 15 5 8 11 18
-15 17 4 15 5 4 7 10 9 17

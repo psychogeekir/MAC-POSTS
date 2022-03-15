@@ -1,3 +1,0 @@
-#ID DestNodeID Price PriceSurgeCoeff AvgParkingTime(s) Capacity
-1 6 10.0 1.0 120.0 30000
-2 7 3.0 1.0 60.0 50000
