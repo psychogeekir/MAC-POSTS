@@ -13,6 +13,7 @@ src/cmake-build-release-remote/
 
 
 #MINAMI related
+data/input_files*/record*/
 # MNM_input_*
 # path_table_*
 # path_table
