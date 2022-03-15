@@ -9,16 +9,17 @@ src/cmake-build-release/
 src/cmake-build-release-remote/
 .vscode
 .ipynb_checkpoints
+.git_wei_ma
 
 
 #MINAMI related
-MNM_input_*
-path_table_*
-path_table
-*.conf
-MNM_output_*
-input_files*
-Snap_graph
+# MNM_input_*
+# path_table_*
+# path_table
+# *.conf
+# MNM_output_*
+# input_files*
+# Snap_graph
 
 # Prerequisites
 *.d

@@ -1,0 +1,10 @@
+#origin_node_ID dest_node_ID mode mid_dest_node_ID parkinglot_ID <driving_node_sequence> <bus_transit_link_sequence>
+1 6 pnr 7 2 <1 2 3 4 7> <2 22 207 31 5>
+1 6 pnr 7 2 <1 2 4 7> <2 3 26 211 33 5>
+1 6 pnr 7 2 <1 2 4 7> <2 22 207 31 5>
+1 6 bus -1 -1 <---> <1 6 201 202 203 29 5>
+1 6 bus -1 -1 <---> <1 10 208 209 210 27 4 22 207 31 5>
+1 6 bus -1 -1 <---> <1 8 204 205 206 23 3 26 211 33 5>
+1 6 driving -1 1 <1 2 3 5 6> <--->
+1 6 driving -1 1 <1 2 4 5 6> <--->
+1 6 driving -1 1 <1 2 3 4 5 6> <--->

@@ -2675,10 +2675,12 @@ int MNM_IO_Multiclass::build_demand_multiclass(const std::string& file_folder,
 	_demand_file.open(_demand_file_name, std::ios::in);
 
 	/* read config */
+	TFlt _flow_scalar = conf_reader -> get_float("flow_scalar");
 	TInt _unit_time = conf_reader -> get_int("unit_time");
 	TInt _num_of_minute =  int(conf_reader -> get_int("assign_frq")) / (60 / _unit_time);  // the releasing strategy is assigning vehicles per 1 minute
 	TInt _max_interval = conf_reader -> get_int("max_interval"); 
 	TInt _num_OD = conf_reader -> get_int("OD_pair");
+	TInt _init_demand_split = conf_reader -> get_int("init_demand_split");
 
 	/* build */
 	TInt _O_ID, _D_ID;
@@ -2691,8 +2693,6 @@ int MNM_IO_Multiclass::build_demand_multiclass(const std::string& file_folder,
 		// printf("Start build demand profile.\n");
 		TFlt *_demand_vector_car = (TFlt*) malloc(sizeof(TFlt) * _max_interval * _num_of_minute);
 		TFlt *_demand_vector_truck = (TFlt*) malloc(sizeof(TFlt) * _max_interval * _num_of_minute);
-		memset(_demand_vector_car, 0x0, sizeof(TFlt) * _max_interval * _num_of_minute);
-		memset(_demand_vector_truck, 0x0, sizeof(TFlt) * _max_interval * _num_of_minute);
 		TFlt _demand_car;
 		TFlt _demand_truck;
 
@@ -2703,14 +2703,51 @@ int MNM_IO_Multiclass::build_demand_multiclass(const std::string& file_folder,
 			if (TInt(_words.size()) == (_max_interval * 2 + 2)) {
 				_O_ID = TInt(std::stoi(_words[0]));
 				_D_ID = TInt(std::stoi(_words[1]));
+				memset(_demand_vector_car, 0x0, sizeof(TFlt) * _max_interval * _num_of_minute);
+				memset(_demand_vector_truck, 0x0, sizeof(TFlt) * _max_interval * _num_of_minute);
 				// the releasing strategy is assigning vehicles per 1 minute, so disaggregate 15-min demand into 1-min demand
 				for (int j = 0; j < _max_interval; ++j) {
-					_demand_car = TFlt(std::stod(_words[j + 2])) / TFlt(_num_of_minute);  
-					_demand_truck = TFlt(std::stod(_words[j + _max_interval + 2])) / TFlt(_num_of_minute);
-					for (int k = 0; k < _num_of_minute; ++k){
-						_demand_vector_car[j * _num_of_minute + k] = _demand_car;
-						_demand_vector_truck[j * _num_of_minute + k] = _demand_truck;
-					}
+					// _demand_car = TFlt(std::stod(_words[j + 2])) / TFlt(_num_of_minute);  
+					// _demand_truck = TFlt(std::stod(_words[j + _max_interval + 2])) / TFlt(_num_of_minute);
+					// for (int k = 0; k < _num_of_minute; ++k){
+					// 	_demand_vector_car[j * _num_of_minute + k] = _demand_car;
+					// 	_demand_vector_truck[j * _num_of_minute + k] = _demand_truck;
+					// }
+
+					if (_init_demand_split == 0) {
+                        _demand_car = TFlt(std::stod(_words[j + 2]));
+                        _demand_truck = TFlt(std::stod(_words[j + _max_interval + 2]));
+                        _demand_vector_car[j * _num_of_minute] = _demand_car;
+                        _demand_vector_truck[j * _num_of_minute] = _demand_truck;
+                    }
+                    else if (_init_demand_split == 1) {
+                        // find suitable releasing interval so that the agent-based DNL is feasible
+                        for (int p = 0; p < _num_of_minute; ++p) {
+                            _demand_car = TFlt(std::stod(_words[j + 2])) / TFlt(_num_of_minute - p);
+                            // if (round(_demand_car * _flow_scalar) >= 1){
+                            if (floor(_demand_car * _flow_scalar) >= 1){
+                                for (int k = 0; k < _num_of_minute - p; ++k){
+                                    _demand_vector_car[j * _num_of_minute + k] = _demand_car;
+                                }
+                                break;
+                            }
+                        }
+                        for (int p = 0; p < _num_of_minute; ++p) {
+                            _demand_truck = TFlt(std::stod(_words[j + _max_interval + 2])) / TFlt(_num_of_minute - p);
+                            // if (round(_demand_truck * _flow_scalar) >= 1){
+                            if (floor(_demand_truck * _flow_scalar) >= 1){
+                                for (int k = 0; k < _num_of_minute - p; ++k){
+                                    _demand_vector_truck[j * _num_of_minute + k] = _demand_truck;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    else {
+                        printf("Wrong init_demand_split\n");
+                        exit(-1);
+                    }
+
 				}
 				_origin = dynamic_cast<MNM_Origin_Multiclass *>(od_factory -> get_origin(_O_ID));
 				_dest = dynamic_cast<MNM_Destination_Multiclass *>(od_factory -> get_destination(_D_ID));
@@ -3038,7 +3075,7 @@ int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* 
   MNM_Path* _path;
   for (auto path_it : link -> m_N_in_tree_car -> m_record){
     _path = path_it.first;
-    if (pathset.find(_path) != pathset.end()) {
+	if (pathset.find(_path) != pathset.end()) {
       for (auto depart_it : path_it.second){
         TFlt tmp_flow = depart_it.second -> get_result(end_time) - depart_it.second -> get_result(start_time);
         if (tmp_flow > DBL_EPSILON){
@@ -3072,7 +3109,77 @@ int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass
   MNM_Path* _path;
   for (auto path_it : link -> m_N_in_tree_truck -> m_record){
     _path = path_it.first;
-    if (pathset.find(_path) != pathset.end()) {
+	if (pathset.find(_path) != pathset.end()) {
+      for (auto depart_it : path_it.second){
+        TFlt tmp_flow = depart_it.second -> get_result(end_time) - depart_it.second -> get_result(start_time);
+        if (tmp_flow > DBL_EPSILON){
+          auto new_record = new dar_record();
+          new_record -> path_ID = path_it.first -> m_path_ID;
+          // the count of 1 min intervals, the vehicles record this assign_int
+          new_record -> assign_int = depart_it.first;
+          new_record -> link_ID = link -> m_link_ID;
+          // the count of unit time interval (5s)
+          new_record -> link_start_int = start_time;
+          new_record -> flow = tmp_flow;
+          // printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(), 
+          //     new_record -> link_ID(), (float)new_record -> link_start_int(), (float) new_record -> flow());
+          record.push_back(new_record);
+        }
+      }
+    }
+  }
+  return 0;
+}
+
+int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
+                        std::set<TInt> pathID_set, TFlt start_time, TFlt end_time)
+{
+  if (link == nullptr){
+    throw std::runtime_error("Error, add_dar_records_car link is null");
+  }
+  if (link -> m_N_in_tree_car == nullptr){
+    throw std::runtime_error("Error, add_dar_records_car link cumulative curve tree is not installed");
+  }
+
+  MNM_Path* _path;
+  for (auto path_it : link -> m_N_in_tree_car -> m_record){
+    _path = path_it.first;
+	if (pathID_set.find(_path -> m_path_ID) != pathID_set.end()) {
+      for (auto depart_it : path_it.second){
+        TFlt tmp_flow = depart_it.second -> get_result(end_time) - depart_it.second -> get_result(start_time);
+        if (tmp_flow > DBL_EPSILON){
+          auto new_record = new dar_record();
+          new_record -> path_ID = path_it.first -> m_path_ID;
+          // the count of 1 min intervals, the vehicles record this assign_int
+          new_record -> assign_int = depart_it.first;
+          new_record -> link_ID = link -> m_link_ID;
+          // the count of unit time interval (5s)
+          new_record -> link_start_int = start_time;
+          new_record -> flow = tmp_flow;
+          // printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(), 
+          //     new_record -> link_ID(), (float)new_record -> link_start_int(), (float) new_record -> flow());
+          record.push_back(new_record);
+        }
+      }
+    }
+  }
+  return 0;
+}
+
+int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
+                          std::set<TInt> pathID_set, TFlt start_time, TFlt end_time)
+{
+  if (link == nullptr){
+    throw std::runtime_error("Error, add_dar_records_truck link is null");
+  }
+  if (link -> m_N_in_tree_truck == nullptr){
+    throw std::runtime_error("Error, add_dar_records_truck link cumulative curve tree is not installed");
+  }
+
+  MNM_Path* _path;
+  for (auto path_it : link -> m_N_in_tree_truck -> m_record){
+    _path = path_it.first;
+	if (pathID_set.find(_path -> m_path_ID) != pathID_set.end()) {
       for (auto depart_it : path_it.second){
         TFlt tmp_flow = depart_it.second -> get_result(end_time) - depart_it.second -> get_result(start_time);
         if (tmp_flow > DBL_EPSILON){
@@ -3221,6 +3328,7 @@ int MNM_Cumulative_Emission_Multiclass::update(MNM_Veh_Factory* veh_factory)
 	TFlt _v_converted;
 	for (MNM_Dlink *link : m_link_vector){
 		MNM_Dlink_Multiclass *_mlink = dynamic_cast<MNM_Dlink_Multiclass *>(link);
+		IAssert(_mlink != nullptr);
 		_v = _mlink -> m_length / _mlink -> get_link_tt(); // m/s
 		_v_converted = _v * TFlt(3600) / TFlt(1600); // mile / hour
 		_v_converted = MNM_Ults::max(_v_converted, TFlt(5));

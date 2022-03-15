@@ -18,6 +18,23 @@ using SparseMatrixR = Eigen::SparseMatrix<double, Eigen::RowMajor>;
 
 int run_dta(std::string folder);
 
+class Tdsp_Api
+{
+public:
+  Tdsp_Api();
+  ~Tdsp_Api();
+  int initialize(std::string folder, int max_interval, int num_rows_link_file, int num_rows_node_file,
+                 std::string link_cost_file_name, std::string node_cost_file_name);
+  int build_tdsp_tree(int dest_node_ID);
+  py::array_t<double> extract_tdsp(int origin_node_ID, int timestamp);
+
+  TInt m_num_rows_link_file, m_num_rows_node_file, m_dest_node_ID, m_max_interval;
+  PNEGraph m_graph;
+  MNM_TDSP_Tree *m_tdsp_tree;
+  std::unordered_map<TInt, TFlt*> m_td_link_cost;
+  std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_td_node_cost;
+};
+
 
 class Dta_Api
 {
@@ -63,6 +80,7 @@ public:
   int get_cur_loading_interval();
   py::array_t<double> get_travel_stats();
   int print_emission_stats();
+  int print_simulation_results(std::string folder, int cong_frequency = 180);
   
   py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals);
   py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals);
@@ -108,15 +126,19 @@ public:
     Mmdta_Api();
     ~Mmdta_Api();
     int initialize(std::string folder);
+    int initialize_mmdue(std::string folder);
     int install_cc();
     int install_cc_tree();
     int run_whole();
+    int run_mmdue(std::string &folder);
+    int run_mmdue_adaptive(std::string &folder);
     int register_links_driving(py::array_t<int> links_driving);
     int register_links_walking(py::array_t<int> links_walking);
     int register_links_bus(py::array_t<int> links_bus);
     int get_cur_loading_interval();
     py::array_t<double> get_travel_stats();
     int print_emission_stats();
+    int print_simulation_results(std::string folder, int cong_frequency = 180);
 
     py::array_t<int> get_od_mode_connectivity();
     int generate_init_mode_demand_file(const std::string &file_folder);
@@ -164,6 +186,10 @@ public:
     double get_bus_stop_departure_num(int busstop_ID, double time);
 
     int register_paths(py::array_t<int> paths);
+    int register_paths_driving(py::array_t<int> paths);
+    int register_paths_bustransit(py::array_t<int> paths);
+    int register_paths_pnr(py::array_t<int> paths);
+    int register_paths_bus(py::array_t<int> paths);
 
     int save_passenger_path_table(const std::string &file_folder);
     int save_mode_path_table(const std::string &file_folder);
@@ -192,13 +218,19 @@ public:
     int update_tdsp_tree();
     py::array_t<int> get_lowest_cost_path(int start_interval, int o_node_ID, int d_node_ID);
 
+    int build_link_cost_map();
+    int build_link_cost_map_snapshot(int start_interval);
+    int update_snapshot_route_table(int start_interval);
+    py::array_t<int> get_lowest_cost_path_snapshot(int start_interval, int o_node_ID, int d_node_ID);
+
     py::array_t<double> get_waiting_time_at_intersections();
     py::array_t<int> get_link_spillback();
 
     py::array_t<double> get_car_dar_matrix_driving(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
     py::array_t<double> get_truck_dar_matrix_driving(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
     py::array_t<double> get_car_dar_matrix_pnr(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
-    py::array_t<double> get_bus_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_bus_dar_matrix_bustransit_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_bus_dar_matrix_driving_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
     py::array_t<double> get_passenger_dar_matrix_bustransit(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
     py::array_t<double> get_passenger_dar_matrix_pnr(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
 
@@ -218,6 +250,16 @@ public:
     std::set<MNM_Path*> m_path_set_bustransit;
     std::set<MNM_Path*> m_path_set_pnr;
     std::set<MNM_Path*> m_path_set_bus;
+
+    std::set<TInt> m_pathID_set_driving;
+    std::set<TInt> m_pathID_set_bustransit;
+    std::set<TInt> m_pathID_set_pnr;
+    std::set<TInt> m_pathID_set_bus;
+
+    TInt m_num_path_driving;
+    TInt m_num_path_bustransit;
+    TInt m_num_path_pnr;
+    TInt m_num_path_bus;
 
     // all paths from all modes
     std::vector<MNM_Path*> m_path_vec;

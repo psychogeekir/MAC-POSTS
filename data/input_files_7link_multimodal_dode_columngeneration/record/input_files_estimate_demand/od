@@ -1,0 +1,7 @@
+#OriginID <-> NodeID pickup_waiting_time(s)
+1 1 300.0
+101 101 300.0
+#Dest_ID <-> node_ID
+1 6
+2 7
+106 106

@@ -523,6 +523,8 @@ public:
     virtual ~MNM_Dlink_Pq_Multimodal() override;
     virtual int clear_incoming_array(TInt timestamp) override;
     virtual int evolve(TInt timestamp) override;
+    virtual TFlt get_link_flow_car() override;
+    virtual TFlt get_link_flow_truck() override;
 
     std::deque<std::pair<MNM_Veh*, TInt>> m_veh_queue;
     // for multimodal with busstops on the link
@@ -553,6 +555,8 @@ public:
     virtual ~MNM_Dlink_Ctm_Multimodal() override;
     virtual int clear_incoming_array(TInt timestamp) override;
     virtual int evolve(TInt timestamp) override;
+    virtual TFlt get_link_flow_car() override;
+    virtual TFlt get_link_flow_truck() override;
 
     int move_veh_queue_in_cell(std::deque<MNM_Veh*> *from_queue,
                                std::deque<MNM_Veh*> *to_queue,
@@ -1036,6 +1040,12 @@ int add_dar_records_bus(std::vector<dar_record*> &record, MNM_Bus_Link* link,
 int add_dar_records_passenger(std::vector<dar_record*> &record, MNM_Transit_Link* link,
                               std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time);
 
+int add_dar_records_bus(std::vector<dar_record*> &record, MNM_Bus_Link* link,
+                        std::set<TInt> pathID_set, TFlt start_time, TFlt end_time);
+
+int add_dar_records_passenger(std::vector<dar_record*> &record, MNM_Transit_Link* link,
+                              std::set<TInt> pathID_set, TFlt start_time, TFlt end_time);
+
 }
 
 /******************************************************************************************************************
@@ -1067,6 +1077,13 @@ public:
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) {return TFlt(-1.0);};  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) {return TFlt(-1.0);};
+    virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                                 std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+                                 std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) {return TFlt(-1.0);};  // interval
+    virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                                 std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+                                 std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) {return TFlt(-1.0);};
+    virtual TFlt get_travel_cost_with_tt(TFlt start_time, TFlt travel_time, MNM_Dta_Multimodal *mmdta) {return TFlt(-1.0);};
     TFlt get_wrongtime_penalty(TFlt arrival_time);
 
     virtual bool is_equal(MNM_Passenger_Path_Base* path) {return false;};
@@ -1098,6 +1115,13 @@ public:
     TFlt get_travel_time_truck(TFlt start_time, MNM_Dta_Multimodal *mmdta);
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
+    virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                                 std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+                                 std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;  // interval
+    virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                                 std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+                                 std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;
+    virtual TFlt get_travel_cost_with_tt(TFlt start_time, TFlt travel_time, MNM_Dta_Multimodal *mmdta) override;
     TFlt get_carpool_cost();
     TFlt get_amortized_parkingfee();
 
@@ -1122,6 +1146,13 @@ public:
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // intervals
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
+    virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                                 std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+                                 std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;  // interval
+    virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                                 std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+                                 std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;
+    virtual TFlt get_travel_cost_with_tt(TFlt start_time, TFlt travel_time, MNM_Dta_Multimodal *mmdta) override;
     TFlt get_total_bus_fare(MNM_Dta_Multimodal *mmdta);
 
     virtual bool is_equal(MNM_Passenger_Path_Base* path) override;
@@ -1145,6 +1176,13 @@ public:
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
+    // virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+    //                              std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+    //                              std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;  // interval
+    // virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+    //                              std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+    //                              std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;
+    virtual TFlt get_travel_cost_with_tt(TFlt start_time, TFlt travel_time, MNM_Dta_Multimodal *mmdta) override;
     TFlt get_total_metro_fare(MNM_Dta_Multimodal *mmdta);
 
     virtual bool is_equal(MNM_Passenger_Path_Base* path) override;
@@ -1171,7 +1209,13 @@ public:
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
-
+    virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                                 std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+                                 std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;  // interval
+    virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                                 std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+                                 std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;
+    virtual TFlt get_travel_cost_with_tt(TFlt start_time, TFlt travel_time, MNM_Dta_Multimodal *mmdta) override;
     virtual bool is_equal(MNM_Passenger_Path_Base* path) override;
     virtual std::string info2str() override;
 };
@@ -1196,7 +1240,13 @@ public:
 
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
-
+    // virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+    //                              std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+    //                              std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;  // interval
+    // virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+    //                              std::unordered_map<TInt, TFlt *> driving_link_cost_map,
+    //                              std::unordered_map<TInt, TFlt *> bustransit_link_cost_map) override;
+    virtual TFlt get_travel_cost_with_tt(TFlt start_time, TFlt travel_time, MNM_Dta_Multimodal *mmdta) override;
     virtual bool is_equal(MNM_Passenger_Path_Base* path) override;
     virtual std::string info2str() override;
 };
@@ -1221,6 +1271,11 @@ public:
 typedef std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<TInt, MNM_Passenger_Pathset*>*>*> Passenger_Path_Table;
 
 namespace MNM {
+    int round_time(TFlt interval, TInt max_interval);
+
+    std::unordered_map<int, TFlt> logit_fn(std::unordered_map<int, TFlt> &cost, std::unordered_map<int, TFlt> &alpha_map, 
+                                           TFlt beta);
+
     int normalize_path_table_p(PnR_Path_Table *pnr_path_table);
 
     int copy_buffer_to_p(PnR_Path_Table *pnr_path_table, TInt col);
@@ -1276,7 +1331,8 @@ namespace MNM {
                                      Bus_Path_Table *bus_path_table,
                                      PnR_Path_Table *pnr_path_table,
                                      Path_Table *bustransit_path_table,
-                                     Passenger_Path_Table *passegner_path_table);
+                                     Passenger_Path_Table *passegner_path_table,
+                                     TInt num_path_driving, TInt num_path_bustransit, TInt num_path_pnr, TInt num_path_bus);
 
 }
 
@@ -1295,11 +1351,27 @@ public:
 
     MNM_Dta_Multimodal *run_mmdta(bool verbose);
 
+    MNM_Dta_Multimodal *run_mmdta_adaptive(bool verbose);
+
     int check_od_mode_connectivity();
+
+    int save_od_mode_connectivity(const std::string &connectivity_file_name="od_mode_connectivity");
+
+    int load_od_mode_connectivity(const std::string &connectivity_file_name="od_mode_connectivity");
 
     virtual int init_passenger_path_flow();
 
     virtual int update_origin_demand_from_passenger_path_table(MNM_Dta_Multimodal *mmdta);
+
+    virtual int update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int assign_inter);
+
+    virtual int build_link_cost_map_snapshot(MNM_Dta_Multimodal *mmdta, int start_interval);
+
+    virtual int update_snapshot_route_table(MNM_Dta_Multimodal *mmdta, int start_interval);
+
+    virtual std::unordered_map<int, TFlt> get_mode_split_snapshot(MNM_Dta_Multimodal *mmdta, int start_interval, int o_node_ID, int d_node_ID);
+
+    std::pair<std::tuple<MNM_Passenger_Path_Base *, TInt, TFlt, bool>, int> get_lowest_cost_path_snapshot(int start_interval, int o_node_ID, int d_node_ID, MNM_Dta_Multimodal *mmdta);
 
     virtual int clear_multimodal_path_table_buffer();
 
@@ -1428,6 +1500,15 @@ public:
     // time-varying link cost
     std::unordered_map<TInt, TFlt *> m_link_cost_map;
     std::unordered_map<TInt, TFlt *> m_transitlink_cost_map;
+
+    std::unordered_map<TInt, TFlt> m_driving_link_cost_map_snapshot;
+    std::unordered_map<TInt, TFlt> m_bustransit_link_cost_map_snapshot;
+    std::unordered_map<TInt, std::unordered_map<TInt, TInt>> m_driving_table_snapshot;
+    std::unordered_map<TInt, std::unordered_map<TInt, TInt>> m_bustransit_table_snapshot;
+
+    std::unordered_map<int, TFlt> m_mode_share;
+
+    std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, std::vector<TFlt>>>> m_od_demand_by_mode;
 
 };
 

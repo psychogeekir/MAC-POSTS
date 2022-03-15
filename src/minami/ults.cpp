@@ -68,7 +68,11 @@ int MNM_Ults::copy_file( std::string srce_file, std::string dest_file )
   return MNM_Ults::copy_file(  srce_file.c_str(), dest_file.c_str() );
 }
 
-
+float MNM_Ults::roundoff(float value, unsigned char prec)
+{
+  float pow_10 = pow(10.0f, (float)prec);
+  return round(value * pow_10) / pow_10;
+}
 
 
 Chameleon::Chameleon(std::string const& value) 

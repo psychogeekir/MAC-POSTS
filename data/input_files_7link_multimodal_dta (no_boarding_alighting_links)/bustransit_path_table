@@ -1,0 +1,4 @@
+#OriginNodeID DestNodeID <transit link IDs in MultiGraph>
+1 6 1 201 202 203 18
+1 6 1 6 208 209 13 207 19 
+1 6 3 208 209 16 211 20

@@ -218,7 +218,7 @@ dode = MMDODE(nb, config)
 dta = dode._run_simulation(true_f_car_driving, true_f_truck_driving,
                            true_f_passenger_bustransit, true_f_car_pnr)
 
-true_car_dar_matrix_driving, true_truck_dar_matrix_driving, true_car_dar_matrix_pnr, true_bus_dar_matrix, \
+true_car_dar_matrix_driving, true_truck_dar_matrix_driving, true_car_dar_matrix_pnr, true_bus_dar_matrix_bustransit_link, true_bus_dar_matrix_driving_link,  \
     true_passenger_dar_matrix_bustransit, true_passenger_dar_matrix_pnr = \
     dode.get_dar(dta, true_f_car_driving, true_f_truck_driving,
                  true_f_bus, true_f_passenger_bustransit, true_f_car_pnr)

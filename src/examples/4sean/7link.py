@@ -170,6 +170,7 @@ config['compute_truck_link_tt_loss'] = True
 
 dode = MCDODE(nb, config)
 dta = dode._run_simulation(true_car_f, true_truck_f)
+dta.print_simulation_results(os.path.join(data_folder, 'record'), 12)
 (true_dar_car, true_dar_truck) = dode.get_dar(dta, true_car_f, true_truck_f)
 
 noise_level = 0.1

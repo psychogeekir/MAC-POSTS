@@ -44,6 +44,7 @@ public:
   TFlt m_unit_time;
   TFlt m_flow_scalar;
   TInt m_assign_freq;
+  TInt m_init_demand_split;
   std::string m_file_folder;
   MNM_ConfReader *m_config;
   MNM_Veh_Factory *m_veh_factory;

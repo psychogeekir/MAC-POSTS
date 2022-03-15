@@ -7,8 +7,8 @@
 #add_executable (test_dta test_dta.cpp test_multiclass_bus.cpp)
 #target_link_libraries (test_dta Snap g3log minami ${CMAKE_THREAD_INIT})
 
-#add_executable (path test_path.cpp)
-#target_link_libraries (path PUBLIC Snap minami adv_ds)
+# add_executable (path test_path.cpp)
+# target_link_libraries (path PUBLIC Snap minami adv_ds)
 
 #add_executable (realtime test_realtime.cpp path.cpp dta.cpp vehicle.cpp dlink.cpp od.cpp factory.cpp dnode.cpp ults.cpp io.cpp routing.cpp statistics.cpp shortest_path.cpp realtime_dta.cpp marginal_cost.cpp vms.cpp workzone.cpp)
 #target_link_libraries (realtime LINK_PUBLIC Snap g3log ${CMAKE_THREAD_INIT})
@@ -49,6 +49,9 @@
 #add_executable (test_tdsp test_tdsp.cpp)
 #target_link_libraries (test_tdsp Snap minami adv_ds)
 
+add_executable (test_tdsp_node_cost test_tdsp_node_cost.cpp)
+target_link_libraries (test_tdsp_node_cost Snap minami adv_ds)
+
 add_executable (test_due test_due.cpp)
 target_link_libraries (test_due Snap minami adv_ds)
 
@@ -60,6 +63,9 @@ target_link_libraries (test_multimodal Snap minami adv_ds)
 
 add_executable (test_multimodal_due test_multimodal_due.cpp)
 target_link_libraries (test_multimodal_due Snap minami adv_ds)
+
+add_executable (test_multimodal_due_adaptive test_multimodal_due_adaptive.cpp)
+target_link_libraries (test_multimodal_due_adaptive Snap minami adv_ds)
 
 #add_executable (test_multiclass_debug test_multiclass_debug.cpp)
 #target_link_libraries (test_multiclass_debug Snap minami adv_ds)

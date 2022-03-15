@@ -38,8 +38,8 @@ a
 
 
 # %%
-# link_array = np.array([e.ID for e in nb.link_list], dtype=int)
-link_array = np.array([4, 5])
+link_array = np.array([e.ID for e in nb.link_list], dtype=int)
+# link_array = np.array([4, 5])
 a.register_links(link_array)
 
 
@@ -116,7 +116,7 @@ print(truck_path_tt)  # seconds
 # %%
 start_intervals = assign_intervals
 end_intervals = assign_intervals + assign_freq
-assert(end_intervals[-1] < end_interval)
+assert(end_intervals[-1] <= end_interval)
 
 
 # %%

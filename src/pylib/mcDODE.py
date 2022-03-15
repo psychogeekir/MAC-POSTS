@@ -84,8 +84,7 @@ class MCDODE():
     a = MNMAPI.mcdta_api()
     # read all files in new_folder
     a.initialize(new_folder)
-    # delete new_folder and all files and subdirectories below it.
-    shutil.rmtree(new_folder)
+    
     # register links and paths
     a.register_links(self.observed_links)
     a.register_paths(self.paths_list)
@@ -95,6 +94,13 @@ class MCDODE():
     # run DNL
     a.run_whole()
     # print("Finish simulation", time.time())
+
+    # print_emission_stats() only works if folder is not removed, cannot find reason
+    a.print_emission_stats()
+
+    # delete new_folder and all files and subdirectories below it.
+    shutil.rmtree(new_folder)
+
     return a
 
   def get_dar(self, dta, f_car, f_truck):

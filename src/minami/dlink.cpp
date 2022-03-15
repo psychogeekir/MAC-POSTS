@@ -760,19 +760,19 @@ TFlt MNM_Cumulative_Curve::get_result(TFlt time) {
     }
     _time_vec.clear();
 
-//    // original, loop over
-//    for (size_t i = 1; i < m_recorder.size(); ++i) {
-//        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-//        if (std::abs(m_recorder[i].first - time) <= 1e-6 * std::max(std::abs(m_recorder[i].first), std::abs(time))) { //
-//            return m_recorder[i].second;
-//        } else if (m_recorder[i].first > time) {
-//            return m_recorder[i - 1].second;  // rounding down
-//        }
-//
-////        if (m_recorder[i].first >= time) {
-////            return m_recorder[i].second;  // rounding up
-////        }
-//    }
+    // // original, loop over
+    // for (size_t i = 1; i < m_recorder.size(); ++i) {
+    //     // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
+    //     if (std::abs(m_recorder[i].first - time) <= 1e-6 * std::max(std::abs(m_recorder[i].first), std::abs(time))) { //
+    //         return m_recorder[i].second;
+    //     } else if (m_recorder[i].first > time) {
+    //         return m_recorder[i - 1].second;  // rounding down
+    //     }
+
+    //     // if (m_recorder[i].first >= time) {
+    //     //     return m_recorder[i].second;  // rounding up
+    //     // }
+    // }
     return m_recorder.back().second;
 }
 
@@ -836,20 +836,19 @@ TFlt MNM_Cumulative_Curve::get_time(TFlt result) {
     }
     _flow_vec.clear();
 
-//    // original, loop over
-//    for (size_t i = 1; i < m_recorder.size(); ++i) {
-//        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-//        if (std::abs(m_recorder[i].second - result) <= 1e-6 * std::max(std::abs(m_recorder[i].second), std::abs(result))) { //
-//            return m_recorder[i].first;
-//        } else if (m_recorder[i].second > result) {
-//            return m_recorder[i - 1].first;  // rounding down
-//        }
-//        }
-//
-////        if (m_recorder[i].second >= result) {
-////            return m_recorder[i].first;  // rounding up
-////        }
-//    }
+    // // original, loop over
+    // for (size_t i = 1; i < m_recorder.size(); ++i) {
+    //     // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
+    //     if (std::abs(m_recorder[i].second - result) <= 1e-6 * std::max(std::abs(m_recorder[i].second), std::abs(result))) { //
+    //         return m_recorder[i].first;
+    //     } else if (m_recorder[i].second > result) {
+    //         return m_recorder[i - 1].first;  // rounding down
+    //     }
+
+    //     // if (m_recorder[i].second >= result) {
+    //     //     return m_recorder[i].first;  // rounding up
+    //     // }
+    // }
 
     return TFlt(-1);
 }

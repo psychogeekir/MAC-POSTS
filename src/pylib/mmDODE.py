@@ -5,7 +5,7 @@ from collections import OrderedDict
 import hashlib
 import time
 import shutil
-from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse import coo_matrix, csr_matrix, eye
 import pickle
 import multiprocessing as mp
 import torch
@@ -147,12 +147,19 @@ class MMDODE:
         if not os.path.exists(folder_path):
             os.mkdir(folder_path)
 
+        _flg = False
         if (f_car_driving is not None) and (f_truck_driving is not None):
             self.nb.update_demand_path_driving(f_car_driving, f_truck_driving)
+            _flg = True
         if f_passenger_bustransit is not None:
             self.nb.update_demand_path_bustransit(f_passenger_bustransit)
+            _flg = True
         if f_car_pnr is not None:
             self.nb.update_demand_path_pnr(f_car_pnr)
+            _flg = True
+
+        if _flg:
+            self.nb.get_mode_portion_matrix()
 
         # self.nb.config.config_dict['DTA']['flow_scalar'] = 3
         self.nb.config.config_dict['DTA']['total_interval'] = self.num_loading_interval
@@ -182,12 +189,16 @@ class MMDODE:
 
         a = MNMAPI.mmdta_api()
         a.initialize(new_folder)
-        shutil.rmtree(new_folder)
 
         a.register_links_driving(self.observed_links_driving)
         a.register_links_bus(self.observed_links_bus)
         a.register_links_walking(self.observed_links_walking)
+
         a.register_paths(self.paths_list)
+        a.register_paths_driving(self.paths_list_driving)
+        a.register_paths_bustransit(self.paths_list_bustransit)
+        a.register_paths_pnr(self.paths_list_pnr)
+        a.register_paths_bus(self.paths_list_busroute)
 
         a.install_cc()
         a.install_cc_tree()
@@ -206,6 +217,11 @@ class MMDODE:
         print("bus total travel time (hours): {}".format(travel_stats[6]))
         print("passenger total travel time (hours): {}".format(travel_stats[7]))
         print("************ travel stats ************\n")
+
+        # print_emission_stats() only works if folder is not removed, cannot find reason
+        a.print_emission_stats()
+
+        shutil.rmtree(new_folder)
         return a  
 
     def get_car_dar_matrix_driving(self, dta, f):
@@ -232,12 +248,20 @@ class MMDODE:
         dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_pnr, self.observed_links_driving)
         return dar
 
-    def get_bus_dar_matrix(self, dta, f):
+    def get_bus_dar_matrix_bustransit_link(self, dta, f):
         start_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
-        raw_dar = dta.get_bus_dar_matrix(start_intervals, end_intervals)
+        raw_dar = dta.get_bus_dar_matrix_bustransit_link(start_intervals, end_intervals)
         dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_busroute, self.observed_links_bus)
+        return dar
+
+    def get_bus_dar_matrix_driving_link(self, dta, f):
+        start_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        end_intervals = start_intervals + self.ass_freq
+        assert(end_intervals[-1] <= self.num_loading_interval)
+        raw_dar = dta.get_bus_dar_matrix_driving_link(start_intervals, end_intervals)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_busroute, self.observed_links_driving)
         return dar
 
     def get_passenger_dar_matrix_bustransit(self, dta, f):
@@ -266,8 +290,10 @@ class MMDODE:
                                          self.num_assign_interval * len(self.paths_list_pnr)))
         truck_dar_matrix_driving = csr_matrix((self.num_assign_interval * len(self.observed_links_driving), 
                                                self.num_assign_interval * len(self.paths_list_driving)))
-        bus_dar_matrix = csr_matrix((self.num_assign_interval * len(self.observed_links_bus), 
-                                     self.num_assign_interval * len(self.paths_list_busroute)))
+        bus_dar_matrix_transit_link = csr_matrix((self.num_assign_interval * len(self.observed_links_bus), 
+                                                  self.num_assign_interval * len(self.paths_list_busroute)))
+        bus_dar_matrix_driving_link = csr_matrix((self.num_assign_interval * len(self.observed_links_driving), 
+                                                  self.num_assign_interval * len(self.paths_list_busroute)))
         passenger_dar_matrix_bustransit = csr_matrix((self.num_assign_interval * (len(self.observed_links_bus) + len(self.observed_links_walking)), 
                                                       self.num_assign_interval * len(self.paths_list_bustransit)))
         passenger_dar_matrix_pnr = csr_matrix((self.num_assign_interval * (len(self.observed_links_bus) + len(self.observed_links_walking)), 
@@ -281,13 +307,14 @@ class MMDODE:
             truck_dar_matrix_driving = self.get_truck_dar_matrix_driving(dta, f_truck_driving)
 
         if self.config['use_bus_link_flow'] or self.config['use_bus_link_tt']:
-            bus_dar_matrix = self.get_bus_dar_matrix(dta, f_bus)
+            bus_dar_matrix_transit_link = self.get_bus_dar_matrix_bustransit_link(dta, f_bus)
+            bus_dar_matrix_driving_link = self.get_bus_dar_matrix_driving_link(dta, f_bus)
 
         if self.config['use_passenger_link_flow'] or self.config['use_passenger_link_tt']:
             passenger_dar_matrix_bustransit = self.get_passenger_dar_matrix_bustransit(dta, f_passenger_bustransit)
             passenger_dar_matrix_pnr = self.get_passenger_dar_matrix_pnr(dta, f_car_pnr)
             
-        return car_dar_matrix_driving, truck_dar_matrix_driving, car_dar_matrix_pnr, bus_dar_matrix, \
+        return car_dar_matrix_driving, truck_dar_matrix_driving, car_dar_matrix_pnr, bus_dar_matrix_transit_link, bus_dar_matrix_driving_link, \
                passenger_dar_matrix_bustransit, passenger_dar_matrix_pnr
 
     def _massage_raw_dar(self, raw_dar, ass_freq, f, num_assign_interval, paths_list, observed_links):
@@ -301,26 +328,49 @@ class MMDODE:
         num_e_link = len(observed_links)
         # 15 min
         small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
+        
+        # raw_dar[:, 0]: path no.
+        # raw_dar[:, 1]: the count of 1 min interval
+
+        # wrong raw_dar may contain paths from different modes (driving, pnr)
+        # print(np.min(raw_dar[:, 0].astype(int)))
+        # print(np.max(raw_dar[:, 0].astype(int)))
+        # print(np.min(paths_list))
+        # print(np.max(paths_list))
+        # print('raw_dar path unique length: ', len(np.unique(raw_dar[:, 0].astype(int))))
+        # print(paths_list)  
+        # for x in raw_dar[:, 0].astype(int):
+        #     if len(np.where(x == paths_list)[0]) == 0:
+        #         print('*************************************')
+        #         print(x)
+        #         print('*************************************')
+                
+                
+        if type(paths_list) == np.ndarray:
+            ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_dar[:, 0].astype(int)))).astype(bool)
+            assert(np.sum(ind) == len(ind))
+            path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_dar[ind, 0].astype(int))))
+                        + (raw_dar[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+        elif type(paths_list) == list:
+            ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_dar[:, 0].astype(int)))).astype(bool)
+            assert(np.sum(ind) == len(ind))
+            path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[ind, 0].astype(int))))
+                        + (raw_dar[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+
         # raw_dar[:, 2]: link no.
         # raw_dar[:, 3]: the count of unit time interval (5s)
         if type(observed_links) == np.ndarray:
             # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
-            link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_dar[:, 2].astype(int))))
-                        + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_dar[ind, 2].astype(int))))
+                        + (raw_dar[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
         elif type(observed_links) == list:
-            link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_dar[:, 2].astype(int))))
-                        + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
-        # raw_dar[:, 0]: path no.
-        # raw_dar[:, 1]: the count of 1 min interval
-        if type(paths_list) == np.ndarray:
-            path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_dar[:, 0].astype(int))))
-                        + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
-        elif type(paths_list) == list:
-            path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[:, 0].astype(int))))
-                        + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_dar[ind, 2].astype(int))))
+                        + (raw_dar[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+                    
         # print(path_seq)
         # raw_dar[:, 4]: flow
-        p = raw_dar[:, 4] / f[path_seq]
+        p = raw_dar[ind, 4] / f[path_seq]
+        
         # print("Creating the coo matrix", time.time())
         mat = coo_matrix((p, (link_seq, path_seq)), shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))
         # pickle.dump((p, link_seq, path_seq), open('test.pickle', 'wb'))
@@ -368,10 +418,32 @@ class MMDODE:
         dta = self._run_simulation(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, counter)
 
         # print("Getting DAR", time.time())
-        car_dar_matrix_driving, truck_dar_matrix_driving, car_dar_matrix_pnr, bus_dar_matrix, \
+        car_dar_matrix_driving, truck_dar_matrix_driving, car_dar_matrix_pnr, bus_dar_matrix_transit_link, bus_dar_matrix_driving_link, \
                passenger_dar_matrix_bustransit, passenger_dar_matrix_pnr = \
                    self.get_dar(dta, f_car_driving, f_truck_driving, f_bus, f_passenger_bustransit, f_car_pnr)
         # print("Evaluating grad", time.time())
+
+        # test DAR
+        # print('+++++++++++++++++++++++++++++++++++++ test DAR +++++++++++++++++++++++++++++++++++++')
+        # x_e = dta.get_link_car_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
+        #                               np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
+        # print(np.linalg.norm(x_e - car_dar_matrix_driving.dot(f_car_driving) - car_dar_matrix_pnr.dot(f_car_pnr)))
+
+        # x_e = dta.get_link_truck_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
+        #                                 np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
+        # print(np.linalg.norm(x_e - truck_dar_matrix_driving.dot(f_truck_driving) - bus_dar_matrix_driving_link.dot(f_bus)))
+
+        # x_e_bus_passenger = dta.get_link_bus_passenger_inflow(
+        #     np.arange(0, self.num_loading_interval, self.ass_freq), 
+        #     np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq)
+        # assert(x_e_bus_passenger.shape[0] == len(self.observed_links_bus))
+        # x_e_walking_passenger = dta.get_link_walking_passenger_inflow(
+        #     np.arange(0, self.num_loading_interval, self.ass_freq), 
+        #     np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq)
+        # assert(x_e_walking_passenger.shape[0] == len(self.observed_links_walking))
+        # x_e = np.concatenate((x_e_bus_passenger, x_e_walking_passenger), axis=0).flatten(order='F')
+        # print(np.linalg.norm(x_e - passenger_dar_matrix_bustransit.dot(f_passenger_bustransit) - passenger_dar_matrix_pnr.dot(f_car_pnr)))
+        # print('+++++++++++++++++++++++++++++++++++++ test DAR +++++++++++++++++++++++++++++++++++++')
 
         # derivative of loss with respect to link flow
         car_grad = np.zeros(len(self.observed_links_driving) * self.num_assign_interval)
@@ -458,9 +530,9 @@ class MMDODE:
         return grad
 
     def _compute_grad_on_car_link_tt(self, dta, one_data_dict):
-        # tt_e = dta.get_car_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
-        #                                   np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
-        tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order='F')
+        tt_e = dta.get_car_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
+                                          np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
+        # tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq)).flatten(order='F')
         assert(len(tt_e) == len(self.observed_links_driving) * self.num_assign_interval)
         tt_free = np.tile(list(map(lambda x: self.nb.get_link_driving(x).get_car_fft(), self.observed_links_driving)), (self.num_assign_interval))
         tt_e = np.maximum(tt_e, tt_free)
@@ -468,12 +540,14 @@ class MMDODE:
         # tt_o = one_data_dict['car_link_tt']
         # print('o-----', tt_o)
         # print('e-----', tt_e)
-        grad = -np.nan_to_num(tt_o - tt_e)/tt_e
+        grad = -np.nan_to_num(tt_o - tt_e)/tt_o
         # print('g-----', grad)
         # if self.config['car_count_agg']:
         #   grad = one_data_dict['car_count_agg_L'].T.dot(grad)
         # print(tt_e, tt_o)
         # print("car_grad", grad)
+        _link_tt_grad_link_flow_car = self._compute_link_tt_grad_link_flow_car(dta)
+        grad = _link_tt_grad_link_flow_car.dot(grad)
         return grad
 
     def _compute_grad_on_truck_link_tt(self, dta, one_data_dict):
@@ -482,10 +556,12 @@ class MMDODE:
         tt_free = np.tile(list(map(lambda x: self.nb.get_link_driving(x).get_truck_fft(), self.observed_links_driving)), (self.num_assign_interval))
         tt_e = np.maximum(tt_e, tt_free)
         tt_o = np.maximum(one_data_dict['truck_link_tt'], tt_free)
-        grad = -np.nan_to_num(tt_o - tt_e)/tt_e
+        grad = -np.nan_to_num(tt_o - tt_e)/tt_o
         # if self.config['truck_count_agg']:
         #   grad = one_data_dict['truck_count_agg_L'].T.dot(grad)
         # print("truck_grad", grad)
+        _link_tt_grad_link_flow_truck = self._compute_link_tt_grad_link_flow_truck(dta)
+        grad = _link_tt_grad_link_flow_truck.dot(grad)
         return grad
 
     def _compute_grad_on_passenger_link_tt(self, dta, one_data_dict):
@@ -499,10 +575,12 @@ class MMDODE:
                           (self.num_assign_interval))
         tt_e = np.maximum(tt_e, tt_free)
         tt_o = np.maximum(one_data_dict['passenger_link_tt'], tt_free)
-        grad = -np.nan_to_num(tt_o - tt_e)/tt_e
+        grad = -np.nan_to_num(tt_o - tt_e)/tt_o
         # if self.config['passenger_count_agg']:
         #   grad = one_data_dict['passenger_count_agg_L'].T.dot(grad)
         # print("passenger_grad", grad)
+        _link_tt_grad_link_flow_passenger = self._compute_link_tt_grad_link_flow_passenger(dta)
+        grad = _link_tt_grad_link_flow_passenger.dot(grad)
         return grad
 
     # def _compute_grad_on_bus_link_tt(self, dta, one_data_dict):
@@ -510,7 +588,7 @@ class MMDODE:
     #     tt_free = np.tile(list(map(lambda x: self.nb.get_link_bus(x).get_bus_fft(), self.observed_links_bus)), (self.num_assign_interval))
     #     tt_e = np.maximum(tt_e, tt_free)
     #     tt_o = np.maximum(one_data_dict['bus_link_tt'], tt_free)
-    #     grad = -np.nan_to_num(tt_o - tt_e)/tt_e
+    #     grad = -np.nan_to_num(tt_o - tt_e)/tt_o
     #     # if self.config['bus_count_agg']:
     #     #   grad = one_data_dict['bus_count_agg_L'].T.dot(grad)
     #     # print("bus_grad", grad)
@@ -521,11 +599,276 @@ class MMDODE:
     #     tt_free = np.tile(list(map(lambda x: self.nb.get_link_walking(x).get_walking_fft(), self.observed_links_walking)), (self.num_assign_interval))
     #     tt_e = np.maximum(tt_e, tt_free)
     #     tt_o = np.maximum(one_data_dict['walking_link_tt'], tt_free)
-    #     grad = -np.nan_to_num(tt_o - tt_e)/tt_e
+    #     grad = -np.nan_to_num(tt_o - tt_e)/tt_o
     #     # if self.config['bus_count_agg']:
     #     #   grad = one_data_dict['bus_count_agg_L'].T.dot(grad)
     #     # print("bus_grad", grad)
     #     return grad
+
+    def _compute_link_tt_grad_link_flow_car(self, dta):
+        assign_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        num_assign_intervals = len(assign_intervals)
+        num_links = len(self.observed_links_driving)
+
+        car_link_out_cc = dict()
+        for link_ID in self.observed_links_driving:
+            car_link_out_cc[link_ID] = dta.get_car_link_out_cc(link_ID)
+
+        # tt_e = dta.get_car_link_tt(np.arange(assign_intervals[-1] + self.ass_freq))
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == assign_intervals[-1] + self.ass_freq)
+        # # average link travel time
+        # tt_e = np.stack(list(map(lambda i : np.mean(tt_e[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == num_assign_intervals)
+
+        # tt_e = dta.get_car_link_tt(assign_intervals)
+        tt_e = dta.get_car_link_tt_robust(assign_intervals, assign_intervals + self.ass_freq)
+
+        tt_free = np.array(list(map(lambda x: self.nb.get_link_driving(x).get_car_fft(), self.observed_links_driving)))
+        mask = tt_e > tt_free[:, np.newaxis]
+
+        # no congestions
+        if np.sum(mask) == 0:
+            return csr_matrix((num_assign_intervals * num_links, 
+                               num_assign_intervals * num_links))
+            # return eye(num_assign_intervals * num_links)
+
+        # cc = np.zeros((num_links, num_assign_intervals + 1), dtype=np.float)
+        # for j, link_ID in enumerate(self.observed_links_driving):
+        #     cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, car_link_out_cc[link_ID]), 
+        #                                  np.concatenate((assign_intervals, np.array([assign_intervals[-1] + self.ass_freq]))))))
+
+        # outflow_rate = np.diff(cc, axis=1) / self.ass_freq / self.nb.config.config_dict['DTA']['unit_time']
+
+        cc = np.zeros((num_links, assign_intervals[-1] + self.ass_freq + 1), dtype=np.float)
+        for j, link_ID in enumerate(self.observed_links_driving):
+            cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, car_link_out_cc[link_ID]), 
+                                         np.arange(assign_intervals[-1] + self.ass_freq + 1))))
+
+        outflow_rate = np.diff(cc, axis=1) / self.nb.config.config_dict['DTA']['unit_time']
+        outflow_rate = outflow_rate[:, assign_intervals]
+
+        if mask.shape[1] == outflow_rate.shape[1]:
+            outflow_rate *= mask
+        
+        if outflow_rate.shape[1] == num_assign_intervals:
+            outflow_avg_rate = outflow_rate
+        else:
+            outflow_avg_rate = np.stack(list(map(lambda i : np.mean(outflow_rate[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+            if mask.shape[1] == outflow_avg_rate.shape[1]:
+                outflow_avg_rate *= mask
+        assert(outflow_avg_rate.shape[0] == num_links and outflow_avg_rate.shape[1] == num_assign_intervals)
+
+        val = list()
+        row = list()
+        col = list()
+
+        for i, assign_interval in enumerate(assign_intervals):
+            for j, link_ID in enumerate(self.observed_links_driving):
+                _tmp = outflow_avg_rate[j, i]
+                if _tmp > 0:
+                    _tmp = 1 / _tmp
+                    val.append(_tmp)
+                    row.append(j + num_links * i)
+                    col.append(j + num_links * i)
+                # else:
+                #     _tmp = 1
+                #     val.append(_tmp)
+                #     row.append(j + num_links * i)
+                #     col.append(j + num_links * i)
+
+        grad = coo_matrix((val, (row, col)), 
+                           shape=(num_links * num_assign_intervals, num_links * num_assign_intervals)).tocsr()
+        
+        return grad
+
+    def _compute_link_tt_grad_link_flow_truck(self, dta):
+        assign_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        num_assign_intervals = len(assign_intervals)
+        num_links = len(self.observed_links_driving)
+
+        truck_link_out_cc = dict()
+        for link_ID in self.observed_links_driving:
+            truck_link_out_cc[link_ID] = dta.get_truck_link_out_cc(link_ID)
+
+        # tt_e = dta.get_truck_link_tt(np.arange(assign_intervals[-1] + self.ass_freq))
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == assign_intervals[-1] + self.ass_freq)
+        # # average link travel time
+        # tt_e = np.stack(list(map(lambda i : np.mean(tt_e[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == num_assign_intervals)
+
+        tt_e = dta.get_truck_link_tt(assign_intervals)
+
+        tt_free = np.array(list(map(lambda x: self.nb.get_link_driving(x).get_truck_fft(), self.observed_links_driving)))
+        mask = tt_e > tt_free[:, np.newaxis]
+
+        # no congestions
+        if np.sum(mask) == 0:
+            return csr_matrix((num_assign_intervals * num_links, 
+                               num_assign_intervals * num_links))
+            # return eye(num_assign_intervals * num_links)
+
+        # cc = np.zeros((num_links, num_assign_intervals + 1), dtype=np.float)
+        # for j, link_ID in enumerate(self.observed_links_driving):
+        #     cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, truck_link_out_cc[link_ID]), 
+        #                                  np.concatenate((assign_intervals, np.array([assign_intervals[-1] + self.ass_freq]))))))
+
+        # outflow_rate = np.diff(cc, axis=1) / self.ass_freq / self.nb.config.config_dict['DTA']['unit_time']
+
+        cc = np.zeros((num_links, assign_intervals[-1] + self.ass_freq + 1), dtype=np.float)
+        for j, link_ID in enumerate(self.observed_links_driving):
+            cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, truck_link_out_cc[link_ID]), 
+                                         np.arange(assign_intervals[-1] + self.ass_freq + 1))))
+
+        outflow_rate = np.diff(cc, axis=1) / self.nb.config.config_dict['DTA']['unit_time']
+        outflow_rate = outflow_rate[:, assign_intervals]
+        
+        if mask.shape[1] == outflow_rate.shape[1]:
+            outflow_rate *= mask
+        
+        if outflow_rate.shape[1] == num_assign_intervals:
+            outflow_avg_rate = outflow_rate
+        else:
+            outflow_avg_rate = np.stack(list(map(lambda i : np.mean(outflow_rate[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+            if mask.shape[1] == outflow_avg_rate.shape[1]:
+                outflow_avg_rate *= mask
+        assert(outflow_avg_rate.shape[0] == num_links and outflow_avg_rate.shape[1] == num_assign_intervals)
+
+        val = list()
+        row = list()
+        col = list()
+
+        for i, assign_interval in enumerate(assign_intervals):
+            for j, link_ID in enumerate(self.observed_links_driving):
+                _tmp = outflow_avg_rate[j, i]
+                if _tmp > 0:
+                    _tmp = 1 / _tmp
+                    val.append(_tmp)
+                    row.append(j + num_links * i)
+                    col.append(j + num_links * i)
+                # else:
+                #     _tmp = 1
+                #     val.append(_tmp)
+                #     row.append(j + num_links * i)
+                #     col.append(j + num_links * i)
+
+        grad = coo_matrix((val, (row, col)), 
+                           shape=(num_links * num_assign_intervals, num_links * num_assign_intervals)).tocsr()
+        
+        return grad
+
+    def _compute_link_tt_grad_link_flow_passenger(self, dta):
+        assign_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        num_assign_intervals = len(assign_intervals)
+        num_links = len(self.observed_links_bus) + len(self.observed_links_walking)
+
+        passenger_link_out_cc = dict()
+        for link_ID in self.observed_links_bus:
+            passenger_link_out_cc[link_ID] = dta.get_bus_link_out_passenger_cc(link_ID)
+        for link_ID in self.observed_links_walking:
+            passenger_link_out_cc[link_ID] = dta.get_walking_link_out_cc(link_ID)
+
+        # tt_e_bus = dta.get_bus_link_tt(np.arange(assign_intervals[-1] + self.ass_freq))
+        # tt_e_walking = dta.get_passenger_walking_link_tt(np.arange(assign_intervals[-1] + self.ass_freq))
+        # tt_e = np.concatenate((tt_e_bus, tt_e_walking), axis=0)
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == assign_intervals[-1] + self.ass_freq)
+        # # average link travel time
+        # tt_e = np.stack(list(map(lambda i : np.mean(tt_e[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == num_assign_intervals)
+
+        tt_e_bus = dta.get_bus_link_tt(assign_intervals)
+        tt_e_walking = dta.get_passenger_walking_link_tt(assign_intervals)
+        tt_e = np.concatenate((tt_e_bus, tt_e_walking), axis=0)
+        assert(tt_e.shape[0] == num_links and tt_e.shape[1] == num_assign_intervals)
+
+        tt_free = np.array(list(map(lambda x: self.nb.get_link_bus(x).get_bus_fft(), self.observed_links_bus)) + 
+                           list(map(lambda x: self.nb.get_link_walking(x).get_walking_fft(), self.observed_links_walking)))
+        mask = tt_e > tt_free[:, np.newaxis]
+
+        # no congestions
+        if np.sum(mask) == 0:
+            return csr_matrix((num_assign_intervals * num_links, 
+                               num_assign_intervals * num_links))
+            # return eye(num_assign_intervals * num_links)
+
+        # cc = np.zeros((num_links, num_assign_intervals + 1), dtype=np.float)
+        # for j, link_ID in enumerate(np.concatenate((self.observed_links_bus, self.observed_links_walking))):
+        #     cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, passenger_link_out_cc[link_ID]), 
+        #                                  np.concatenate((assign_intervals, np.array([assign_intervals[-1] + self.ass_freq]))))))
+
+        # outflow_rate = np.diff(cc, axis=1) / self.ass_freq / self.nb.config.config_dict['DTA']['unit_time']
+
+        cc = np.zeros((num_links, assign_intervals[-1] + self.ass_freq + 1), dtype=np.float)
+        for j, link_ID in enumerate(np.concatenate((self.observed_links_bus, self.observed_links_walking))):
+            cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, passenger_link_out_cc[link_ID]), 
+                                         np.arange(assign_intervals[-1] + self.ass_freq + 1))))
+
+        outflow_rate = np.diff(cc, axis=1) / self.nb.config.config_dict['DTA']['unit_time']
+        outflow_rate = outflow_rate[:, assign_intervals]
+
+        if mask.shape[1] == outflow_rate.shape[1]:
+            outflow_rate *= mask
+        
+        if outflow_rate.shape[1] == num_assign_intervals:
+            outflow_avg_rate = outflow_rate
+        else:
+            outflow_avg_rate = np.stack(list(map(lambda i : np.mean(outflow_rate[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+            if mask.shape[1] == outflow_avg_rate.shape[1]:
+                outflow_avg_rate *= mask
+        assert(outflow_avg_rate.shape[0] == num_links and outflow_avg_rate.shape[1] == num_assign_intervals)
+        
+
+        val = list()
+        row = list()
+        col = list()
+
+        for i, assign_interval in enumerate(assign_intervals):
+            for j, link_ID in enumerate(np.concatenate((self.observed_links_bus, self.observed_links_walking))):
+                _tmp = outflow_avg_rate[j, i]
+                if _tmp > 0:
+                    _tmp = 1 / _tmp
+                    val.append(_tmp)
+                    row.append(j + num_links * i)
+                    col.append(j + num_links * i)
+                # else:
+                #     _tmp = 1
+                #     val.append(_tmp)
+                #     row.append(j + num_links * i)
+                #     col.append(j + num_links * i)
+
+        grad = coo_matrix((val, (row, col)), 
+                           shape=(num_links * num_assign_intervals, num_links * num_assign_intervals)).tocsr()
+        
+        return grad
+
+    def _get_flow_from_cc(self, timestamp, cc):
+        # precision issue, consistent with C++
+        cc = np.around(cc, decimals=4)
+        if any(timestamp >= cc[:, 0]):
+            ind = np.nonzero(timestamp >= cc[:, 0])[0][-1]
+        else:
+            ind = 0
+        return cc[ind, 1]
+
+    def _get_timestamp_from_cc(self, flow, cc):
+        # precision issue, consistent with C++
+        cc = np.around(cc, decimals=4)
+        if any(flow == cc[:, 1]):
+            ind = np.nonzero(flow == cc[:, 1])[0][0]
+        elif any(flow > cc[:, 1]):
+            ind = np.nonzero(flow > cc[:, 1])[0][-1]
+        else:
+            ind = 0
+        return cc[ind, 0]
+
+    def _get_link_tt_from_cc(self, timestamp, cc_in, cc_out, fft):
+        _flow = self._get_flow_from_cc(timestamp, cc_in)
+        _timestamp_1 = self._get_timestamp_from_cc(_flow, cc_in)
+        _timestamp_2 = self._get_timestamp_from_cc(_flow, cc_out)
+        tt = (_timestamp_2 - _timestamp_1) * self.nb.config.config_dict['DTA']['unit_time']
+        assert(tt >= 0)
+        if tt < fft:
+            tt = fft
+        return tt
 
     def _get_one_data(self, j):
         assert (self.num_data > j)
@@ -625,9 +968,9 @@ class MMDODE:
 
         if self.config['use_car_link_tt'] or self.config['compute_car_link_tt_loss']:
             # num_links_driving x num_assign_intervals
-            x_tt_e = dta.get_car_link_tt(start_intervals).flatten(order='F')
-            # x_tt_e = dta.get_car_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
-            #                                     np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
+            # x_tt_e = dta.get_car_link_tt(start_intervals).flatten(order='F')
+            x_tt_e = dta.get_car_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
+                                                np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
             assert(len(x_tt_e) == len(self.observed_links_driving) * self.num_assign_interval)
             loss = self.config['link_car_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e - one_data_dict['car_link_tt']))
             loss_dict['car_tt_loss'] = loss
@@ -663,17 +1006,34 @@ class MMDODE:
         
     def estimate_path_flow_pytorch(self, car_driving_scale=10, truck_driving_scale=1, passenger_bustransit_scale=1, car_pnr_scale=5,
                                    car_driving_step_size=0.1, truck_driving_step_size=0.01, passenger_bustransit_step_size=0.01, car_pnr_step_size=0.05,
-                                   max_epoch=100, column_generation=False, use_file_as_init=None, save_folder=None):
+                                   car_driving_step_size_modifier=1, truck_driving_step_size_modifier=1, passenger_bustransit_step_size_modifier=1, car_pnr_step_size_modifier=1,
+                                   max_epoch=100, column_generation=False, use_tdsp=False, use_file_as_init=None, save_folder=None, starting_epoch=0):
         
         if np.isscalar(column_generation):
             column_generation = np.ones(max_epoch, dtype=int) * column_generation
         assert(len(column_generation) == max_epoch)
+
+        if np.isscalar(car_driving_step_size_modifier):
+            car_driving_step_size_modifier = np.ones(max_epoch, dtype=bool) * car_driving_step_size_modifier
+        assert(len(car_driving_step_size_modifier) == max_epoch)
+
+        if np.isscalar(truck_driving_step_size_modifier):
+            truck_driving_step_size_modifier = np.ones(max_epoch, dtype=bool) * truck_driving_step_size_modifier
+        assert(len(truck_driving_step_size_modifier) == max_epoch)
+
+        if np.isscalar(passenger_bustransit_step_size_modifier):
+            passenger_bustransit_step_size_modifier = np.ones(max_epoch, dtype=bool) * passenger_bustransit_step_size_modifier
+        assert(len(passenger_bustransit_step_size_modifier) == max_epoch)
+
+        if np.isscalar(car_pnr_step_size_modifier):
+            car_pnr_step_size_modifier = np.ones(max_epoch, dtype=bool) * car_pnr_step_size_modifier
+        assert(len(car_pnr_step_size_modifier) == max_epoch)
         
         loss_list = list()
 
         # read from files as init values
         if use_file_as_init is not None:
-            _, _, f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = pickle.load(use_file_as_init, 'rb')
+            _, _, f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = pickle.load(open(use_file_as_init, 'rb'))
 
             self.nb.update_demand_path_driving(f_car_driving, f_truck_driving)
             self.nb.update_demand_path_bustransit(f_passenger_bustransit)
@@ -685,22 +1045,47 @@ class MMDODE:
         # fixed bus path flow
         f_bus = self.nb.demand_bus.path_flow_matrix.flatten(order='F')
 
-        f_car_driving_tensor = torch.from_numpy(f_car_driving)
-        f_truck_driving_tensor = torch.from_numpy(f_truck_driving)
-        f_passenger_bustransit_tensor = torch.from_numpy(f_passenger_bustransit)
-        f_car_pnr_tensor = torch.from_numpy(f_car_pnr)
+        f_car_driving = np.maximum(f_car_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+        f_truck_driving = np.maximum(f_truck_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+        # this alleviate trapping in local minima, when f = 0 -> grad = 0 is not helping
+        f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1)
+        f_car_pnr = np.maximum(f_car_pnr, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+        f_bus = np.maximum(f_bus, 1e-6)
+
+        f_car_driving_tensor = torch.from_numpy(f_car_driving / car_driving_scale)
+        f_truck_driving_tensor = torch.from_numpy(f_truck_driving / truck_driving_scale)
+        f_passenger_bustransit_tensor = torch.from_numpy(f_passenger_bustransit / passenger_bustransit_scale)
+        f_car_pnr_tensor = torch.from_numpy(f_car_pnr / car_pnr_scale)
 
         f_car_driving_tensor.requires_grad = True
         f_truck_driving_tensor.requires_grad = True
         f_passenger_bustransit_tensor.requires_grad = True
         f_car_pnr_tensor.requires_grad = True
 
-        optimizer = torch.optim.Adam([
+        optimizer = torch.optim.NAdam([
             {'params': f_car_driving_tensor, 'lr': car_driving_step_size},
             {'params': f_truck_driving_tensor, 'lr': truck_driving_step_size},
             {'params': f_passenger_bustransit_tensor, 'lr': passenger_bustransit_step_size},
             {'params': f_car_pnr_tensor, 'lr': car_pnr_step_size}
-        ], betas=(0.99, 0.99))
+        ])
+
+        # optimizer = torch.optim.Adam([
+        #     {'params': f_car_driving_tensor, 'lr': car_driving_step_size},
+        #     {'params': f_truck_driving_tensor, 'lr': truck_driving_step_size},
+        #     {'params': f_passenger_bustransit_tensor, 'lr': passenger_bustransit_step_size},
+        #     {'params': f_car_pnr_tensor, 'lr': car_pnr_step_size}
+        # ], betas=(0.9, 0.99))
+
+        # optimizer = torch.optim.Adagrad([
+        #     {'params': f_car_driving_tensor, 'lr': car_driving_step_size},
+        #     {'params': f_truck_driving_tensor, 'lr': truck_driving_step_size},
+        #     {'params': f_passenger_bustransit_tensor, 'lr': passenger_bustransit_step_size},
+        #     {'params': f_car_pnr_tensor, 'lr': car_pnr_step_size}
+        # ])
+
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer, mode='min', factor=0.95, patience=5, 
+        #     threshold=0.15, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)
         
         for i in range(max_epoch):
             seq = np.random.permutation(self.num_data)
@@ -714,65 +1099,114 @@ class MMDODE:
                 f_car_driving_grad, f_truck_driving_grad, f_passenger_bustransit_grad, f_car_pnr_grad, f_passenger_pnr_grad, \
                     tmp_loss, loss_dict, dta = \
                         self.compute_path_flow_grad_and_loss(one_data_dict, f_car_driving, f_truck_driving, f_bus, f_passenger_bustransit, f_car_pnr)
+
+                if ~column_generation[i]:
+                    dta = 0
                 
                 optimizer.zero_grad()
 
-                f_car_driving_tensor.grad = torch.from_numpy(f_car_driving_grad)
-                f_truck_driving_tensor.grad = torch.from_numpy(f_truck_driving_grad)
-                f_passenger_bustransit_tensor.grad = torch.from_numpy(f_passenger_bustransit_grad)
-                f_car_pnr_tensor.grad = torch.from_numpy(f_car_pnr_grad + f_passenger_pnr_grad)
+                f_car_driving_tensor.grad = torch.from_numpy(f_car_driving_grad * car_driving_scale)
+                f_truck_driving_tensor.grad = torch.from_numpy(f_truck_driving_grad * truck_driving_scale)
+                f_passenger_bustransit_tensor.grad = torch.from_numpy(f_passenger_bustransit_grad * passenger_bustransit_scale)
+                f_car_pnr_tensor.grad = torch.from_numpy((f_car_pnr_grad + f_passenger_pnr_grad) * car_pnr_scale)
 
                 optimizer.step()
 
-                f_car_driving = f_car_driving_tensor.data.cpu().numpy()
-                f_truck_driving = f_truck_driving_tensor.data.cpu().numpy()
-                f_passenger_bustransit = f_passenger_bustransit_tensor.data.cpu().numpy()
-                f_car_pnr = f_car_pnr_tensor.data.cpu().numpy()
+                # release memory
+                f_car_driving_grad, f_truck_driving_grad, f_passenger_bustransit_grad, f_car_pnr_grad, f_passenger_pnr_grad = 0, 0, 0, 0, 0
+                optimizer.zero_grad()
+
+                f_car_driving = f_car_driving_tensor.data.cpu().numpy() * car_driving_scale
+                f_truck_driving = f_truck_driving_tensor.data.cpu().numpy() * truck_driving_scale
+                f_passenger_bustransit = f_passenger_bustransit_tensor.data.cpu().numpy() * passenger_bustransit_scale
+                f_car_pnr = f_car_pnr_tensor.data.cpu().numpy() * car_pnr_scale
 
                 if column_generation[i]:
-                    self.update_path_table(dta)
+                    print("***************** generate new paths *****************")
+                    self.update_path_table(dta, use_tdsp)
                     f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = \
                         self.update_path_flow(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr,
                                               car_driving_scale, truck_driving_scale, passenger_bustransit_scale, car_pnr_scale)
-                
-                f_car_driving = np.maximum(f_car_driving, 1e-6)
-                f_truck_driving = np.maximum(f_truck_driving, 1e-6)
-                f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1e-6)
-                f_car_pnr = np.maximum(f_car_pnr, 1e-6)
+                    dta = 0
+
+                f_car_driving = np.maximum(f_car_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+                f_truck_driving = np.maximum(f_truck_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+                # this helps jump out of local minima, when f = 0 -> grad = 0 is not helping
+                f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1)
+                f_car_pnr = np.maximum(f_car_pnr, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
 
                 if column_generation[i]:
-                    f_car_driving_tensor = torch.from_numpy(f_car_driving)
-                    f_truck_driving_tensor = torch.from_numpy(f_truck_driving)
-                    f_passenger_bustransit_tensor = torch.from_numpy(f_passenger_bustransit)
-                    f_car_pnr_tensor = torch.from_numpy(f_car_pnr)
+                    f_car_driving_tensor = torch.from_numpy(f_car_driving / car_driving_scale)
+                    f_truck_driving_tensor = torch.from_numpy(f_truck_driving / truck_driving_scale)
+                    f_passenger_bustransit_tensor = torch.from_numpy(f_passenger_bustransit / passenger_bustransit_scale)
+                    f_car_pnr_tensor = torch.from_numpy(f_car_pnr / car_pnr_scale)
 
                     f_car_driving_tensor.requires_grad = True
                     f_truck_driving_tensor.requires_grad = True
                     f_passenger_bustransit_tensor.requires_grad = True
                     f_car_pnr_tensor.requires_grad = True
 
-                    optimizer = torch.optim.Adam([
+                    # optimizer = torch.optim.Adam([
+                    #     {'params': f_car_driving_tensor, 'lr': car_driving_step_size},
+                    #     {'params': f_truck_driving_tensor, 'lr': truck_driving_step_size},
+                    #     {'params': f_passenger_bustransit_tensor, 'lr': passenger_bustransit_step_size},
+                    #     {'params': f_car_pnr_tensor, 'lr': car_pnr_step_size}
+                    # ], betas=(0.9, 0.99))
+
+                    optimizer = torch.optim.NAdam([
                         {'params': f_car_driving_tensor, 'lr': car_driving_step_size},
                         {'params': f_truck_driving_tensor, 'lr': truck_driving_step_size},
                         {'params': f_passenger_bustransit_tensor, 'lr': passenger_bustransit_step_size},
                         {'params': f_car_pnr_tensor, 'lr': car_pnr_step_size}
-                    ], betas=(0.99, 0.99))
+                    ])
+
+                    # optimizer = torch.optim.Adagrad([
+                    #     {'params': f_car_driving_tensor, 'lr': car_driving_step_size},
+                    #     {'params': f_truck_driving_tensor, 'lr': truck_driving_step_size},
+                    #     {'params': f_passenger_bustransit_tensor, 'lr': passenger_bustransit_step_size},
+                    #     {'params': f_car_pnr_tensor, 'lr': car_pnr_step_size}
+                    # ])
+
+                    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    #     optimizer, mode='min', factor=0.95, patience=5, 
+                    #     threshold=0.15, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)
 
                 loss += tmp_loss
             
-            print("Epoch:", i, "Loss:", loss / np.float(self.num_data), self.print_separate_accuracy(loss_dict))
+            print("Epoch:", starting_epoch + i, "Loss:", loss / np.float(self.num_data), self.print_separate_accuracy(loss_dict))
             loss_list.append([loss / np.float(self.num_data), loss_dict])
+
+            # if 'passenger_count_loss' in loss_list[-1][-1]:
+            #     scheduler.step(loss_list[-1][-1]['passenger_count_loss'])
+            # else:
+            #     scheduler.step(loss_list[-1][0])
+            
+            # scheduler.step(loss_list[-1][0])
+
+            optimizer.param_groups[0]['lr'] *= car_driving_step_size_modifier[i]
+            optimizer.param_groups[1]['lr'] *= truck_driving_step_size_modifier[i]
+            optimizer.param_groups[2]['lr'] *= passenger_bustransit_step_size_modifier[i]
+            optimizer.param_groups[3]['lr'] *= car_pnr_step_size_modifier[i]
+
+            # optimizer.param_groups[0]['lr'] = car_driving_step_size_modifier[i] * car_driving_step_size
+            # optimizer.param_groups[1]['lr'] = truck_driving_step_size_modifier[i] * truck_driving_step_size
+            # optimizer.param_groups[2]['lr'] = passenger_bustransit_step_size_modifier[i] * passenger_bustransit_step_size
+            # optimizer.param_groups[3]['lr'] = car_pnr_step_size_modifier[i] * car_pnr_step_size
+
             if save_folder is not None:
                 pickle.dump([loss / np.float(self.num_data), loss_dict, 
                              f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr], 
-                            open(os.path.join(save_folder, str(i)+'_iteration_estimate_path_flow.pickle'), 'wb'))
+                            open(os.path.join(save_folder, str(starting_epoch + i) + '_iteration_estimate_path_flow.pickle'), 'wb'))
                 
-                if column_generation[i]:
-                    self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_path_flow'), 
-                                                     f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
+                self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_path_flow'), 
+                                                 f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
+
+                # if column_generation[i]:
+                #     self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_path_flow'), 
+                #                                      f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
 
             # if column_generation[i]:
-            #     self.update_path_table(dta)
+            #     self.update_path_table(dta, use_tdsp)
             #     f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = \
             #         self.update_path_flow(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr,
             #                               car_driving_scale, truck_driving_scale, passenger_bustransit_scale, car_pnr_scale)
@@ -782,17 +1216,33 @@ class MMDODE:
 
     def estimate_path_flow(self, car_driving_scale=10, truck_driving_scale=1, passenger_bustransit_scale=1, car_pnr_scale=5,
                            car_driving_step_size=0.1, truck_driving_step_size=0.01, passenger_bustransit_step_size=0.01, car_pnr_step_size=0.05,
-                           max_epoch=100, adagrad=False, column_generation=False, use_file_as_init=None, save_folder=None):
+                           max_epoch=100, adagrad=False, column_generation=False, use_tdsp=False, use_file_as_init=None, save_folder=None, starting_epoch=0):
         
         if np.isscalar(column_generation):
             column_generation = np.ones(max_epoch, dtype=int) * column_generation
         assert(len(column_generation) == max_epoch)
+
+        if np.isscalar(car_driving_step_size):
+            car_driving_step_size = np.ones(max_epoch, dtype=float) * car_driving_step_size
+        assert(len(car_driving_step_size) == max_epoch)
+
+        if np.isscalar(truck_driving_step_size):
+            truck_driving_step_size = np.ones(max_epoch, dtype=float) * truck_driving_step_size
+        assert(len(truck_driving_step_size) == max_epoch)
+
+        if np.isscalar(passenger_bustransit_step_size):
+            passenger_bustransit_step_size = np.ones(max_epoch, dtype=float) * passenger_bustransit_step_size
+        assert(len(passenger_bustransit_step_size) == max_epoch)
+
+        if np.isscalar(car_pnr_step_size):
+            car_pnr_step_size = np.ones(max_epoch, dtype=float) * car_pnr_step_size
+        assert(len(car_pnr_step_size) == max_epoch)
         
         loss_list = list()
 
         # read from files as init values
         if use_file_as_init is not None:
-            _, _, f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = pickle.load(use_file_as_init, 'rb')
+            _, _, f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = pickle.load(open(use_file_as_init, 'rb'))
 
             self.nb.update_demand_path_driving(f_car_driving, f_truck_driving)
             self.nb.update_demand_path_bustransit(f_passenger_bustransit)
@@ -803,6 +1253,13 @@ class MMDODE:
 
         # fixed bus path flow
         f_bus = self.nb.demand_bus.path_flow_matrix.flatten(order='F')
+
+        f_car_driving = np.maximum(f_car_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+        f_truck_driving = np.maximum(f_truck_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+        # this alleviate trapping in local minima, when f = 0 -> grad = 0 is not helping
+        f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1)
+        f_car_pnr = np.maximum(f_car_pnr, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+        f_bus = np.maximum(f_bus, 1e-6)
 
         for i in range(max_epoch):
             seq = np.random.permutation(self.num_data)
@@ -820,51 +1277,63 @@ class MMDODE:
                 f_car_driving_grad, f_truck_driving_grad, f_passenger_bustransit_grad, f_car_pnr_grad, f_passenger_pnr_grad, \
                     tmp_loss, loss_dict, dta = \
                         self.compute_path_flow_grad_and_loss(one_data_dict, f_car_driving, f_truck_driving, f_bus, f_passenger_bustransit, f_car_pnr)
+
+                if ~column_generation[i]:
+                    dta = 0
                 
                 if adagrad:
                     sum_g_square_car_driving = sum_g_square_car_driving + np.power(f_car_driving_grad, 2)
-                    f_car_driving -= f_car_driving_grad * car_driving_step_size / np.sqrt(sum_g_square_car_driving)
+                    f_car_driving -= f_car_driving_grad * car_driving_step_size[i] / np.sqrt(sum_g_square_car_driving)
 
                     sum_g_square_truck_driving = sum_g_square_truck_driving + np.power(f_truck_driving_grad, 2)
-                    f_truck_driving -= f_truck_driving_grad * truck_driving_step_size / np.sqrt(sum_g_square_truck_driving)
+                    f_truck_driving -= f_truck_driving_grad * truck_driving_step_size[i] / np.sqrt(sum_g_square_truck_driving)
 
                     sum_g_square_passenger_bustransit = sum_g_square_passenger_bustransit + np.power(f_passenger_bustransit_grad, 2)
-                    f_passenger_bustransit -= f_passenger_bustransit_grad * passenger_bustransit_step_size / np.sqrt(sum_g_square_passenger_bustransit)
+                    f_passenger_bustransit -= f_passenger_bustransit_grad * passenger_bustransit_step_size[i] / np.sqrt(sum_g_square_passenger_bustransit)
 
                     sum_g_square_car_pnr = sum_g_square_car_pnr + np.power((f_car_pnr_grad + f_passenger_pnr_grad), 2)
-                    f_car_pnr -= (f_car_pnr_grad + f_passenger_pnr_grad) * car_pnr_step_size / np.sqrt(sum_g_square_car_pnr)
+                    f_car_pnr -= (f_car_pnr_grad + f_passenger_pnr_grad) * car_pnr_step_size[i] / np.sqrt(sum_g_square_car_pnr)
                 else:
-                    f_car_driving -= f_car_driving_grad * car_driving_step_size / np.sqrt(i+1)
-                    f_truck_driving -= f_truck_driving_grad * truck_driving_step_size / np.sqrt(i+1)
-                    f_passenger_bustransit -= f_passenger_bustransit_grad * passenger_bustransit_step_size / np.sqrt(i+1)
-                    f_car_pnr -= (f_car_pnr_grad + f_passenger_pnr_grad) * car_pnr_step_size / np.sqrt(i+1)
+                    f_car_driving -= f_car_driving_grad * car_driving_step_size[i] / np.sqrt(i+1)
+                    f_truck_driving -= f_truck_driving_grad * truck_driving_step_size[i] / np.sqrt(i+1)
+                    f_passenger_bustransit -= f_passenger_bustransit_grad * passenger_bustransit_step_size[i] / np.sqrt(i+1)
+                    f_car_pnr -= (f_car_pnr_grad + f_passenger_pnr_grad) * car_pnr_step_size[i] / np.sqrt(i+1)
+
+                # release memory
+                f_car_driving_grad, f_truck_driving_grad, f_passenger_bustransit_grad, f_car_pnr_grad, f_passenger_pnr_grad = 0, 0, 0, 0, 0
 
                 if column_generation[i]:
-                    self.update_path_table(dta)
+                    print("***************** generate new paths *****************")
+                    self.update_path_table(dta, use_tdsp)
                     f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = \
                         self.update_path_flow(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr,
                                               car_driving_scale, truck_driving_scale, passenger_bustransit_scale, car_pnr_scale)
+                    dta = 0
                 
-                f_car_driving = np.maximum(f_car_driving, 1e-6)
-                f_truck_driving = np.maximum(f_truck_driving, 1e-6)
-                f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1e-6)
-                f_car_pnr = np.maximum(f_car_pnr, 1e-6)
+                f_car_driving = np.maximum(f_car_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+                f_truck_driving = np.maximum(f_truck_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+                # this alleviate trapping in local minima, when f = 0 -> grad = 0 is not helping
+                f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1)
+                f_car_pnr = np.maximum(f_car_pnr, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
 
                 loss += tmp_loss
             
-            print("Epoch:", i, "Loss:", loss / np.float(self.num_data), self.print_separate_accuracy(loss_dict))
+            print("Epoch:", starting_epoch + i, "Loss:", loss / np.float(self.num_data), self.print_separate_accuracy(loss_dict))
             loss_list.append([loss / np.float(self.num_data), loss_dict])
             if save_folder is not None:
                 pickle.dump([loss / np.float(self.num_data), loss_dict, 
                              f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr], 
-                            open(os.path.join(save_folder, str(i)+'_iteration_estimate_path_flow.pickle'), 'wb'))
+                            open(os.path.join(save_folder, str(starting_epoch + i) + '_iteration_estimate_path_flow.pickle'), 'wb'))
                 
-                if column_generation[i]:
-                    self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_path_flow'), 
+                self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_path_flow'), 
                                                      f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
 
+                # if column_generation[i]:
+                #     self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_path_flow'), 
+                #                                      f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
+
             # if column_generation[i]:
-            #     self.update_path_table(dta)
+            #     self.update_path_table(dta, use_tdsp)
             #     f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = \
             #         self.update_path_flow(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr,
             #                               car_driving_scale, truck_driving_scale, passenger_bustransit_scale, car_pnr_scale)
@@ -874,9 +1343,9 @@ class MMDODE:
     def estimate_demand_pytorch(self, init_scale_passenger=10, init_scale_truck=10, 
                                 car_driving_scale=10, truck_driving_scale=1, passenger_bustransit_scale=1, car_pnr_scale=5,
                                 passenger_step_size=0.1, truck_step_size=0.01,
-                                max_epoch=100, column_generation=False,
+                                max_epoch=100, column_generation=False, use_tdsp=False,
                                 alpha_mode=(1., 1.5, 2.), beta_mode=1, alpha_path=1, beta_path=1, 
-                                use_file_as_init=None, save_folder=None):
+                                use_file_as_init=None, save_folder=None, starting_epoch=0):
 
         if np.isscalar(column_generation):
             column_generation = np.ones(max_epoch, dtype=int) * column_generation
@@ -887,7 +1356,7 @@ class MMDODE:
         # read from files as init values
         if use_file_as_init is not None:
             _, _, q_e_passenger, q_e_truck, q_e_mode_driving, q_e_mode_bustransit, q_e_mode_pnr, \
-                f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = pickle.load(use_file_as_init, 'rb')
+                f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = pickle.load(open(use_file_as_init, 'rb'))
             
             self.nb.update_demand_path_driving(f_car_driving, f_truck_driving)
             self.nb.update_demand_path_bustransit(f_passenger_bustransit)
@@ -902,14 +1371,15 @@ class MMDODE:
 
         # fixed bus path flow
         f_bus = self.nb.demand_bus.path_flow_matrix.flatten(order='F')
+        f_bus = np.maximum(f_bus, 1e-6)
 
-        q_e_passenger_tensor = torch.from_numpy(q_e_passenger)
-        q_e_truck_tensor = torch.from_numpy(q_e_truck)
+        q_e_passenger_tensor = torch.from_numpy(q_e_passenger / init_scale_passenger)
+        q_e_truck_tensor = torch.from_numpy(q_e_truck / init_scale_truck)
 
         q_e_passenger_tensor.requires_grad = True
         q_e_truck_tensor.requires_grad = True
 
-        optimizer = torch.optim.Adam([
+        optimizer = torch.optim.NAdam([
             {'params': q_e_passenger_tensor, 'lr': passenger_step_size},
             {'params': q_e_truck_tensor, 'lr': truck_step_size}
         ])
@@ -945,10 +1415,11 @@ class MMDODE:
                 f_passenger_bustransit = P_path_passenger_bustransit.dot(q_e_mode_bustransit)
                 f_car_pnr = P_path_car_pnr.dot(q_e_mode_pnr)
 
-                f_car_driving = np.maximum(f_car_driving, 1e-6)
-                f_truck_driving = np.maximum(f_truck_driving, 1e-6)
-                f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1e-6)
-                f_car_pnr = np.maximum(f_car_pnr, 1e-6)
+                f_car_driving = np.maximum(f_car_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+                f_truck_driving = np.maximum(f_truck_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+                # this alleviate trapping in local minima, when f = 0 -> grad = 0 is not helping
+                f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1)
+                f_car_pnr = np.maximum(f_car_pnr, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
                 
                 # f_grad: num_path * num_assign_interval
                 f_car_driving_grad, f_truck_driving_grad, f_passenger_bustransit_grad, f_car_pnr_grad, f_passenger_pnr_grad, \
@@ -969,49 +1440,56 @@ class MMDODE:
                 
                 optimizer.zero_grad()
 
-                q_e_passenger_tensor.grad = torch.from_numpy(q_passenger_grad)
-                q_e_truck_tensor.grad = torch.from_numpy(q_truck_grad)
+                q_e_passenger_tensor.grad = torch.from_numpy(q_passenger_grad * init_scale_passenger)
+                q_e_truck_tensor.grad = torch.from_numpy(q_truck_grad * init_scale_truck)
 
                 optimizer.step()
 
-                q_e_passenger_tensor = torch.maximum(q_e_passenger_tensor, torch.tensor(1e-6))
-                q_e_truck_tensor = torch.maximum(q_e_truck_tensor, torch.tensor(1e-6))
+                # release memory
+                f_car_driving_grad, f_truck_driving_grad, f_passenger_bustransit_grad, f_car_pnr_grad, f_passenger_pnr_grad = 0, 0, 0, 0, 0
+                q_grad_car_driving, q_grad_car_pnr, q_truck_grad, q_grad_passenger_bustransit, q_grad_passenger_pnr, q_passenger_grad = 0, 0, 0, 0, 0, 0
+                optimizer.zero_grad()
 
-                q_e_passenger = q_e_passenger_tensor.data.cpu().numpy()
-                q_e_truck = q_e_truck_tensor.data.cpu().numpy()
+                q_e_passenger = q_e_passenger_tensor.data.cpu().numpy() * init_scale_passenger
+                q_e_truck = q_e_truck_tensor.data.cpu().numpy() * init_scale_truck
 
                 loss += tmp_loss
 
                 self.compute_path_cost(dta)
                 if column_generation[i]:
-                    self.update_path_table(dta)
+                    print("***************** generate new paths *****************")
+                    self.update_path_table(dta, use_tdsp)
                     f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = \
                         self.update_path_flow(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr,
                                               car_driving_scale, truck_driving_scale, passenger_bustransit_scale, car_pnr_scale)
+                    dta = 0
                 # adjust modal split and path flow portion based on path cost and logit choice model
                 self.assign_mode_route_portions(alpha_mode, beta_mode, alpha_path, beta_path)
 
-            print("Epoch:", i, "Loss:", loss / np.float(self.num_data), self.print_separate_accuracy(loss_dict))
+            print("Epoch:", starting_epoch + i, "Loss:", loss / np.float(self.num_data), self.print_separate_accuracy(loss_dict))
             loss_list.append([loss / np.float(self.num_data), loss_dict])
             if save_folder is not None:
                 pickle.dump([loss / np.float(self.num_data), loss_dict, 
                              q_e_passenger, q_e_truck, 
                              q_e_mode_driving, q_e_mode_bustransit, q_e_mode_pnr,
                              f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr], 
-                            open(os.path.join(save_folder, str(i)+'_iteration_estimate_demand.pickle'), 'wb'))
+                            open(os.path.join(save_folder, str(starting_epoch + i) + '_iteration_estimate_demand.pickle'), 'wb'))
 
-                if column_generation[i]:
-                    self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_demand'), 
+                self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_demand'), 
                                                      f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
+
+                # if column_generation[i]:
+                #     self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_demand'), 
+                #                                      f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
                 
         return f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, q_e_passenger, q_e_truck, loss_list
 
     def estimate_demand(self, init_scale_passenger=10, init_scale_truck=10, 
                         car_driving_scale=10, truck_driving_scale=1, passenger_bustransit_scale=1, car_pnr_scale=5,
                         passenger_step_size=0.1, truck_step_size=0.01,
-                        max_epoch=100, adagrad=False, column_generation=False,
+                        max_epoch=100, adagrad=False, column_generation=False, use_tdsp=False,
                         alpha_mode=(1., 1.5, 2.), beta_mode=1, alpha_path=1, beta_path=1, 
-                        use_file_as_init=None, save_folder=None):
+                        use_file_as_init=None, save_folder=None, starting_epoch=0):
         if np.isscalar(passenger_step_size):
             passenger_step_size = np.ones(max_epoch) * passenger_step_size
         if np.isscalar(truck_step_size):
@@ -1028,7 +1506,7 @@ class MMDODE:
         # read from files as init values
         if use_file_as_init is not None:
             _, _, q_e_passenger, q_e_truck, q_e_mode_driving, q_e_mode_bustransit, q_e_mode_pnr, \
-                f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = pickle.load(use_file_as_init, 'rb')
+                f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = pickle.load(open(use_file_as_init, 'rb'))
             
             self.nb.update_demand_path_driving(f_car_driving, f_truck_driving)
             self.nb.update_demand_path_bustransit(f_passenger_bustransit)
@@ -1043,6 +1521,7 @@ class MMDODE:
 
         # fixed bus path flow
         f_bus = self.nb.demand_bus.path_flow_matrix.flatten(order='F')
+        f_bus = np.maximum(f_bus, 1e-6)
 
         for i in range(max_epoch):
             seq = np.random.permutation(self.num_data)
@@ -1077,10 +1556,11 @@ class MMDODE:
                 f_passenger_bustransit = P_path_passenger_bustransit.dot(q_e_mode_bustransit)
                 f_car_pnr = P_path_car_pnr.dot(q_e_mode_pnr)
 
-                f_car_driving = np.maximum(f_car_driving, 1e-6)
-                f_truck_driving = np.maximum(f_truck_driving, 1e-6)
-                f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1e-6)
-                f_car_pnr = np.maximum(f_car_pnr, 1e-6)
+                f_car_driving = np.maximum(f_car_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+                f_truck_driving = np.maximum(f_truck_driving, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
+                # this alleviate trapping in local minima, when f = 0 -> grad = 0 is not helping
+                f_passenger_bustransit = np.maximum(f_passenger_bustransit, 1)
+                f_car_pnr = np.maximum(f_car_pnr, 1e-3 / self.nb.config.config_dict['DTA']['flow_scalar'])
                 
                 # f_grad: num_path * num_assign_interval
                 f_car_driving_grad, f_truck_driving_grad, f_passenger_bustransit_grad, f_car_pnr_grad, f_passenger_pnr_grad, \
@@ -1107,39 +1587,48 @@ class MMDODE:
                 else:
                     q_e_passenger -= q_passenger_grad * passenger_step_size[i] # / np.sqrt(i+1)
                     q_e_truck -= q_truck_grad * truck_step_size[i] # / np.sqrt(i+1)
+
+                # release memory
+                f_car_driving_grad, f_truck_driving_grad, f_passenger_bustransit_grad, f_car_pnr_grad, f_passenger_pnr_grad = 0, 0, 0, 0, 0
+                q_grad_car_driving, q_grad_car_pnr, q_truck_grad, q_grad_passenger_bustransit, q_grad_passenger_pnr, q_passenger_grad = 0, 0, 0, 0, 0, 0
                 
-                q_e_passenger = np.maximum(q_e_passenger, 1e-6)
-                q_e_truck = np.maximum(q_e_truck, 1e-6)
+                # q_e_passenger = np.maximum(q_e_passenger, 1e-6)
+                # q_e_truck = np.maximum(q_e_truck, 1e-6)
 
                 loss += tmp_loss
 
                 self.compute_path_cost(dta)
                 if column_generation[i]:
-                    self.update_path_table(dta)
+                    print("***************** generate new paths *****************")
+                    self.update_path_table(dta, use_tdsp)
                     f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = \
                         self.update_path_flow(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr,
                                               car_driving_scale, truck_driving_scale, passenger_bustransit_scale, car_pnr_scale)
+                    dta = 0
                 # adjust modal split and path flow portion based on path cost and logit choice model
                 self.assign_mode_route_portions(alpha_mode, beta_mode, alpha_path, beta_path)
 
-            print("Epoch:", i, "Loss:", loss / np.float(self.num_data), self.print_separate_accuracy(loss_dict))
+            print("Epoch:", starting_epoch + i, "Loss:", loss / np.float(self.num_data), self.print_separate_accuracy(loss_dict))
             loss_list.append([loss / np.float(self.num_data), loss_dict])
             if save_folder is not None:
                 pickle.dump([loss / np.float(self.num_data), loss_dict, 
                              q_e_passenger, q_e_truck, 
                              q_e_mode_driving, q_e_mode_bustransit, q_e_mode_pnr,
                              f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr], 
-                            open(os.path.join(save_folder, str(i)+'_iteration_estimate_demand.pickle'), 'wb'))
+                            open(os.path.join(save_folder, str(starting_epoch + i) + '_iteration_estimate_demand.pickle'), 'wb'))
 
-                if column_generation[i]:
-                    self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_demand'), 
+                self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_demand'), 
                                                      f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
+
+                # if column_generation[i]:
+                #     self.save_simulation_input_files(os.path.join(save_folder, 'input_files_estimate_demand'), 
+                #                                      f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
                 
         return f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, q_e_passenger, q_e_truck, loss_list
 
-    def update_path_table(self, dta):
+    def update_path_table(self, dta, use_tdsp=False):
         start_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
-        self.nb.update_path_table(dta, start_intervals)
+        self.nb.update_path_table(dta, start_intervals, use_tdsp)
 
         self.num_path_driving = self.nb.config.config_dict['FIXED']['num_driving_path']
         self.num_path_bustransit = self.nb.config.config_dict['FIXED']['num_bustransit_path']

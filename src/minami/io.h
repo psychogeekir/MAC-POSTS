@@ -40,6 +40,11 @@ public:
   static int build_workzone_list(const std::string& file_folder, MNM_Workzone* workzone, const std::string& file_name = "MNM_input_workzone");
   static int dump_cumulative_curve(const std::string& file_folder, MNM_Link_Factory *link_factory, const std::string& file_name = "cc_record");
 
+  static int read_td_link_cost(const std::string& file_folder, std::unordered_map<TInt, TFlt*> &td_link_cost, 
+                                 const TInt num_rows, const TInt num_timestamps, const std::string& file_name = "tdsp_link_cost");
+  static int read_td_node_cost(const std::string& file_folder, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &td_node_cost, 
+                                 const TInt num_rows, const TInt num_timestamps, const std::string& file_name = "tdsp_node_cost");
+
 //private:
   static std::vector<std::string> split(const std::string &text, char sep);
   static  std::string inline &ltrim(std::string &s) {s.erase(s.begin(), std::find_if(s.begin(), s.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));

@@ -508,6 +508,8 @@ class MNM_pathtable():
     for i in range(len(log)):
       tmp_portions = np.array(log[i].strip().split()).astype(np.float)
       if buffer_length is not None:
+        # if 2*len(tmp_portions) == buffer_length:
+        #   tmp_portions = np.concatenate((tmp_portions, tmp_portions))
         if len(tmp_portions) == buffer_length:
           buffer_length = buffer_length // 2
         assert(len(tmp_portions) == buffer_length * 2)
@@ -571,7 +573,7 @@ class MNM_config():
                       'assign_frq' : np.int, 'start_assign_interval': np.int, 'max_interval': np.int,
                       'flow_scalar': np.int, 'num_of_link': np.int, 'num_of_node': np.int, 
                       'num_of_O': np.int, 'num_of_D': np.int, 'OD_pair': np.int,
-                      'routing_type' : str, 'rec_mode': str, 'rec_mode_para': str, 'rec_folder': str,
+                      'routing_type' : str, 'init_demand_split': np.int, 'rec_mode': str, 'rec_mode_para': str, 'rec_folder': str,
                       'rec_volume': np.int, 'volume_load_automatic_rec': np.int, 'volume_record_automatic_rec': np.int,
                       'rec_tt': np.int, 'tt_load_automatic_rec':np.int, 'tt_record_automatic_rec':np.int,
                       'route_frq': np.int, 'path_file_name': str, 'num_path': np.int,
@@ -640,6 +642,7 @@ class MNM_config():
 class MNM_network_builder():
   # build network for DTA considering bi-class flows: car and truck
   def __init__(self):
+    self.folder_path = None
     self.config = MNM_config()
     self.network_name = None
     self.link_list = list()
@@ -661,6 +664,9 @@ class MNM_network_builder():
                                     graph_file_name = 'Snap_graph', od_file_name = 'MNM_input_od',
                                     pathtable_file_name = 'path_table', path_p_file_name = 'path_table_buffer',
                                     demand_file_name = 'MNM_input_demand'):
+    
+    self.folder_path = path
+
     if os.path.isfile(os.path.join(path, config_file_name)):
       self.config.build_from_file(os.path.join(path, config_file_name))
       self.config.config_dict['FIXED']['buffer_length'] = 2 * self.config.config_dict['DTA']['max_interval']

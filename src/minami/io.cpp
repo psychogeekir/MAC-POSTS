@@ -354,6 +354,7 @@ PNEGraph MNM_IO::build_graph(const std::string& file_folder, MNM_ConfReader *con
     }
   }
   _graph -> Defrag();
+  IAssert(_graph -> GetEdges() == _num_of_link);
   return _graph;
 }
 
@@ -707,4 +708,118 @@ std::vector<std::string> MNM_IO::split(const std::string &text, char sep)
   return tokens;
 }
 
+int MNM_IO::read_td_link_cost(const std::string& file_folder, std::unordered_map<TInt, TFlt*> &td_link_cost, 
+                              const TInt num_rows, const TInt num_timestamps, const std::string& file_name)
+{
+  if (!td_link_cost.empty()) {
+    for (auto _it: td_link_cost) {
+      memset(_it.second, 0x0, sizeof(TFlt) * num_timestamps);
+    }
+  }
 
+  /* find file */
+  std::string _file_name = file_folder + "/" + file_name;
+  std::ifstream _file;
+  _file.open(_file_name, std::ios::in);  
+
+  std::string _line;
+  std::vector<std::string> _words;
+  TInt _link_ID;
+  TFlt _cost;
+  TFlt *_cost_vector;
+
+  if (_file.is_open())
+  {
+    printf("Start reading td link cost file.\n");
+    std::getline(_file,_line); // skip the header
+    for (int i=0; i < num_rows; ++i){
+      std::getline(_file,_line);
+      // std::cout << "Processing: " << _line << "\n";
+      _words = split(_line, ' ');
+      if (TInt(_words.size()) == num_timestamps + 1) {
+        _link_ID = TInt(std::stoi(trim(_words[0])));
+        if (td_link_cost.find(_link_ID) == td_link_cost.end()) {
+          TFlt* _cost_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * num_timestamps);
+          td_link_cost.insert(std::pair<TInt, TFlt*>(_link_ID, _cost_vector_tmp));
+        }
+        _cost_vector = td_link_cost.find(_link_ID) -> second;
+        for (int j=0; j < num_timestamps; ++j) {
+          _cost = TFlt(std::stof(trim(_words[1+j])));
+          _cost_vector[j] = _cost;
+        }
+        
+      }
+      else{
+        printf("Something wrong in input file for MNM_IO::read_td_link_cost!\n");
+        exit(-1);
+      }
+    }
+    _file.close();
+  }  
+  else {
+    printf("Something wrong in input file for MNM_IO::read_td_link_cost!\n");
+    exit(-1);
+  }
+  return 0;
+}
+
+int MNM_IO::read_td_node_cost(const std::string& file_folder, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &td_node_cost, 
+                              const TInt num_rows, const TInt num_timestamps, const std::string& file_name)
+{
+  if (!td_node_cost.empty()) {
+    for (auto _it: td_node_cost) {
+      for (auto _it_it : _it.second) {
+        memset(_it_it.second, 0x0, sizeof(TFlt) * num_timestamps);
+      }
+    }
+  }
+
+  /* find file */
+  std::string _file_name = file_folder + "/" + file_name;
+  std::ifstream _file;
+  _file.open(_file_name, std::ios::in);  
+
+  std::string _line;
+  std::vector<std::string> _words;
+  TInt _in_link_ID, _out_link_ID;
+  TFlt _cost;
+  TFlt *_cost_vector;
+
+  if (_file.is_open())
+  {
+    printf("Start reading td node cost file.\n");
+    std::getline(_file,_line); // skip the header
+    for (int i=0; i < num_rows; ++i){
+      std::getline(_file,_line);
+      // std::cout << "Processing: " << _line << "\n";
+      _words = split(_line, ' ');
+      if (TInt(_words.size()) == num_timestamps + 3) {
+        _in_link_ID = TInt(std::stoi(trim(_words[1])));
+        _out_link_ID = TInt(std::stoi(trim(_words[2])));
+        if (td_node_cost.find(_in_link_ID) == td_node_cost.end()) {
+          td_node_cost.insert(std::pair<TInt, std::unordered_map<TInt, TFlt*>>(_in_link_ID, std::unordered_map<TInt, TFlt*>()));
+        }
+        if (td_node_cost.find(_in_link_ID) -> second.find(_out_link_ID) == td_node_cost.find(_in_link_ID) -> second.end()) {
+          TFlt* _cost_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * num_timestamps);
+          td_node_cost.find(_in_link_ID) -> second.insert(std::pair<TInt, TFlt*>(_out_link_ID, _cost_vector_tmp));
+        }
+        _cost_vector = td_node_cost.find(_in_link_ID) -> second.find(_out_link_ID) -> second;
+        for (int j=0; j < num_timestamps; ++j) {
+          _cost = TFlt(std::stof(trim(_words[3+j])));
+          _cost_vector[j] = _cost;
+        }
+        
+      }
+      else{
+        printf("Something wrong in input file for MNM_IO::read_td_node_cost!\n");
+        exit(-1);
+      }
+    }
+    _file.close();
+  } 
+  else {
+    printf("Something wrong in input file for MNM_IO::read_td_node_cost!\n");
+    exit(-1);
+  } 
+  return 0;
+}

@@ -1205,6 +1205,8 @@ class MNM_config():
             'boarding_time_per_passenger': np.float,
             'alighting_time_per_passenger': np.float,
 
+            'init_demand_split': np.int, 
+
             # STAT
             'rec_mode': str, 
             'rec_mode_para': str, 
@@ -1256,9 +1258,7 @@ class MNM_config():
             'bus_inconvenience': np.float,
             'parking_lot_to_destination_walking_time': np.float,
             'bus_fare': np.float,
-            'metro_fare': np.float,
-
-            'init_demand_split': np.int
+            'metro_fare': np.float
         }
 
     def build_from_file(self, file_name):
@@ -1335,6 +1335,7 @@ class MNM_config():
 class MNM_network_builder():
     # build network for MMDTA considering three modes: driving (car and truck), bus transit, and PnR
     def __init__(self):
+        self.folder_path = None
         self.config = MNM_config()
 
         self.network_driving_name = None
@@ -1361,6 +1362,7 @@ class MNM_network_builder():
         self.demand_total_passenger = MNM_demand_total_passenger()
 
         self.od_mode_connectivity = None
+        self.od_mode_connectivity_text = None
 
         # dictionary recording all paths in all modes, order must match Mmdta_Api::m_ID_path_mapping in dta_api.cpp
         # <path_ID, (mode, path)>
@@ -1374,6 +1376,8 @@ class MNM_network_builder():
         self.route_choice_driving_flag = False
         self.route_choice_bustransit_flag = False
         self.route_choice_pnr_flag = False
+
+        self.emission_link_array = None
 
     def set_network_driving_name(self, name):
         self.network_driving_name = name
@@ -1593,8 +1597,10 @@ class MNM_network_builder():
                         bustransit_demand_file_name = 'bustransit_demand',
                         pnr_pathtable_file_name = 'pnr_path_table', pnr_path_p_file_name = 'pnr_path_table_buffer',
                         pnr_demand_file_name = 'pnr_demand',
-                        total_passenger_demand_file_name = 'passenger_demand'):
-            
+                        total_passenger_demand_file_name = 'passenger_demand', emission_link_file_name='MNM_input_emission_linkID'):
+        
+        self.folder_path = folder_path
+
         if os.path.isfile(os.path.join(folder_path, config_file_name)):
             self.config.build_from_file(os.path.join(folder_path, config_file_name))
             self.config.config_dict['FIXED']['buffer_length'] = 2 * self.config.config_dict['DTA']['max_interval']
@@ -1627,7 +1633,7 @@ class MNM_network_builder():
             f.close()
 
             a = MNMAPI.mmdta_api()
-            a.initialize(folder_path)
+            a.initialize(folder_path)  # generate at least one path
             
             a.save_mode_path_table(folder_path)
             assert((os.path.isfile(os.path.join(folder_path, driving_pathtable_file_name))) and \
@@ -1829,6 +1835,20 @@ class MNM_network_builder():
 
         self.od_mode_connectivity = pd.DataFrame(data=self.od_mode_connectivity, columns=["driving", "bustransit", "pnr"], dtype=np.int)
 
+        if os.path.isfile(os.path.join(folder_path, 'od_mode_connectivity')):
+            f = open(os.path.join(folder_path, 'od_mode_connectivity'), 'r')
+            self.od_mode_connectivity_text = f.readlines()
+            f.close()
+        else:
+            print("No od_mode_connectivity file")
+
+        if os.path.isfile(os.path.join(folder_path, emission_link_file_name)):
+            self.emission_link_array = np.loadtxt(os.path.join(folder_path, emission_link_file_name), dtype=int)
+            if(len(self.emission_link_array.shape) == 1):
+                self.emission_link_array = self.emission_link_array[:, np.newaxis]
+        else:
+            print("No emission link file")
+
     def generate_link_driving_text(self):
         tmp_str = '#ID Type LEN(mile) FFS_car(mile/h) Cap_car(v/hour) RHOJ_car(v/miles) Lane FFS_truck(mile/h) Cap_truck(v/hour) RHOJ_truck(v/miles) Convert_factor(1)\n'
         for link in self.link_driving_list:
@@ -1885,7 +1905,7 @@ class MNM_network_builder():
                         bustransit_demand_file_name = 'bustransit_demand',
                         pnr_pathtable_file_name = 'pnr_path_table', pnr_path_p_file_name = 'pnr_path_table_buffer',
                         pnr_demand_file_name = 'pnr_demand',
-                        total_passenger_demand_file_name = 'passenger_demand'):
+                        total_passenger_demand_file_name = 'passenger_demand', emission_link_file_name='MNM_input_emission_linkID'):
         if not os.path.isdir(folder_path):
             os.makedirs(folder_path)
 
@@ -2079,6 +2099,18 @@ class MNM_network_builder():
         f.write(self.demand_total_passenger.generate_text())
         f.close()
 
+        if self.od_mode_connectivity_text is not None:
+            f = open(os.path.join(folder_path, 'od_mode_connectivity'), 'w')
+            f.writelines(self.od_mode_connectivity_text)
+            f.close()
+        else:
+            print("No od_mode_connectivity file")
+
+        if self.emission_link_array is not None:
+            np.savetxt(os.path.join(folder_path, emission_link_file_name), self.emission_link_array, fmt='%d')
+        else:
+            print("No emission link file")
+
     def update_demand_path_driving(self, car_flow, truck_flow):
         # car_flow and truck_flow are 1D ndarrays recording the time-dependent flows with length of number of total paths x intervals
         assert (len(car_flow) == len(self.path_table_driving.ID2path) * self.config.config_dict['DTA']['max_interval'])
@@ -2222,6 +2254,8 @@ class MNM_network_builder():
                 demand_pnr = self.demand_pnr.demand_dict[O][D]
                 demand_total += demand_pnr
 
+            self.demand_total_passenger.add_demand(O, D, demand_total, overwriting=True)
+
             if self.od_mode_connectivity.loc[OD_idx, 'driving'] == 1:
                 demand_driving = demand_driving / demand_total
                 for ti in range(num_intervals):
@@ -2250,17 +2284,39 @@ class MNM_network_builder():
                            shape=(num_one_OD_pnr * num_intervals, num_one_OD * num_intervals)).tocsr()
         return P_driving, P_bustransit, P_pnr
 
-    def update_path_table(self, dta, start_intervals):
+    def update_path_table(self, dta, start_intervals, use_tdsp=False):
         # start_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
 
-        dta.update_tdsp_tree()
-        
-        for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
-            O_node_ID = self.od.O_dict[O_ID]
-            D_node_ID = self.od.D_dict[D_ID]
-            _path_result_rec = []
-            for interval in start_intervals:
-                _path_result = dta.get_lowest_cost_path(interval, O_node_ID, D_node_ID)
+        if use_tdsp:
+            # TDSP
+            dta.update_tdsp_tree()
+        else:
+            # static
+            # too expensive, use build_link_cost_map_snapshot()
+            # dta.build_link_cost_map()
+            pass
+           
+        _path_result_rec_dict = dict()
+        for interval in start_intervals:
+                
+            if ~use_tdsp:
+                if interval == 0 and len(start_intervals) > 1:  # empty network
+                    continue
+                dta.build_link_cost_map_snapshot(interval)
+                dta.update_snapshot_route_table(interval)
+
+            for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
+                O_node_ID = self.od.O_dict[O_ID]
+                D_node_ID = self.od.D_dict[D_ID]
+                if (O_ID, D_ID) not in _path_result_rec_dict:
+                    _path_result_rec_dict[(O_ID, D_ID)] = list()
+                _path_result_rec = _path_result_rec_dict[(O_ID, D_ID)]
+
+                if use_tdsp:
+                    _path_result = dta.get_lowest_cost_path(interval, O_node_ID, D_node_ID)
+                else:
+                    _path_result = dta.get_lowest_cost_path_snapshot(interval, O_node_ID, D_node_ID)
+
                 assert(_path_result.shape[0] == 4)
                 _exist = _path_result[0, 0]
                 if not _exist:
@@ -2273,6 +2329,12 @@ class MNM_network_builder():
                                     break
                     if _add_flag:
                         _path_result_rec.append(_path_result)
+                assert(len(_path_result_rec_dict[(O_ID, D_ID)]) == len(_path_result_rec))
+
+        for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
+            O_node_ID = self.od.O_dict[O_ID]
+            D_node_ID = self.od.D_dict[D_ID]
+            _path_result_rec = _path_result_rec_dict[(O_ID, D_ID)]
 
             if len(_path_result_rec) > 0:
                 for _path_result in _path_result_rec:
@@ -2322,6 +2384,79 @@ class MNM_network_builder():
                     else:
                         raise("Error, undefined mode")
 
+
+        # for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
+        #     O_node_ID = self.od.O_dict[O_ID]
+        #     D_node_ID = self.od.D_dict[D_ID]
+        #     _path_result_rec = []
+        #     for interval in start_intervals:
+        #         if use_tdsp:
+        #             _path_result = dta.get_lowest_cost_path(interval, O_node_ID, D_node_ID)
+        #         else:
+        #             dta.build_link_cost_map_snapshot(interval)
+        #             dta.update_snapshot_route_table(interval)
+        #             _path_result = dta.get_lowest_cost_path_snapshot(interval, O_node_ID, D_node_ID)
+        #         assert(_path_result.shape[0] == 4)
+        #         _exist = _path_result[0, 0]
+        #         if not _exist:
+        #             _add_flag = True
+        #             if len(_path_result_rec) > 0:
+        #                 for _path_result_old in _path_result_rec:
+        #                     if len(_path_result_old.flatten()) == len(_path_result.flatten()):
+        #                         if np.sum(np.abs(_path_result_old - _path_result)) == 0:
+        #                             _add_flag = False
+        #                             break
+        #             if _add_flag:
+        #                 _path_result_rec.append(_path_result)
+
+        #     if len(_path_result_rec) > 0:
+        #         for _path_result in _path_result_rec:
+        #             _mode = _path_result[1, 0]
+        #             if _mode == 0: # driving
+        #                 _node_vec_driving = _path_result[2, :]
+        #                 assert(np.min(_node_vec_driving) >= 0)
+        #                 _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
+        #                 path_tt_cost = dta.get_passenger_path_cost_driving(_link_vec_driving, start_intervals)
+        #                 assert(path_tt_cost.shape[0] == 3 and path_tt_cost.shape[1] == len(start_intervals))
+
+        #                 id_max = np.max(np.array([i for i in self.path_table_driving.ID2path.keys()], dtype=int))
+        #                 tmp_path = MNM_path(_node_vec_driving, id_max+1)
+        #                 tmp_path.create_route_choice_portions(len(start_intervals))
+        #                 tmp_path.path_cost_car = path_tt_cost[2, :]
+        #                 tmp_path.path_cost_truck = path_tt_cost[1, :]
+        #                 self.path_table_driving.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+        #                 self.path_table_driving.ID2path[id_max+1] = tmp_path
+        #             elif _mode == 1: # bustransit
+        #                 _link_vec_bustransit = _path_result[3, :]
+        #                 assert(np.min(_link_vec_bustransit) >= 0)
+        #                 path_tt_cost = dta.get_passenger_path_cost_bus(_link_vec_bustransit, start_intervals)
+        #                 assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
+
+        #                 id_max = np.max(np.array([i for i in self.path_table_bustransit.ID2path.keys()], dtype=int))
+        #                 tmp_path = MNM_path_bustransit(id_max+1, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
+        #                 tmp_path.create_route_choice_portions_bustransit(len(start_intervals))
+        #                 tmp_path.path_cost = path_tt_cost[1, :]
+        #                 self.path_table_bustransit.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+        #                 self.path_table_bustransit.ID2path[id_max+1] = tmp_path
+        #             elif _mode == 2: # pnr
+        #                 _node_vec_driving = _path_result[2, :]
+        #                 _node_vec_driving = _node_vec_driving[_node_vec_driving >= 0]
+        #                 _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
+        #                 _link_vec_bustransit = _path_result[3, :]
+        #                 _link_vec_bustransit = _link_vec_bustransit[_link_vec_bustransit >= 0]
+        #                 path_tt_cost = dta.get_passenger_path_cost_pnr(_link_vec_driving, _link_vec_bustransit, start_intervals)
+        #                 assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
+
+        #                 id_max = np.max(np.array([i for i in self.path_table_pnr.ID2path.keys()], dtype=int))
+        #                 mid_parkinglot_ID = self.dest_node_to_parking_lot_dict[_node_vec_driving[-1]]
+        #                 tmp_path = MNM_path_pnr(id_max+1, mid_parkinglot_ID, _node_vec_driving, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
+        #                 tmp_path.create_route_choice_portions_pnr(len(start_intervals))
+        #                 tmp_path.path_cost = path_tt_cost[1, :]
+        #                 self.path_table_pnr.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+        #                 self.path_table_pnr.ID2path[id_max+1] = tmp_path
+        #             else:
+        #                 raise("Error, undefined mode")
+
         # reorder
         self.config.config_dict['FIXED']['num_driving_path'] = len(self.path_table_driving.ID2path)
         self.config.config_dict['FIXED']['num_bustransit_path'] = len(self.path_table_bustransit.ID2path)
@@ -2358,3 +2493,5 @@ class MNM_network_builder():
             new_ID2path[k + path_count] = v
             v.path_ID = k + path_count
         self.path_table_bus.ID2path = new_ID2path
+
+        print("update_path_table")

@@ -70,6 +70,7 @@ int MNM_Dta::initialize()
   m_assign_freq = m_config -> get_int("assign_frq");
   m_start_assign_interval = m_config -> get_int("start_assign_interval");
   m_total_assign_inter = m_config -> get_int("max_interval");
+  m_init_demand_split = m_config -> get_int("init_demand_split");
   return 0;
 }
 

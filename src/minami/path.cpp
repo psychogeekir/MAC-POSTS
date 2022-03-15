@@ -226,20 +226,20 @@ int MNM_Pathset::normalize_p() {
 
 namespace MNM {
 
-    MNM_Path *extract_path(TInt origin_ID, TInt dest_ID, std::unordered_map<TInt, TInt> &output_map, PNEGraph &graph) {
+    MNM_Path *extract_path(TInt origin_node_ID, TInt dest_node_ID, std::unordered_map<TInt, TInt> &output_map, PNEGraph &graph) {
         // output_map[node_ID][edge_ID], tdsp tree
         // printf("Entering extract_path\n");
-        TInt _current_node_ID = origin_ID;
+        TInt _current_node_ID = origin_node_ID;
         TInt _current_link_ID = -1;
         MNM_Path *_path = new MNM_Path();
-        while (_current_node_ID != dest_ID) {
+        while (_current_node_ID != dest_node_ID) {
             if (output_map.find(_current_node_ID) == output_map.end()) {
                 // printf("Cannot extract path\n");
                 return nullptr;
             }
             _current_link_ID = output_map[_current_node_ID];
             if (_current_link_ID == -1) {
-                printf("Cannot extract path\n");
+                printf("Cannot extract path from origin node %d to destination node %d\n", origin_node_ID, dest_node_ID);
                 return nullptr;
             }
             _path->m_node_vec.push_back(_current_node_ID);

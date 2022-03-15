@@ -8,6 +8,12 @@
 
 int main()
 {
+  char buffer[256];
+    char *val = getcwd(buffer, sizeof(buffer));
+    if (val) {
+        std::cout << buffer << std::endl;
+    }
+
   // std::string m_file_folder = "../../data/input_files_6by6grid_multiclass";
   // std::string m_file_folder = "../../data/input_files_7link_fix";
   // std::string m_file_folder = "../../data/input_files_philly";
@@ -51,7 +57,7 @@ int main()
   //   printf("node:%d, link:%d\n", p -> m_node_vec.size(),p -> m_link_vec.size());    
   // }
 
-  MNM::save_path_table(path_table, m_od_factory, true);
+  MNM::save_path_table(m_file_folder, path_table, m_od_factory, true);
 
   printf("Finish saving\n");
   // Path_Table *path_table;

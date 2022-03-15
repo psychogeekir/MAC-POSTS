@@ -23,8 +23,9 @@ int main()
     // std::string folder = "/home/alanpi/Desktop/MAC-POSTS/data/input_files_SPC_separate_Routing";
     // std::string folder = "/home/lemma/Documents/MAC-POSTS/src/examples/mcDODE/a6e7b31067d2ead8d3725fc0ed587d06c958f63c";
 
-//    std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_columngeneration";
+    // std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_columngeneration";
     std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_fixedpath";
+    // std::string folder = "/home/qiling/Documents/CentralOhio_Honda_Project/Multimodal/scenarios/mobility_service/input_files_CentralOhio_mmdue_AM";
 
     // on macOS (Mac air)
     // std::string folder = "/Users/alan-air/Dropbox/MAC-POSTS/data/input_files_MckeesRocks_SPC";
@@ -32,7 +33,6 @@ int main()
 
     MNM_ConfReader *config = new MNM_ConfReader(folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
-
 
     MNM_MM_Due *test_due = new MNM_MM_Due(folder);
     MNM_Dta_Multimodal *mmdta;
@@ -58,10 +58,18 @@ int main()
         printf("---------- Iteration %d ----------\n", i);
 
         // DNL using dta, new dta is built from scratch
-        mmdta = test_due->run_mmdta(false);
+        mmdta = test_due->run_mmdta(true);
 
         // update time dependent cost and save existing path table
+        test_due -> build_link_cost_map(mmdta);
         test_due -> update_path_table_cost(mmdta);
+
+        MNM::save_driving_path_table(folder, test_due -> m_driving_path_table,
+                                     "driving_path_table", "driving_path_table_buffer", true);
+        MNM::save_bustransit_path_table(folder, test_due -> m_bustransit_path_table,
+                                        "bustransit_path_table", "bustransit_path_table_buffer", true);
+        MNM::save_pnr_path_table(folder, test_due -> m_pnr_path_table,
+                                "pnr_path_table", "pnr_path_table_buffer", true);
 
         // calculate gap
         // with departure time choice
@@ -79,6 +87,13 @@ int main()
         // gradient projection
         test_due->update_path_table_gp_fixed_departure_time_choice(mmdta, i);
 
+        if (i == test_due -> m_max_iter - 1) {
+            // print to terminal
+            // freopen("CON", "w", stdout);
+            // print to file
+            freopen((folder + "/" + rec_folder + "/output.log").c_str(), "w", stdout);
+            mmdta -> m_emission -> output();
+        }
         delete mmdta;
     }
 
