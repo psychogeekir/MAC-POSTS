@@ -10,6 +10,7 @@ src/cmake-build-release-remote/
 .vscode
 git_wei_ma/
 
+#large files
 /data/input_files_PGH_tdsp_node_cost/
 /data/input_files_PGH_emission/
 
