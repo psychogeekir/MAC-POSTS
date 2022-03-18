@@ -148,6 +148,7 @@ class MMDODE:
             os.mkdir(folder_path)
 
         _flg = False
+        # update demand for each mode
         if (f_car_driving is not None) and (f_truck_driving is not None):
             self.nb.update_demand_path_driving(f_car_driving, f_truck_driving)
             _flg = True
@@ -157,7 +158,7 @@ class MMDODE:
         if f_car_pnr is not None:
             self.nb.update_demand_path_pnr(f_car_pnr)
             _flg = True
-
+        # update nb.demand_total_passenger
         if _flg:
             self.nb.get_mode_portion_matrix()
 

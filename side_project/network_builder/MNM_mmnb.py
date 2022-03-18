@@ -651,6 +651,8 @@ class MNM_path_bustransit():
 
         self.path_cost = None
 
+        self.length = None
+
     def __eq__(self, other):
         if not isinstance(other, MNM_path_bustransit):
             return False
@@ -719,6 +721,8 @@ class MNM_path_pnr():
         self.route_portions = None
 
         self.path_cost = None
+
+        self.length = None
 
     def __eq__(self, other):
         if not isinstance(other, MNM_path_bustransit):

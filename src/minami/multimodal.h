@@ -1075,6 +1075,7 @@ public:
     std::vector<TFlt> m_travel_cost_vec;
     std::vector<TFlt> m_travel_disutility_vec;
 
+    virtual TFlt get_length(MNM_Dta_Multimodal *mmdta) {return TFlt(-1);}; // meter
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) {return TFlt(-1.0);};  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) {return TFlt(-1.0);};
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
@@ -1112,6 +1113,7 @@ public:
 
     MNM_Parking_Lot *m_parking_lot;
 
+    virtual TFlt get_length(MNM_Dta_Multimodal *mmdta) override; // meter
     TFlt get_travel_time_truck(TFlt start_time, MNM_Dta_Multimodal *mmdta);
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
@@ -1144,6 +1146,7 @@ public:
     TFlt m_bus_inconvenience;
     // TFlt m_waiting_time;
 
+    virtual TFlt get_length(MNM_Dta_Multimodal *mmdta) override; // meter
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // intervals
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
@@ -1174,6 +1177,7 @@ public:
     TFlt m_metro_inconvenience;
     TFlt m_metro_time;  // intervals, from metro network (TODO)
 
+    virtual TFlt get_length(MNM_Dta_Multimodal *mmdta) override; // meter
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     // virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
@@ -1207,6 +1211,7 @@ public:
     MNM_Parking_Lot *m_mid_parking_lot;
     TFlt m_pnr_inconvenience;
 
+    virtual TFlt get_length(MNM_Dta_Multimodal *mmdta) override; // meter
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
@@ -1238,6 +1243,7 @@ public:
     MNM_Parking_Lot *m_mid_parking_lot;
     TFlt m_rnd_inconvenience;
 
+    virtual TFlt get_length(MNM_Dta_Multimodal *mmdta) override; // meter
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     // virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
@@ -1364,6 +1370,8 @@ public:
     virtual int update_origin_demand_from_passenger_path_table(MNM_Dta_Multimodal *mmdta);
 
     virtual int update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int assign_inter);
+
+    virtual int save_od_demand_split(MNM_Dta_Multimodal *mmdta, const std::string &file_folder, const std::string &file_name="od_demand_split.txt");
 
     virtual int build_link_cost_map_snapshot(MNM_Dta_Multimodal *mmdta, int start_interval);
 

@@ -6861,6 +6861,10 @@ TFlt MNM_Passenger_Path_Driving::get_amortized_parkingfee() {
     return TFlt(m_parking_lot->m_base_price * m_parking_lot->m_price_surge_coeff / m_num_people);
 }
 
+TFlt MNM_Passenger_Path_Driving::get_length(MNM_Dta_Multimodal *mmdta) {
+    return m_path -> get_path_length(mmdta -> m_link_factory);  // meter
+}
+
 TFlt MNM_Passenger_Path_Driving::get_travel_time_truck(TFlt start_time, MNM_Dta_Multimodal *mmdta) {
     MNM_Dlink *_link;
     TFlt arrival_time = start_time;
@@ -6981,6 +6985,27 @@ MNM_Passenger_Path_Bus::MNM_Passenger_Path_Bus(int mode, MNM_Path *path, TFlt vo
 MNM_Passenger_Path_Bus::~MNM_Passenger_Path_Bus() {
     ;
 };
+
+TFlt MNM_Passenger_Path_Bus::get_length(MNM_Dta_Multimodal *mmdta) {
+    TFlt _len = 0.;
+    MNM_Transit_Link* _link;
+    for (auto _link_ID : m_path -> m_link_vec) {
+        _link = mmdta -> m_transitlink_factory -> get_transit_link(_link_ID);
+        if (_link -> m_link_type == MNM_TYPE_BUS_MULTIMODAL) {
+            _len += dynamic_cast<MNM_Bus_Link*>(_link) -> m_length;
+        }
+        else if (_link -> m_link_type == MNM_TYPE_WALKING_MULTIMODAL) {
+            if (dynamic_cast<MNM_Walking_Link*>(_link) -> m_walking_type == "normal") {
+                _len += _link -> m_fftt * 1.5; // meter, walking speed 1.5 m/s
+            }
+        }
+        else {
+            printf("Wrong type of transit link\n");
+            exit(-1);
+        }
+    }
+    return _len;  // meter
+}
 
 TFlt MNM_Passenger_Path_Bus::get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) {
     TFlt arrival_time = start_time;
@@ -7106,6 +7131,11 @@ MNM_Passenger_Path_Metro::~MNM_Passenger_Path_Metro() {
     ;
 }
 
+TFlt MNM_Passenger_Path_Metro::get_length(MNM_Dta_Multimodal *mmdta) {
+    // TODO: add metro transit network
+    return 0;  // meter
+}
+
 TFlt MNM_Passenger_Path_Metro::get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) {
     // TODO: add metro transit network
     return 0;  // interval
@@ -7187,6 +7217,11 @@ MNM_Passenger_Path_PnR::MNM_Passenger_Path_PnR(int mode, MNM_PnR_Path *path, TFl
 MNM_Passenger_Path_PnR::~MNM_Passenger_Path_PnR() {
     if (m_driving_part != nullptr) delete m_driving_part;
     if (m_bus_part != nullptr) delete m_bus_part;
+}
+
+TFlt MNM_Passenger_Path_PnR::get_length(MNM_Dta_Multimodal *mmdta) {
+    TFlt _len = m_driving_part->get_length(mmdta) + m_bus_part->get_length(mmdta);
+    return _len;  // meter
 }
 
 TFlt MNM_Passenger_Path_PnR::get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) {
@@ -7293,6 +7328,11 @@ MNM_Passenger_Path_RnD::MNM_Passenger_Path_RnD(int mode, MNM_PnR_Path *path, TFl
 MNM_Passenger_Path_RnD::~MNM_Passenger_Path_RnD() {
     if (m_driving_part != nullptr) delete m_driving_part;
     if (m_bus_part != nullptr) delete m_bus_part;
+}
+
+TFlt MNM_Passenger_Path_RnD::get_length(MNM_Dta_Multimodal *mmdta) {
+    TFlt _len = m_bus_part->get_length(mmdta) + m_driving_part->get_length(mmdta);
+    return _len;  // meter
 }
 
 TFlt MNM_Passenger_Path_RnD::get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) {
@@ -9216,6 +9256,106 @@ int MNM_MM_Due::update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int 
         }
     }
 
+    return 0;
+}
+
+int MNM_MM_Due::save_od_demand_split(MNM_Dta_Multimodal *mmdta, const std::string &file_folder, const std::string &file_name) {
+
+    std::string _file_name = file_folder + "/" + file_name;
+
+    std::ofstream _file;
+    _file.open(_file_name, std::ofstream::out);
+    if (!_file.is_open()){
+        printf("Error happens when open _file\n");
+        exit(-1);
+    }
+
+    std::string _str;
+    TInt _dest_node_ID, _origin_node_ID, _mode;
+    MNM_Origin_Multimodal *_origin;
+    MNM_Destination_Multimodal *_dest;
+    int _num_of_minute = (int) mmdta->m_total_assign_inter / m_total_assign_inter;
+    TFlt *_demand_vector;
+    TFlt _demand;
+    
+    _str = std::string("#origin_node_ID dest_node_ID mode <demand_sequence>\n");
+    _file << _str;
+    for (auto _o_it : *m_passenger_path_table){
+        _origin_node_ID = _o_it.first;
+        _origin = dynamic_cast<MNM_Origin_Multimodal*>(((MNM_DMOND*)mmdta -> m_node_factory -> get_node(_origin_node_ID)) -> m_origin);
+        for (auto _d_it : *_o_it.second){
+            _dest_node_ID = _d_it.first;
+            _dest = dynamic_cast<MNM_Destination_Multimodal*>(((MNM_DMDND*)mmdta -> m_node_factory -> get_node(_dest_node_ID)) -> m_dest);
+
+            if (std::find(m_mode_vec.begin(), m_mode_vec.end(), driving) != m_mode_vec.end() &&
+                m_od_mode_connectivity.find(_origin_node_ID) -> second.find(_dest_node_ID) -> second.find(driving) -> second) {
+                if (_origin -> m_demand_car.find(_dest) == _origin -> m_demand_car.end()) {
+                    TFlt* _demand_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    memset(_demand_vector_tmp, 0x0, sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    _origin -> m_demand_car.insert(std::pair<MNM_Destination_Multimodal*, TFlt*>(_dest, _demand_vector_tmp));
+                }
+                _demand_vector = _origin -> m_demand_car.find(_dest) -> second;
+
+                _str = std::to_string(_origin_node_ID()) + " " + std::to_string(_dest_node_ID()) + " " + "driving" + " ";
+                for (int i = 0; i < m_total_assign_inter; ++i) {
+                    _demand = 0;
+                    for (int j = 0; j < _num_of_minute; ++j) {
+                        _demand += _demand_vector[i * _num_of_minute + j];
+                    }
+                    _str += std::to_string(_demand()) + " ";
+                }
+                _str.pop_back();
+                _str += "\n";
+                _file << _str;
+            }
+
+            if (std::find(m_mode_vec.begin(), m_mode_vec.end(), pnr) != m_mode_vec.end() &&
+                m_od_mode_connectivity.find(_origin_node_ID) -> second.find(_dest_node_ID) -> second.find(pnr) -> second) {
+                if (_origin -> m_demand_pnr_car.find(_dest) == _origin -> m_demand_pnr_car.end()) {
+                    TFlt* _demand_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    memset(_demand_vector_tmp, 0x0, sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    _origin -> m_demand_pnr_car.insert(std::pair<MNM_Destination_Multimodal*, TFlt*>(_dest, _demand_vector_tmp));
+                }
+                _demand_vector = _origin -> m_demand_pnr_car.find(_dest) -> second;
+
+                _str = std::to_string(_origin_node_ID()) + " " + std::to_string(_dest_node_ID()) + " " + "pnr" + " ";
+                for (int i = 0; i < m_total_assign_inter; ++i) {
+                    _demand = 0;
+                    for (int j = 0; j < _num_of_minute; ++j) {
+                        _demand += _demand_vector[i * _num_of_minute + j];
+                    }
+                    _str += std::to_string(_demand()) + " ";
+                }
+                _str.pop_back();
+                _str += "\n";
+                _file << _str;
+            }
+
+            if (std::find(m_mode_vec.begin(), m_mode_vec.end(), transit) != m_mode_vec.end() &&
+                m_od_mode_connectivity.find(_origin_node_ID) -> second.find(_dest_node_ID) -> second.find(transit) -> second) {
+                if (_origin -> m_demand_passenger_bus.find(_dest) == _origin -> m_demand_passenger_bus.end()) {
+                    TFlt* _demand_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    memset(_demand_vector_tmp, 0x0, sizeof(TFlt) * m_total_assign_inter * _num_of_minute);
+                    _origin -> m_demand_passenger_bus.insert(std::pair<MNM_Destination_Multimodal*, TFlt*>(_dest, _demand_vector_tmp));
+                }
+                _demand_vector = _origin -> m_demand_passenger_bus.find(_dest) -> second;
+
+                _str = std::to_string(_origin_node_ID()) + " " + std::to_string(_dest_node_ID()) + " " + "bus_transit" + " ";
+                for (int i = 0; i < m_total_assign_inter; ++i) {
+                    _demand = 0;
+                    for (int j = 0; j < _num_of_minute; ++j) {
+                        _demand += _demand_vector[i * _num_of_minute + j];
+                    }
+                    _str += std::to_string(_demand()) + " ";
+                }
+                _str.pop_back();
+                _str += "\n";
+                _file << _str;
+            }
+            
+        }
+    }
+    _file.close();
     return 0;
 }
 
@@ -11871,9 +12011,9 @@ MNM_Dta_Multimodal *MNM_MM_Due::run_mmdta(bool verbose) {
     dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(mmdta -> m_routing) -> m_routing_passenger_fixed -> m_bustransit_path_table = m_bustransit_path_table;
     mmdta -> m_routing ->init_routing(m_driving_path_table);
 
-//    for (auto _link_it : mmdta->m_link_factory->m_link_map) {
-//        _link_it.second->install_cumulative_curve();
-//    }
+    //    for (auto _link_it : mmdta->m_link_factory->m_link_map) {
+    //        _link_it.second->install_cumulative_curve();
+    //    }
 
     mmdta -> pre_loading();
     mmdta -> loading(verbose);

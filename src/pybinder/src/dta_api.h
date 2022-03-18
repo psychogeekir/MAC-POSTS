@@ -16,15 +16,15 @@ namespace py = pybind11;
 
 using SparseMatrixR = Eigen::SparseMatrix<double, Eigen::RowMajor>;
 
-int run_dta(std::string folder);
+int run_dta(const std::string &folder);
 
 class Tdsp_Api
 {
 public:
   Tdsp_Api();
   ~Tdsp_Api();
-  int initialize(std::string folder, int max_interval, int num_rows_link_file, int num_rows_node_file,
-                 std::string link_cost_file_name, std::string node_cost_file_name);
+  int initialize(const std::string &folder, int max_interval, int num_rows_link_file, int num_rows_node_file,
+                 const std::string &link_cost_file_name, const std::string &node_cost_file_name);
   int build_tdsp_tree(int dest_node_ID);
   py::array_t<double> extract_tdsp(int origin_node_ID, int timestamp);
 
@@ -41,7 +41,7 @@ class Dta_Api
 public:
   Dta_Api();
   ~Dta_Api();
-  int initialize(std::string folder);
+  int initialize(const std::string &folder);
   int install_cc();
   int install_cc_tree();
   int run_once();
@@ -72,7 +72,7 @@ class Mcdta_Api
 public:
   Mcdta_Api();
   ~Mcdta_Api();
-  int initialize(std::string folder);
+  int initialize(const std::string &folder);
   int install_cc();
   int install_cc_tree();
   int run_whole();
@@ -80,7 +80,7 @@ public:
   int get_cur_loading_interval();
   py::array_t<double> get_travel_stats();
   int print_emission_stats();
-  int print_simulation_results(std::string folder, int cong_frequency = 180);
+  int print_simulation_results(const std::string &folder, int cong_frequency = 180);
   
   py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals);
   py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals);
@@ -125,20 +125,20 @@ class Mmdta_Api
 public:
     Mmdta_Api();
     ~Mmdta_Api();
-    int initialize(std::string folder);
-    int initialize_mmdue(std::string folder);
+    int initialize(const std::string &folder);
+    int initialize_mmdue(const std::string &folder);
     int install_cc();
     int install_cc_tree();
     int run_whole();
-    int run_mmdue(std::string &folder);
-    int run_mmdue_adaptive(std::string &folder);
+    int run_mmdue(const std::string &folder);
+    int run_mmdta_adaptive(const std::string &folder, int cong_frequency = 180);
     int register_links_driving(py::array_t<int> links_driving);
     int register_links_walking(py::array_t<int> links_walking);
     int register_links_bus(py::array_t<int> links_bus);
     int get_cur_loading_interval();
     py::array_t<double> get_travel_stats();
     int print_emission_stats();
-    int print_simulation_results(std::string folder, int cong_frequency = 180);
+    int print_simulation_results(const std::string &folder, int cong_frequency = 180);
 
     py::array_t<int> get_od_mode_connectivity();
     int generate_init_mode_demand_file(const std::string &file_folder);
@@ -211,6 +211,10 @@ public:
     py::array_t<double> get_registered_path_tt_bustransit(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_tt_pnr(py::array_t<double>start_intervals);
 
+    py::array_t<double> get_registered_path_distance_driving();
+    py::array_t<double> get_registered_path_distance_bustransit();
+    py::array_t<double> get_registered_path_distance_pnr();
+
     py::array_t<double> get_registered_path_cost_driving(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_cost_bustransit(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_cost_pnr(py::array_t<double>start_intervals);
@@ -236,6 +240,7 @@ public:
 
     MNM_MM_Due *m_mmdue;
     MNM_Dta_Multimodal *m_mmdta;
+    bool m_is_mmdta_new;
 
     std::vector<MNM_Dlink_Multiclass*> m_link_vec_driving;
     std::vector<MNM_Walking_Link*> m_link_vec_walking;

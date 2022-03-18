@@ -102,8 +102,8 @@ Tdsp_Api::~Tdsp_Api()
     m_graph -> Clr();
 }
 
-int Tdsp_Api::initialize(std::string folder, int max_interval, int num_rows_link_file, int num_rows_node_file,
-                         std::string link_cost_file_name, std::string node_cost_file_name)
+int Tdsp_Api::initialize(const std::string &folder, int max_interval, int num_rows_link_file, int num_rows_node_file,
+                         const std::string &link_cost_file_name, const std::string &node_cost_file_name)
 {
     m_max_interval = max_interval;
 
@@ -182,7 +182,7 @@ py::array_t<double> Tdsp_Api::extract_tdsp(int origin_node_ID, int timestamp)
                         run function
 ***********************************************************************************************************
 ***********************************************************************************************************/
-int run_dta(std::string folder) {
+int run_dta(const std::string &folder) {
   printf("Current working directory is......\n");
   std::cout << folder << std::endl;
 
@@ -228,7 +228,7 @@ Dta_Api::~Dta_Api()
   
 }
 
-int Dta_Api::initialize(std::string folder)
+int Dta_Api::initialize(const std::string &folder)
 {
   m_dta = new MNM_Dta(folder);
   m_dta -> build_from_files();
@@ -588,7 +588,7 @@ Mcdta_Api::~Mcdta_Api()
   
 }
 
-int Mcdta_Api::initialize(std::string folder)
+int Mcdta_Api::initialize(const std::string &folder)
 {
   m_mcdta = new MNM_Dta_Multiclass(folder);
   m_mcdta -> build_from_files();
@@ -679,10 +679,16 @@ int Mcdta_Api::print_emission_stats()
   return 0;
 }
 
-int Mcdta_Api::print_simulation_results(std::string folder, int cong_frequency)
+int Mcdta_Api::print_simulation_results(const std::string &folder, int cong_frequency)
 {
-    bool output_link_cong = true; // if true output link congestion level every cong_frequency
-    // TInt cong_frequency = 180; // 15 minutes
+    // cong_frequency: number of 5-s interval, 180 means 15 minutes
+    bool output_link_cong;
+    if (cong_frequency > 0) {
+        output_link_cong = true; // if true output link congestion level every cong_frequency
+    }
+    else {
+        output_link_cong = false;
+    }
 
     MNM_Dlink *_link;
     MNM_Dlink_Multiclass *_link_m;
@@ -1396,6 +1402,7 @@ Mmdta_Api::Mmdta_Api()
 {
     m_mmdta = nullptr;
     m_mmdue = nullptr;
+    m_is_mmdta_new = false;
 
     m_num_path_driving = TInt(0);
     m_num_path_bustransit = TInt(0);
@@ -1432,6 +1439,9 @@ Mmdta_Api::Mmdta_Api()
 
 Mmdta_Api::~Mmdta_Api()
 {
+    if (m_is_mmdta_new) {
+        delete m_mmdta;
+    }
     if (m_mmdue != nullptr){
         delete m_mmdue;
     }
@@ -1473,15 +1483,18 @@ Mmdta_Api::~Mmdta_Api()
     }
 }
 
-int Mmdta_Api::initialize(std::string folder)
+int Mmdta_Api::initialize(const std::string &folder)
 {
     m_mmdue = new MNM_MM_Due(folder);
     m_mmdue -> initialize();
     IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid" ||
-            m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid_ColumnGeneration");
+            m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid_ColumnGeneration" ||
+            m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_FixedPath");
     IAssert(m_mmdue -> m_passenger_path_table != nullptr && !m_mmdue -> m_passenger_path_table -> empty());
 
     m_mmdta = m_mmdue -> m_mmdta;
+    m_is_mmdta_new = false;
+
 //    m_mmdta = new MNM_Dta_Multimodal(folder);
 //    m_mmdta -> build_from_files();
 //    m_mmdta -> hook_up_node_and_link();
@@ -1524,7 +1537,7 @@ int Mmdta_Api::initialize(std::string folder)
     return -1;
 }
 
-int Mmdta_Api::initialize_mmdue(std::string folder)
+int Mmdta_Api::initialize_mmdue(const std::string &folder)
 {
     m_mmdue = new MNM_MM_Due(folder);
     m_mmdue -> initialize();
@@ -1576,7 +1589,7 @@ int Mmdta_Api::run_whole()
     return 0;
 }
 
-int Mmdta_Api::run_mmdue(std::string &folder)
+int Mmdta_Api::run_mmdue(const std::string &folder)
 {
     MNM_ConfReader *config = new MNM_ConfReader(folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
@@ -1585,7 +1598,7 @@ int Mmdta_Api::run_mmdue(std::string &folder)
 
     printf("================================ DUE set! =================================\n");
 
-    m_mmdue -> initialize();
+    // m_mmdue -> initialize();
     printf("========================= Finished initialization! ========================\n");
 
     m_mmdue -> init_passenger_path_flow();
@@ -1646,180 +1659,72 @@ int Mmdta_Api::run_mmdue(std::string &folder)
     gap_file.close();
 
     delete config;
-    printf("====================== Finished delete test_due! ====================\n");
+    printf("====================== Finished mmdue! ====================\n");
 
     return 0;
 }
 
-int Mmdta_Api::run_mmdue_adaptive(std::string &folder)
+int Mmdta_Api::run_mmdta_adaptive(const std::string &folder, int cong_frequency)
 {
+    m_mmdta = m_mmdue -> run_mmdta_adaptive(true);
+    m_is_mmdta_new = true;
+
+    // m_mmdue -> build_link_cost_map(m_mmdta);
+
     MNM_ConfReader *config = new MNM_ConfReader(folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
 
+    print_simulation_results(folder + "/" + rec_folder, cong_frequency);
 
-    bool output_link_cong = true; // if true output link congestion level every cong_frequency
-    TInt cong_frequency = 1; // 5 s, 15 minutes
+    if (cong_frequency > 0) {
+        m_mmdue -> save_od_demand_split(m_mmdta, folder + "/" + rec_folder);
 
-
-    MNM_MM_Due *test_due = new MNM_MM_Due(folder);
-    MNM_Dta_Multimodal *mmdta;
-
-    printf("================================ DUE set! =================================\n");
-
-    test_due -> initialize();
-    printf("========================= Finished initialization! ========================\n");
-
-    mmdta = test_due -> run_mmdta_adaptive(true);
-
-    // test_due -> build_link_cost_map(mmdta);
-
-    // MNM::save_driving_path_table(folder, test_due -> m_driving_path_table,
-    //                                 "driving_path_table", "driving_path_table_buffer", true);
-    // MNM::save_bustransit_path_table(folder, test_due -> m_bustransit_path_table,
-    //                                 "bustransit_path_table", "bustransit_path_table_buffer", true);
-    // MNM::save_pnr_path_table(folder, test_due -> m_pnr_path_table,
-    //                         "pnr_path_table", "pnr_path_table_buffer", true);
-
-    // print_simulation_results(folder, cong_frequency); 
-
-    MNM_Dlink *_link;
-    MNM_Dlink_Multiclass *_link_m;
-    MNM_Transit_Link *_transit_link;
-    // MNM_Walking_Link *_walking_link;
-    std::string _str1;
-    std::string _str2;
-    TInt _current_inter = mmdta -> m_current_loading_interval;
-    std::ofstream _vis_file2;
-    std::ofstream _vis_file3;
-    if (output_link_cong){
-        _vis_file2.open(folder + "/" + rec_folder + "/driving_link_cong_raw.txt", std::ofstream::out);
-        if (! _vis_file2.is_open()){
-            printf("Error happens when open _vis_file2\n");
-            exit(-1);
-        }
-        _vis_file3.open(folder + "/" + rec_folder + "/transit_link_cong_raw.txt", std::ofstream::out);
-        if (! _vis_file3.is_open()){
-            printf("Error happens when open _vis_file3\n");
-            exit(-1);
-        }
-
-        _str1 = "timestamp (intervals), driving_link_ID, car_inflow, truck_inflow, car_tt (s), truck_tt (s), car_fftt (s), truck_fftt (s), car_speed (mph), truck_speed (mph)\n";
-        _str2 = "timestamp (intervals), bus_transit_link_ID, bus_transit_link_type, passenger_inflow, tt (s), fftt (s)\n";
-        _vis_file2 << _str1;
-        _vis_file3 << _str2;
-
-        TInt _iter = 0;
-        while (_iter + cong_frequency <= _current_inter){
-            if (_iter % cong_frequency == 0 || _iter == _current_inter - 1){
-                printf("Current loading interval: %d\n", int(_iter));
-                for (auto _link_it : mmdta -> m_link_factory -> m_link_map){
-                    _link = _link_it.second;
-                    _link_m = dynamic_cast<MNM_Dlink_Multiclass*>(_link);
-                    _str1 = std::to_string(int(_iter)) + " ";
-                    _str1 += std::to_string(_link -> m_link_ID()) + " ";
-                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_link_inflow_car(_link_m, _iter, _iter+cong_frequency)) + " ";
-                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_link_inflow_truck(_link_m, _iter, _iter+cong_frequency)) + " ";
-                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), mmdta -> m_unit_time) * mmdta -> m_unit_time) + " ";
-                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), mmdta -> m_unit_time) * mmdta -> m_unit_time) + " ";
-                    _str1 += std::to_string(_link_m -> get_link_freeflow_tt_car()) + " ";
-                    _str1 += std::to_string(_link_m -> get_link_freeflow_tt_truck()) + " ";
-                    _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), mmdta -> m_unit_time) * mmdta -> m_unit_time) * 3600 / 1600) + " ";
-                    _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), mmdta -> m_unit_time) * mmdta -> m_unit_time) * 3600 / 1600) + "\n";
-                    _vis_file2 << _str1;
-                }
-                for (auto _link_it : mmdta -> m_transitlink_factory -> m_transit_link_map){
-                    _transit_link = _link_it.second;
-                    _str2 = std::to_string(int(_iter)) + " ";
-                    _str2 += std::to_string(_transit_link -> m_link_ID()) + " ";
-                    _str2 += std::to_string(_transit_link -> m_link_type) + " ";
-                    _str2 += std::to_string(MNM_DTA_GRADIENT::get_link_inflow_passenger(_transit_link, TFlt(_iter), TFlt(_iter+cong_frequency))) + " ";
-                    if (_transit_link -> m_link_type == MNM_TYPE_WALKING_MULTIMODAL) {
-                        _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transit_link), TFlt(_iter), mmdta -> m_unit_time) * mmdta -> m_unit_time) + " ";
-                        _str2 += std::to_string(dynamic_cast<MNM_Walking_Link*>(_transit_link) -> m_fftt) + "\n";
-                    }
-                    else {
-                        _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter), mmdta -> m_unit_time) * mmdta -> m_unit_time) + " ";
-                        _str2 += std::to_string(dynamic_cast<MNM_Bus_Link*>(_transit_link) -> m_fftt) + "\n";
-                    }
-                    _vis_file3 << _str2;
+        TFlt _tot_demand = 0;
+        for (auto _o_it : m_mmdue -> m_passenger_demand) {
+            for (auto _d_it : _o_it.second) {
+                for (int i = 0; i < m_mmdue -> m_total_assign_inter; ++i) {
+                    _tot_demand += _d_it.second[i];
                 }
             }
-            _iter += 1;
+        }
+        for (auto _it : m_mmdue -> m_mode_share) {
+            m_mmdue -> m_mode_share.find(_it.first) -> second = _it.second / _tot_demand;
         }
 
-        // // save cc of some links
-        // _str = "\n\n **************************** driving link cc ****************************";
-        // for (auto _link_it : mmdta->m_link_factory->m_link_map) {
-        //     _link = _link_it.second;
-        //     if (_link->m_link_ID() == 4) {
-        //         _link_m = dynamic_cast<MNM_Dlink_Multiclass *>(_link);
-        //         _str += "\nlink_ID: " + std::to_string(_link->m_link_ID());
-        //         _str +="\nm_N_in_car: \n";
-        //         _str += _link_m->m_N_in_car->to_string();
-        //         _str +="\nm_N_out_car: \n";
-        //         _str += _link_m->m_N_out_car->to_string();
-        //         _str +="\nm_N_in_truck: \n";
-        //         _str += _link_m->m_N_in_truck->to_string();
-        //         _str +="\nm_N_out_truck: \n";
-        //         _str += _link_m->m_N_out_truck->to_string();
-        //         _vis_file2 << _str;
-        //     }
-        // }
-
-        if (_vis_file2.is_open()) _vis_file2.close();
-        if (_vis_file3.is_open()) _vis_file3.close();
-    }
-
-    TFlt _tot_demand = 0;
-    for (auto _o_it : test_due -> m_passenger_demand) {
-        for (auto _d_it : _o_it.second) {
-            for (int i = 0; i < test_due -> m_total_assign_inter; ++i) {
-                _tot_demand += _d_it.second[i];
-            }
+        std::string _str;
+        std::ofstream _vis_file4;
+        _vis_file4.open(folder + "/" + rec_folder + "/mode_share.txt", std::ofstream::out);
+        if (! _vis_file4.is_open()){
+            printf("Error happens when open _vis_file4\n");
+            exit(-1);
         }
-    }
-    for (auto _it : test_due -> m_mode_share) {
-        test_due -> m_mode_share.find(_it.first) -> second = _it.second / _tot_demand;
-    }
+        _str = "driving, bus_transit, pnr\n";
+        if (m_mmdue -> m_mode_share.find(driving) != m_mmdue -> m_mode_share.end()) {
+            _str += std::to_string(m_mmdue -> m_mode_share.find(driving) -> second) + " ";
+        }
+        else {
+            _str += "0 ";
+        }
+        if (m_mmdue -> m_mode_share.find(transit) != m_mmdue -> m_mode_share.end()) {
+            _str += std::to_string(m_mmdue -> m_mode_share.find(transit) -> second) + " ";
+        }
+        else {
+            _str += "0 ";
+        }
+        if (m_mmdue -> m_mode_share.find(pnr) != m_mmdue -> m_mode_share.end()) {
+            _str += std::to_string(m_mmdue -> m_mode_share.find(pnr) -> second) + "\n";
+        }
+        else {
+            _str += "0\n";
+        }
+    
+        _vis_file4 << _str;
+        if (_vis_file4.is_open()) _vis_file4.close();
 
-    std::string _str;
-    std::ofstream _vis_file4;
-    _vis_file4.open(folder + "/" + rec_folder + "/mode_share.txt", std::ofstream::out);
-    if (! _vis_file4.is_open()){
-        printf("Error happens when open _vis_file4\n");
-        exit(-1);
-    }
-    _str = "driving, bus_transit, pnr\n";
-    if (test_due -> m_mode_share.find(driving) != test_due -> m_mode_share.end()) {
-        _str += std::to_string(test_due -> m_mode_share.find(driving) -> second) + " ";
-    }
-    else {
-        _str += "0 ";
-    }
-    if (test_due -> m_mode_share.find(transit) != test_due -> m_mode_share.end()) {
-        _str += std::to_string(test_due -> m_mode_share.find(transit) -> second) + " ";
-    }
-    else {
-        _str += "0 ";
-    }
-    if (test_due -> m_mode_share.find(pnr) != test_due -> m_mode_share.end()) {
-        _str += std::to_string(test_due -> m_mode_share.find(pnr) -> second) + "\n";
-    }
-    else {
-        _str += "0\n";
-    }
-  
-    _vis_file4 << _str;
-    if (_vis_file4.is_open()) _vis_file4.close();
-
-
-    // freopen((folder + "/" + rec_folder + "/emission_output.log").c_str(), "w", stdout);
-    // mmdta -> m_emission -> output();
-
-    delete mmdta;
+        // freopen((folder + "/" + rec_folder + "/emission_output.log").c_str(), "w", stdout);
+        // m_mmdta -> m_emission -> output();
+    } 
     delete config;
-    delete test_due;
-    printf("====================== Finished delete test_due! ====================\n");
 
     return 0;
 }
@@ -1925,10 +1830,16 @@ int Mmdta_Api::print_emission_stats()
     return 0;
 }
 
-int Mmdta_Api::print_simulation_results(std::string folder, int cong_frequency)
+int Mmdta_Api::print_simulation_results(const std::string &folder, int cong_frequency)
 {
-    bool output_link_cong = true; // if true output link congestion level every cong_frequency
-    // TInt cong_frequency = 180; // 15 minutes
+    // cong_frequency: number of 5-s interval, 180 means 15 minutes
+    bool output_link_cong;
+    if (cong_frequency > 0) {
+        output_link_cong = true; // if true output link congestion level every cong_frequency
+    }
+    else {
+        output_link_cong = false;
+    }
 
     MNM_Dlink *_link;
     MNM_Dlink_Multiclass *_link_m;
@@ -2634,6 +2545,79 @@ py::array_t<double> Mmdta_Api::get_registered_path_tt_truck(py::array_t<double>s
             result_prt[i * l + t] = _tmp;
         }
     }
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_registered_path_distance_driving()
+{
+    int new_shape[2] = {(int) m_path_vec_driving.size(), 1};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    MNM_Passenger_Path_Base *_p_path;
+    
+    for (size_t i = 0; i < m_path_vec_driving.size(); ++i){
+        if (m_ID_path_mapping.find(m_path_vec_driving[i] -> m_path_ID) == m_ID_path_mapping.end()) {
+            throw std::runtime_error("Error, Mmdta_Api::get_registered_path_distance_driving, invalid path");
+        }
+        _p_path = m_ID_path_mapping.find(m_path_vec_driving[i] -> m_path_ID) -> second.second;
+        if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_Driving*>(_p_path) == nullptr) {
+            throw std::runtime_error("Error, Mmdta_Api::get_registered_path_distance_driving, invalid passenger path");
+        }
+
+        double _tmp = _p_path ->get_length(m_mmdta)() / 1600;  // miles
+        result_prt[i] = _tmp;
+    }
+    
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_registered_path_distance_bustransit()
+{
+    int new_shape [2] = { (int) m_path_vec_bustransit.size(), 1};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    MNM_Passenger_Path_Base *_p_path;
+    
+    for (size_t i = 0; i < m_path_vec_bustransit.size(); ++i){
+        if (m_ID_path_mapping.find(m_path_vec_bustransit[i] -> m_path_ID) == m_ID_path_mapping.end()) {
+            throw std::runtime_error("Error, Mmdta_Api::get_registered_path_distance_bustransit, invalid path");
+        }
+        _p_path = m_ID_path_mapping.find(m_path_vec_bustransit[i] -> m_path_ID) -> second.second;
+        if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_Bus*>(_p_path) == nullptr) {
+            throw std::runtime_error("Error, Mmdta_Api::get_registered_path_distance_bustransit, invalid passenger path");
+        }
+        double _tmp = _p_path ->get_length(m_mmdta)() / 1600;  // miles
+        result_prt[i] = _tmp;
+    }
+    
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_registered_path_distance_pnr()
+{
+    int new_shape [2] = { (int) m_path_vec_pnr.size(), 1};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    MNM_Passenger_Path_Base *_p_path;
+    
+    for (size_t i = 0; i < m_path_vec_pnr.size(); ++i){
+        if (m_ID_path_mapping.find(m_path_vec_pnr[i] -> m_path_ID) == m_ID_path_mapping.end()) {
+            throw std::runtime_error("Error, Mmdta_Api::get_registered_path_tt_pnr, invalid path");
+        }
+        _p_path = m_ID_path_mapping.find(m_path_vec_pnr[i] -> m_path_ID) -> second.second;
+        if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_PnR*>(_p_path) == nullptr) {
+            throw std::runtime_error("Error, Mmdta_Api::get_registered_path_tt_pnr, invalid passenger path");
+        }
+        double _tmp = _p_path ->get_length(m_mmdta)() / 1600;  // miles
+        result_prt[i] = _tmp;
+    }
+    
     return result;
 }
 
@@ -4538,7 +4522,7 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("run_whole", &Mmdta_Api::run_whole)
             .def("initialize_mmdue", &Mmdta_Api::initialize_mmdue)
             .def("run_mmdue", &Mmdta_Api::run_mmdue)
-            .def("run_mmdue_adaptive", &Mmdta_Api::run_mmdue_adaptive)
+            .def("run_mmdta_adaptive", &Mmdta_Api::run_mmdta_adaptive)
             .def("install_cc", &Mmdta_Api::install_cc)
             .def("install_cc_tree", &Mmdta_Api::install_cc_tree)
             .def("get_travel_stats", &Mmdta_Api::get_travel_stats)
@@ -4621,6 +4605,10 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_registered_path_tt_driving", &Mmdta_Api::get_registered_path_tt_driving)
             .def("get_registered_path_tt_bustransit", &Mmdta_Api::get_registered_path_tt_bustransit)
             .def("get_registered_path_tt_pnr", &Mmdta_Api::get_registered_path_tt_pnr)
+
+            .def("get_registered_path_distance_driving", &Mmdta_Api::get_registered_path_distance_driving)
+            .def("get_registered_path_distance_bustransit", &Mmdta_Api::get_registered_path_distance_bustransit)
+            .def("get_registered_path_distance_pnr", &Mmdta_Api::get_registered_path_distance_pnr)
 
             .def("get_registered_path_cost_driving", &Mmdta_Api::get_registered_path_cost_driving)
             .def("get_registered_path_cost_bustransit", &Mmdta_Api::get_registered_path_cost_bustransit)

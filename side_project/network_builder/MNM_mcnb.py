@@ -355,6 +355,8 @@ class MNM_path():
     self.path_cost_car = None
     self.path_cost_truck = None
 
+    self.length = None
+
   def __eq__(self, other):
     if not isinstance(other, MNM_path):
       return False
