@@ -23,6 +23,7 @@ class MNM_Parking_Lot_Factory;
 class MNM_PnR_Path;
 class MNM_MM_Due;
 using namespace MNM;
+using namespace MNM_DTA_GRADIENT;
 
 /******************************************************************************************************************
 *******************************************************************************************************************
@@ -145,10 +146,10 @@ public:
 class MNM_Parking_Lot
 {
 public:
-    MNM_Parking_Lot(TInt ID, TInt node_ID, MNM_Passenger_Factory *passenger_factory,
+    MNM_Parking_Lot(TInt ID, TInt node_ID, MNM_Passenger_Factory *passenger_factory, MNM_Veh_Factory *veh_factory, 
                     TFlt base_price, TFlt price_surge_coeff, TFlt avg_parking_time, TFlt capacity, TFlt unit_time);
     virtual ~MNM_Parking_Lot();
-    int release_one_interval_passenger(TInt timestamp);  // invoked in MNM_Destination_Multimodal::receive()
+    int release_one_interval_passenger(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing=nullptr);  // invoked in MNM_Destination_Multimodal::receive()
     int evolve(TInt timestamp);
     TFlt get_cruise_time(TInt timestamp); // intervals
 
@@ -165,13 +166,15 @@ public:
     // dest node ID
     TInt m_node_ID;
     MNM_DMDND_Multiclass *m_dest_node;
+    MNM_Veh_Factory *m_veh_factory;
     MNM_Passenger_Factory *m_passenger_factory;
     std::vector<MNM_Walking_Link*> m_walking_out_links_vec;
 
     // <timestamp, cruising time in intervals>
     std::unordered_map<TInt, TFlt> m_cruising_time_record;
     // parked cars
-    std::deque<MNM_Veh_Multimodal *> m_parked_car_queue;
+    // std::deque<MNM_Veh_Multimodal *> m_parked_car_queue;
+    TInt m_parked_car;
     // pnr passengers about to leave the parking lot
     std::deque<MNM_Passenger*> m_in_passenger_queue;
     // <path_ID, cumulative counter> for converting pnr vehicles to passenger, the path_ID of adaptive routing is -1
@@ -189,7 +192,7 @@ class MNM_Parking_Lot_Factory
 public:
     MNM_Parking_Lot_Factory();
     virtual ~MNM_Parking_Lot_Factory();
-    MNM_Parking_Lot *make_parking_lot(TInt ID, TInt node_ID, MNM_Passenger_Factory *passenger_factory,
+    MNM_Parking_Lot *make_parking_lot(TInt ID, TInt node_ID, MNM_Passenger_Factory *passenger_factory, MNM_Veh_Factory *veh_factory,
                                       TFlt base_price, TFlt price_surge_coeff, TFlt avg_parking_time, TFlt capacity, TFlt unit_time);
     MNM_Parking_Lot *get_parking_lot(TInt ID);
     std::unordered_map<TInt, MNM_Parking_Lot*> m_parking_lot_map;
@@ -251,10 +254,14 @@ public:
 
     MNM_Passenger* make_passenger(TInt timestamp, TInt passenger_type);
     MNM_Passenger* get_passenger(TInt ID);
+    int remove_finished_passenger(MNM_Passenger *passenger);
 
     std::unordered_map<TInt, MNM_Passenger*> m_passenger_map;
 
     TInt m_num_passenger;
+    TInt m_enroute_passenger;
+    TInt m_finished_passenger;
+    TFlt m_total_time_passenger;
 };
 
 
@@ -309,12 +316,20 @@ public:
 
     MNM_Veh_Multimodal* make_veh_multimodal(TInt timestamp, Vehicle_type veh_type, TInt vehicle_cls, TInt capacity=TInt(1),
                                             TInt bus_route=TInt(-1), bool is_pnr=false, TInt pickup_waiting_time=TInt(0));
+    
+    virtual int remove_finished_veh(MNM_Veh *veh) override;
 
     TInt m_bus_capacity;
     TInt m_min_dwell_intervals;
     TInt m_boarding_lost_intervals;
     TInt m_max_alighting_passengers_per_unit_time;
     TInt m_max_boarding_passengers_per_unit_time;
+
+    TInt m_num_bus;
+    TInt m_enroute_bus;
+    TInt m_finished_bus;
+
+    TFlt m_total_time_bus;
 };
 
 /******************************************************************************************************************
@@ -330,6 +345,7 @@ public:
     virtual ~MNM_Destination_Multimodal() override;
     int evolve(TInt timestamp);
     virtual int receive(TInt timestamp) override;
+    int receive(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing, MNM_Veh_Factory *veh_factory, MNM_Passenger_Factory *passenger_factory);
 
     MNM_Parking_Lot *m_parking_lot;
     std::deque<MNM_Passenger*> m_out_passenger_queue;
@@ -452,6 +468,7 @@ public:
     // recording passengers dar
     MNM_Cumulative_Curve *m_N_in;
     MNM_Cumulative_Curve *m_N_out;
+    TFlt m_last_valid_time = TFlt(-1);
     MNM_Tree_Cumulative_Curve *m_N_in_tree;
     MNM_Tree_Cumulative_Curve *m_N_out_tree;
 };
@@ -471,6 +488,7 @@ public:
     TInt m_route_ID;
     MNM_Busstop_Virtual* m_from_busstop;
     MNM_Busstop_Virtual* m_to_busstop;
+    TFlt m_last_valid_time_bus = TFlt(-1);
     std::vector<MNM_Dlink*> m_overlapped_driving_link_vec;
     TFlt m_length;
 
@@ -741,6 +759,7 @@ public:
     virtual int register_veh(MNM_Veh* veh, bool track = true) override;
     virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
     virtual int update_routing(TInt timestamp) override;
+    virtual int remove_finished(MNM_Veh *veh) override;
 
     Bus_Path_Table *m_bus_path_table;
 };
@@ -761,6 +780,7 @@ public:
     virtual int register_veh(MNM_Veh* veh, bool track = true) override;
     virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
     virtual int update_routing(TInt timestamp) override;
+    virtual int remove_finished(MNM_Veh *veh) override;
 
     PnR_Path_Table *m_pnr_path_table;
 };
@@ -780,6 +800,7 @@ public:
     virtual ~MNM_Routing_PassengerBusTransit();
     virtual int init_routing(Path_Table *path_table=nullptr){return 0;};
     virtual int update_routing(TInt timestamp){return 0;};
+    virtual int remove_finished(MNM_Passenger *passenger){return 0;};
 
     PNEGraph m_graph;
     MNM_OD_Factory *m_od_factory;
@@ -805,6 +826,7 @@ public:
                                           TInt buffer_length=TInt(-1));
     virtual ~MNM_Routing_PassengerBusTransit_Fixed() override;
     int register_passenger(MNM_Passenger* passenger, bool track = true);
+    virtual int remove_finished(MNM_Passenger *passenger) override;
     int add_passenger_path(MNM_Passenger* passenger, std::deque<TInt> *link_que);
     virtual int init_routing(Path_Table *path_table=nullptr) override;
     int update_routing_origin(TInt timestamp);
@@ -886,6 +908,8 @@ public:
     virtual ~MNM_Routing_Multimodal_Hybrid() override;
     virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
     virtual int update_routing(TInt timestamp) override;
+    virtual int remove_finished(MNM_Veh *veh) override;
+    virtual int remove_finished_passenger(MNM_Passenger *passenger);
 
     MNM_Routing_Bus *m_routing_bus_fixed;
     MNM_Routing_PnR_Fixed *m_routing_car_pnr_fixed;
@@ -926,6 +950,7 @@ public:
                                         MNM_Node_Factory *node_factory,
                                         MNM_Link_Factory *link_factory,
                                         MNM_Passenger_Factory *passenger_factory,
+                                        MNM_Veh_Factory *veh_factory,
                                         const std::string& file_name = "parking_lot");
     static int build_walkinglink_factory(const std::string& file_folder,
                                          MNM_ConfReader *conf_reader,

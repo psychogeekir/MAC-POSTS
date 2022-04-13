@@ -644,9 +644,17 @@ bool pair_compare(std::pair<TFlt, TFlt> i, std::pair<TFlt, TFlt> j) {
     return (i.first < j.first);
 }
 
+// bool pair_compare(std::pair<TInt, TFlt> i, std::pair<TInt, TFlt> j) {
+//     return (i.first < j.first);
+// }
+
 bool pair_compare2(std::pair<TFlt, TFlt> i, std::pair<TFlt, TFlt> j) {
     return (i.second < j.second);
 }
+
+// bool pair_compare2(std::pair<TInt, TFlt> i, std::pair<TInt, TFlt> j) {
+//     return (i.second < j.second);
+// }
 
 int MNM_Cumulative_Curve::arrange() {
     std::sort(m_recorder.begin(), m_recorder.end(), pair_compare);
@@ -675,23 +683,23 @@ int MNM_Cumulative_Curve::shrink(TInt number) {
 }
 
 int MNM_Cumulative_Curve::add_increment(std::pair<TFlt, TFlt> r) {
-    // printf("Add increment time %f with flow %f\n", r.first, r.second);
+    // printf("Add increment time %d with flow %f\n", r.first, r.second);
     if (m_recorder.empty()) {
         add_record(r);
         return 0;
     }
     // std::pair <TFlt, TFlt> _best = *std::max_element(m_recorder.begin(), m_recorder.end(), pair_compare);
     std::pair<TFlt, TFlt> _best = m_recorder[m_recorder.size() - 1];
-    if (r.first < _best.first) {
+    if (MNM_Ults::approximate_less_than(r.first, _best.first)) {
         throw std::runtime_error("Error, MNM_Cumulative_Curve::add_increment, early time index");
     }
-    if (r.first == _best.first) {
+    if (MNM_Ults::approximate_equal(r.first, _best.first)) { 
         // printf("Incrementing\n");
         m_recorder[m_recorder.size() - 1].second += r.second;
     } else {
         // printf("Pushing\n");
         r.second += _best.second;
-        // printf("New r is <%lf, %lf>\n", r.first(), r.second());
+        // printf("New r is <%f, %lf>\n", r.first(), r.second());
         m_recorder.push_back(r);
     }
 
@@ -720,7 +728,6 @@ TFlt MNM_Cumulative_Curve::get_approximated_result(TFlt time) {
     return m_recorder.back().second;
 }
 
-
 TFlt MNM_Cumulative_Curve::get_result(TFlt time) {
     // arrange();
     if (m_recorder.empty()) {
@@ -734,36 +741,35 @@ TFlt MNM_Cumulative_Curve::get_result(TFlt time) {
     }
 
     // considering non-decreasing cc record
-    std::vector<TFlt> _time_vec = std::vector<TFlt>();
-    for (size_t i = 0; i < m_recorder.size(); ++i) {
-        _time_vec.push_back(m_recorder[i].first);
-    }
-
     // Search for first element x such that result ≤ x
-    int i = -1;
     int j = -1;
-    auto _lower_j = std::lower_bound(_time_vec.begin(), _time_vec.end(), time);
-    j = std::distance(_time_vec.begin(), _lower_j);
+    auto _lower_j = std::lower_bound(m_recorder.begin(), m_recorder.end(), time, 
+                                     [](const std::pair<TFlt, TFlt> &r, TFlt v){return MNM_Ults::approximate_less_than(r.first, v);});
+    j = std::distance(m_recorder.begin(), _lower_j);
     IAssert(j >= 1);
-    if (_lower_j != _time_vec.end()) {
-        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-        if (std::abs(m_recorder[j].first - time) <= 1e-4 * std::max(std::abs(m_recorder[j].first), std::abs(time))) { //
+    if (_lower_j != m_recorder.end()) {
+        if (MNM_Ults::approximate_equal(m_recorder[j].first, time)) { 
+            // printf("index j-1 %d, time %f, flow %f\n", j-1, m_recorder[j-1].first(), m_recorder[j-1].second());
+            // printf("index j %d, time %f, flow %f\n", j, m_recorder[j].first(), m_recorder[j].second());
+            // if (j+1 < (int)m_recorder.size()) {
+            //     printf("index j+1 %d, time %f, flow %f\n", j+1, m_recorder[j+1].first(), m_recorder[j+1].second());
+            // }
             return m_recorder[j].second;
         }
         else if (m_recorder[j].first > time) {
-            IAssert(_time_vec[j-1] < time);
-            auto _lower_i = std::lower_bound(_time_vec.begin(), _lower_j, _time_vec[j-1]);
-            i = std::distance(_time_vec.begin(), _lower_i);
-            IAssert(i < j);
-            return m_recorder[i].second;  // rounding down
+            // if (j-2 >= 0) {
+            //     printf("index j-2 %d, time %f, flow %f\n", j-2, m_recorder[j-2].first(), m_recorder[j-2].second());
+            // }
+            // printf("index j-1 %d, time %f, flow %f\n", j-1, m_recorder[j-1].first(), m_recorder[j-1].second());
+            // printf("index j %d, time %f, flow %f\n", j, m_recorder[j].first(), m_recorder[j].second());
+            
+            return m_recorder[j-1].second;  // rounding down
         }
     }
-    _time_vec.clear();
 
     // // original, loop over
     // for (size_t i = 1; i < m_recorder.size(); ++i) {
-    //     // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-    //     if (std::abs(m_recorder[i].first - time) <= 1e-6 * std::max(std::abs(m_recorder[i].first), std::abs(time))) { //
+    //     if (MNM_Ults::approximate_equal(m_recorder[j].first, time)) { //
     //         return m_recorder[i].second;
     //     } else if (m_recorder[i].first > time) {
     //         return m_recorder[i - 1].second;  // rounding down
@@ -775,6 +781,35 @@ TFlt MNM_Cumulative_Curve::get_result(TFlt time) {
     // }
     return m_recorder.back().second;
 }
+
+// TFlt MNM_Cumulative_Curve::get_result(TInt time) {
+//     // arrange();
+//     if (m_recorder.empty()) {
+//         return TFlt(0);
+//     }
+//     if (m_recorder.size() == 1) {
+//         return m_recorder[0].second;
+//     }
+//     if (0 >= time) {
+//         return m_recorder[0].second;
+//     }
+//     if (time >= m_recorder.size()) {
+//         return m_recorder.back().second;
+//     }
+//     // find first occurrence >= time
+//     auto _ind = std::lower_bound(m_recorder.begin(), m_recorder.end(), time, 
+//                                  [](const std::pair<TInt, TFlt> &r, TInt v){return MNM_Ults::approximate_less_than(r.first, v);});
+//     if (_ind != m_recorder.end()) {
+//         int j = std::distance(m_recorder.begin(), _ind);
+//         IAssert(j >= 1);
+//         if (std::abs(m_recorder[j].first == time)) { //
+//             return m_recorder[j].second;
+//         }
+//         else {
+//             return m_recorder[j - 1].second;
+//         }
+//     }
+// }
 
 // TFlt MNM_Cumulative_Curve::get_time(TFlt result)
 // {
@@ -811,35 +846,44 @@ TFlt MNM_Cumulative_Curve::get_time(TFlt result) {
     }
 
     // considering non-decreasing cc record
-    std::vector<TFlt> _flow_vec = std::vector<TFlt>();
-    for (size_t i = 0; i < m_recorder.size(); ++i) {
-        _flow_vec.push_back(m_recorder[i].second);
-    }
     // Search for first element x such that result ≤ x
     int i = -1;
     int j = -1;
-    auto _lower_j = std::lower_bound(_flow_vec.begin(), _flow_vec.end(), result);
-    j = std::distance(_flow_vec.begin(), _lower_j);
+    auto _lower_j = std::lower_bound(m_recorder.begin(), m_recorder.end(), result, 
+                                     [](const std::pair<TFlt, TFlt> &r, TFlt v){return MNM_Ults::approximate_less_than(r.second, v);});
+    j = std::distance(m_recorder.begin(), _lower_j);
     IAssert(j >= 1);
-    if (_lower_j != _flow_vec.end()) {
-        // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-        if (std::abs(m_recorder[j].second - result) <= 1e-4 * std::max(std::abs(m_recorder[j].second), std::abs(result))) { //
+    if (_lower_j != m_recorder.end()) {
+        if (MNM_Ults::approximate_equal(m_recorder[j].second, result)) { 
+            // printf("index j-1 %d, time %f, flow %f\n", j-1, m_recorder[j-1].first(), m_recorder[j-1].second());
+            // printf("index j %d, time %f, flow %f\n", j, m_recorder[j].first(), m_recorder[j].second());
+            // if (j+1 < (int)m_recorder.size()) {
+            //     printf("index j+1 %d, time %f, flow %f\n", j+1, m_recorder[j+1].first(), m_recorder[j+1].second());
+            // }
             return m_recorder[j].first;
         }
         else if (m_recorder[j].second > result) {
-            IAssert(_flow_vec[j-1] < result);
-            auto _lower_i = std::lower_bound(_flow_vec.begin(), _lower_j, _flow_vec[j-1]);
-            i = std::distance(_flow_vec.begin(), _lower_i);
+            auto _lower_i = std::lower_bound(m_recorder.begin(), _lower_j, m_recorder[j-1].second, 
+                                             [](const std::pair<TFlt, TFlt> &r, TFlt v){return MNM_Ults::approximate_less_than(r.second, v);});
+            i = std::distance(m_recorder.begin(), _lower_i);
             IAssert(i < j);
+            // if (i-1 >= 0) {
+            //     printf("index i-1 %d, time %f, flow %f\n", i-1, m_recorder[i-1].first(), m_recorder[i-1].second());
+            // }
+            // printf("index i %d, time %f, flow %f\n", i, m_recorder[i].first(), m_recorder[i].second());
+            // printf("index i+1 %d, time %f, flow %f\n", i+1, m_recorder[i+1].first(), m_recorder[i+1].second());
+            // printf("index j-1 %d, time %f, flow %f\n", j-1, m_recorder[j-1].first(), m_recorder[j-1].second());
+            // printf("index j %d, time %f, flow %f\n", j, m_recorder[j].first(), m_recorder[j].second());
+            // if (j+1 < (int)m_recorder.size()) {
+            //     printf("index j+1 %d, time %f, flow %f\n", j+1, m_recorder[j+1].first(), m_recorder[j+1].second());
+            // }
             return m_recorder[i].first;  // rounding down
         }
     }
-    _flow_vec.clear();
 
     // // original, loop over
     // for (size_t i = 1; i < m_recorder.size(); ++i) {
-    //     // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-    //     if (std::abs(m_recorder[i].second - result) <= 1e-6 * std::max(std::abs(m_recorder[i].second), std::abs(result))) { //
+    //     if (MNM_Ults::approximate_equal(m_recorder[j].second, result)) { //
     //         return m_recorder[i].first;
     //     } else if (m_recorder[i].second > result) {
     //         return m_recorder[i - 1].first;  // rounding down

@@ -29,10 +29,43 @@ namespace MNM_DTA_GRADIENT {
         return link->m_N_in->get_result(TFlt(end_time)) - link->m_N_in->get_result(TFlt(start_time));
     }
 
-    TFlt get_last_valid_time(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out) {
+    TFlt get_last_valid_time(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, const std::string& s) {
+        if (MNM_Ults::approximate_less_than(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second)) {
+            printf("max in cc flow: %lf, max out cc flow: %lf\n", N_in -> m_recorder.back().second(), N_out -> m_recorder.back().second());
+            printf("diff: %lf\n", N_in -> m_recorder.back().second - N_out -> m_recorder.back().second);
+            printf("Cumulative Curve Count Error!\n");
+            std::cout << s << std::endl;
+            exit(-1);
+        }
         TFlt _cc_flow = N_out -> m_recorder.back().second;
         TFlt _last_valid_time = N_in -> get_time(_cc_flow);
+        if (_last_valid_time < 0) _last_valid_time = 0;
         return _last_valid_time;
+    }
+
+    TFlt get_travel_time_from_cc(TFlt start_time, MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TFlt last_valid_time, TFlt fftt)
+    {
+        if (last_valid_time <= 0) return fftt;
+        if (start_time > last_valid_time) start_time = last_valid_time;
+
+        TFlt _cc_flow = N_in -> get_result(start_time);
+        if (_cc_flow <= DBL_EPSILON){
+            return fftt;
+        }
+
+        // get the earliest time point in N_in that reaches the inflow == _cc_flow as the true start_time
+        TFlt _true_start_time = N_in -> get_time(_cc_flow);
+        IAssert(_true_start_time <= last_valid_time);
+
+        // get the earliest time point in N_out that reaches the outflow == _cc_flow as the end_time
+        TFlt _end_time = N_out -> get_time(_cc_flow);
+
+        if (_end_time() < 0 || (_end_time - _true_start_time < 0) || (_end_time - _true_start_time < fftt)){
+            return fftt; // in intervals
+        }
+        else{
+            return (_end_time - _true_start_time); // each interval is 5s
+        }
     }
 
     TFlt get_travel_time_from_FD(MNM_Dlink* link, TFlt start_time, TFlt unit_interval) {
@@ -52,31 +85,12 @@ namespace MNM_DTA_GRADIENT {
         }
         TFlt fftt = link->m_length/link->m_ffs/unit_interval;
 
-        TFlt _last_valid_time = get_last_valid_time(link -> m_N_in, link -> m_N_out);
-        if (_last_valid_time < 0) return fftt;
-        if (start_time > _last_valid_time) start_time = _last_valid_time;
-
-        TFlt _cc_flow = link->m_N_in->get_result(start_time);
-        if (_cc_flow <= DBL_EPSILON) {
-            return fftt; //link->get_link_tt();  // free flow travel time
+        if (link -> m_last_valid_time < 0) {
+            link -> m_last_valid_time = get_last_valid_time(link -> m_N_in, link -> m_N_out);
         }
+        IAssert(link -> m_last_valid_time >= 0);
 
-        // from fundamental diagram
-//        TFlt _tt = get_travel_time_from_FD(link, start_time, unit_interval);
-//        if (_tt > fftt) fftt = _tt;
-
-        // get the earliest time point in m_N_in that reaches the inflow == _cc_flow as the true start_time
-        TFlt _true_start_time = link -> m_N_in -> get_time(_cc_flow);
-        IAssert(_true_start_time <= _last_valid_time);
-
-        // get the earliest time point in m_N_out that reaches the outflow == _cc_flow as the end_time
-        TFlt _end_time = link->m_N_out->get_time(_cc_flow);
-
-        if (_end_time() < 0 || (_end_time - _true_start_time < 0) || (_end_time - _true_start_time < fftt)) {
-            return fftt; //link->get_link_tt();  // free flow travel time
-        } else {
-            return _end_time - _true_start_time;  // # of unit intervals
-        }
+        return get_travel_time_from_cc(start_time, link -> m_N_in, link -> m_N_out, link -> m_last_valid_time, fftt);
     }
 
 

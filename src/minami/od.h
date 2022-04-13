@@ -5,7 +5,6 @@
 #include "factory.h"
 #include "dnode.h"
 #include "ults.h"
-
 #include <unordered_map>
 
 class MNM_Destination;
@@ -14,6 +13,7 @@ class MNM_Veh_Factory;
 class MNM_Node_Factory;
 class MNM_DMOND;
 class MNM_DMDND;
+class MNM_Routing;
 
 class MNM_Origin
 {
@@ -50,6 +50,7 @@ public:
   TFlt m_flow_scalar;
   MNM_DMDND *m_dest_node;
   virtual int receive(TInt current_interval);
+  virtual int receive(TInt current_interval, MNM_Routing *routing, MNM_Veh_Factory *veh_factory);
 };
 
 namespace MNM{

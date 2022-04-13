@@ -26,7 +26,8 @@ TFlt get_link_inflow(MNM_Dlink* link,
 TFlt get_link_inflow(MNM_Dlink* link, 
                     TInt start_time, TInt end_time);
 
-TFlt get_last_valid_time(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out);
+TFlt get_last_valid_time(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, const std::string& s="");
+TFlt get_travel_time_from_cc(TFlt start_time, MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TFlt last_valid_time, TFlt fftt);
 
 TFlt get_travel_time_from_FD(MNM_Dlink* link, TFlt start_time, TFlt unit_interval);
 TFlt get_travel_time(MNM_Dlink* link, TFlt start_time, TFlt unit_interval);

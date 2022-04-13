@@ -1592,10 +1592,10 @@ int MNM_DMOND_Multiclass::evolve(TInt timestamp)
 	    }
 	    // record cc for both classes
 	    _next_link = dynamic_cast<MNM_Dlink_Pq_Multiclass *>(_link);
-	    if (_next_link -> m_N_in_car != nullptr) {
+	    if (_next_link -> m_N_in_car != nullptr && _moved_car > 0) {
 	      	_next_link -> m_N_in_car -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp + 1), TFlt(_moved_car)/m_flow_scalar));
 	    }
-	    if (_next_link -> m_N_in_truck != nullptr) {
+	    if (_next_link -> m_N_in_truck != nullptr && _moved_truck > 0) {
 	      	_next_link -> m_N_in_truck -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp + 1), TFlt(_moved_truck)/m_flow_scalar));
 	    }
 	    // printf("car: %d, truck: %d\n", _moved_car, _moved_truck);
@@ -1648,10 +1648,10 @@ int MNM_DMDND_Multiclass::evolve(TInt timestamp)
 	    }
 	    // record cc for both classes
 	    _from_link = dynamic_cast<MNM_Dlink_Pq_Multiclass *>(_link);
-	    if (_from_link -> m_N_out_car != nullptr) {
+	    if (_from_link -> m_N_out_car != nullptr && _moved_car > 0) {
 	      	_from_link -> m_N_out_car -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp + 1), TFlt(_moved_car)/m_flow_scalar));
 	    }
-	    if (_from_link -> m_N_out_truck != nullptr) {
+	    if (_from_link -> m_N_out_truck != nullptr && _moved_truck > 0) {
 	      	_from_link -> m_N_out_truck -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp + 1), TFlt(_moved_truck)/m_flow_scalar));
 	    }
   	}
@@ -1909,10 +1909,10 @@ int MNM_Dnode_Inout_Multiclass::record_cumulative_curve(TInt timestamp)
        		_temp_sum_car += m_veh_moved_car[i * _offset + j];
       		_temp_sum_truck += m_veh_moved_truck[i * _offset + j];
     	}
-    	if (_out_link -> m_N_in_car != nullptr) {
+    	if (_out_link -> m_N_in_car != nullptr && _temp_sum_car > 0) {
       		_out_link -> m_N_in_car -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum_car)/m_flow_scalar));
     	}
-    	if (_out_link -> m_N_in_truck != nullptr) {
+    	if (_out_link -> m_N_in_truck != nullptr && _temp_sum_truck > 0) {
       		_out_link -> m_N_in_truck -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum_truck)/m_flow_scalar));
     	}
   	}
@@ -1926,10 +1926,10 @@ int MNM_Dnode_Inout_Multiclass::record_cumulative_curve(TInt timestamp)
       		_temp_sum_car += m_veh_moved_car[i * _offset + j];
       		_temp_sum_truck += m_veh_moved_truck[i * _offset + j];
     	}
-    	if (_in_link -> m_N_out_car != nullptr) {
+    	if (_in_link -> m_N_out_car != nullptr && _temp_sum_car > 0) {
       		_in_link -> m_N_out_car -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum_car)/m_flow_scalar));
     	}
-    	if (_in_link -> m_N_out_truck != nullptr) {
+    	if (_in_link -> m_N_out_truck != nullptr && _temp_sum_truck > 0) {
       		_in_link -> m_N_out_truck -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum_truck)/m_flow_scalar));
     	}
   	}
@@ -2291,7 +2291,14 @@ MNM_Veh_Multiclass::~MNM_Veh_Multiclass()
 MNM_Veh_Factory_Multiclass::MNM_Veh_Factory_Multiclass()
 	: MNM_Veh_Factory::MNM_Veh_Factory()
 {
-	;
+	m_num_car = TInt(0);
+	m_num_truck = TInt(0);
+	m_enroute_car = TInt(0);
+	m_enroute_truck = TInt(0);
+	m_finished_car = TInt(0);
+	m_finished_truck = TInt(0);
+	m_total_time_car = TFlt(0);
+	m_total_time_truck = TFlt(0);
 }
 
 MNM_Veh_Factory_Multiclass::~MNM_Veh_Factory_Multiclass()
@@ -2307,8 +2314,37 @@ MNM_Veh_Multiclass* MNM_Veh_Factory_Multiclass::make_veh_multiclass(TInt timesta
 	MNM_Veh_Multiclass *_veh = new MNM_Veh_Multiclass(m_num_veh + 1, vehicle_cls, timestamp);
 	_veh -> m_type = veh_type;
 	m_veh_map.insert({m_num_veh + 1, _veh});
+
 	m_num_veh += 1;
+	m_enroute += 1;
+	if (vehicle_cls == 0) {
+		m_num_car += 1;
+		m_enroute_car += 1;
+	}
+	else if (vehicle_cls == 1) {
+		m_num_truck += 1;
+		m_enroute_truck += 1;
+	}
 	return _veh;
+}
+
+int MNM_Veh_Factory_Multiclass::remove_finished_veh(MNM_Veh *veh)
+{
+	MNM_Veh_Multiclass *_veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+	IAssert(_veh_multiclass != nullptr);
+	IAssert(veh -> m_finish_time > veh -> m_start_time);
+	if (_veh_multiclass -> m_class == 0) {
+		m_finished_car += 1;
+		m_enroute_car -= 1;
+  		m_total_time_car += (veh -> m_finish_time - veh -> m_start_time);
+	}
+	else if (_veh_multiclass -> m_class == 1) {
+		m_finished_truck += 1;
+		m_enroute_truck -= 1;
+		m_total_time_truck += (veh -> m_finish_time - veh -> m_start_time);
+	}
+	MNM_Veh_Factory::remove_finished_veh(veh);
+	return 0;
 }
 
 /**************************************************************************
@@ -2983,32 +3019,12 @@ TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_
 
 	TFlt fftt = link -> get_link_freeflow_tt_car() / unit_interval;
 
-    TFlt _last_valid_time = get_last_valid_time(link -> m_N_in_car, link -> m_N_out_car);
-    if (_last_valid_time < 0) return fftt;
-    if (start_time > _last_valid_time) start_time = _last_valid_time;
-
-	TFlt _cc_flow = link -> m_N_in_car -> get_result(start_time);
-	if (_cc_flow <= DBL_EPSILON){
-		return fftt;
+	if (link -> m_last_valid_time < 0) {
+		link -> m_last_valid_time = get_last_valid_time(link -> m_N_in_car, link -> m_N_out_car);
 	}
+	IAssert(link -> m_last_valid_time >= 0);
 
-    // from fundamental diagram
-//    TFlt _tt = get_travel_time_from_FD_car(link, start_time, unit_interval);
-//    if (_tt > fftt) fftt = _tt;
-
-	// get the earliest time point in m_N_in_car that reaches the inflow == _cc_flow as the true start_time
-	TFlt _true_start_time = link -> m_N_in_car -> get_time(_cc_flow);
-    IAssert(_true_start_time <= _last_valid_time);
-
-	// get the earliest time point in m_N_out_car that reaches the outflow == _cc_flow as the end_time
-	TFlt _end_time = link -> m_N_out_car -> get_time(_cc_flow);
-
-	if (_end_time() < 0 || (_end_time - _true_start_time < 0) || (_end_time - _true_start_time < fftt)){
-		return fftt;
-	}
-	else{
-		return (_end_time - _true_start_time); // each interval is 5s
-	}
+	return get_travel_time_from_cc(start_time, link -> m_N_in_car, link -> m_N_out_car, link -> m_last_valid_time, fftt);
 }
 
 
@@ -3035,32 +3051,12 @@ TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt uni
 
     TFlt fftt = link -> get_link_freeflow_tt_truck() / unit_interval;
 
-    TFlt _last_valid_time = get_last_valid_time(link -> m_N_in_truck, link -> m_N_out_truck);
-    if (_last_valid_time < 0) return fftt;
-    if (start_time > _last_valid_time) start_time = _last_valid_time;
-
-	TFlt _cc_flow = link -> m_N_in_truck -> get_result(start_time);
-	if (_cc_flow <= DBL_EPSILON){
-		return fftt;
+	if (link -> m_last_valid_time_truck < 0) {
+		link -> m_last_valid_time_truck = get_last_valid_time(link -> m_N_in_truck, link -> m_N_out_truck);
 	}
+	IAssert(link -> m_last_valid_time_truck >= 0);
 
-    // from fundamental diagram
-//    TFlt _tt = get_travel_time_from_FD_truck(link, start_time, unit_interval);
-//    if (_tt > fftt) fftt = _tt;
-
-	// get the earliest time point in m_N_in_truck that reaches the inflow == _cc_flow as the true start_time
-	TFlt _true_start_time = link -> m_N_in_truck -> get_time(_cc_flow);
-    IAssert(_true_start_time <= _last_valid_time);
-
-	// get the earliest time point in m_N_out_truck that reaches the outflow == _cc_flow as the end_time
-	TFlt _end_time = link -> m_N_out_truck -> get_time(_cc_flow);
-
-	if (_end_time() < 0 || (_end_time - _true_start_time < 0) || (_end_time - _true_start_time < fftt)){
-		return fftt;
-	}
-	else{
-		return (_end_time - _true_start_time); // each interval is 5s
-	}
+	return get_travel_time_from_cc(start_time, link -> m_N_in_truck, link -> m_N_out_truck, link -> m_last_valid_time_truck, fftt);
 }
 
 int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
@@ -3374,8 +3370,30 @@ int MNM_Cumulative_Emission_Multiclass::update(MNM_Veh_Factory* veh_factory)
 	return 0;
 }
 
-int MNM_Cumulative_Emission_Multiclass::output()
+std::string MNM_Cumulative_Emission_Multiclass::output()
 {
+	std::string _s = "";
+
+	_s += "The emission stats for cars are: \n";
+	_s += "fuel: " + std::to_string(m_fuel()) + " gallons, ";
+	_s += "CO2: " + std::to_string(m_CO2()) + " g, ";
+	_s += "HC: " + std::to_string(m_HC()) + " g, ";
+	_s += "CO: " + std::to_string(m_CO()) + " g, ";
+	_s += "NOX: " + std::to_string(m_NOX()) + " g, ";
+	_s += "VMT: " + std::to_string(m_VMT()) + " miles, ";
+	_s += "VHT: " + std::to_string(m_VHT_car()) + " hours, ";
+	_s += "number of trips: " + std::to_string(int(m_car_set.size())) + " trips\n";
+
+	_s += "The emission stats for trucks are: \n";
+	_s += "fuel: " + std::to_string(m_fuel_truck()) + " gallons, ";
+	_s += "CO2: " + std::to_string(m_CO2_truck()) + " g, ";
+	_s += "HC: " + std::to_string(m_HC_truck()) + " g, ";
+	_s += "CO: " + std::to_string(m_CO_truck()) + " g, ";
+	_s += "NOX: " + std::to_string(m_NOX_truck()) + " g, ";
+	_s += "VMT: " + std::to_string(m_VMT_truck()) + " miles, ";
+	_s += "VHT: " + std::to_string(m_VHT_truck()) + " hours, ";
+	_s += "number of trips: " + std::to_string(int(m_truck_set.size())) + " trips\n";
+
 	printf("The emission stats for cars are: ");
 	printf("fuel: %lf gallons, CO2: %lf g, HC: %lf g, CO: %lf g, NOX: %lf g, VMT: %lf miles, VHT: %lf hours, %d trips\n", 
 		   m_fuel(), m_CO2(), m_HC(), m_CO(), m_NOX(), m_VMT(), m_VHT_car(), int(m_car_set.size()));
@@ -3383,5 +3401,5 @@ int MNM_Cumulative_Emission_Multiclass::output()
 	printf("The emission stats for trucks are: ");
 	printf("fuel: %lf gallons, CO2: %lf g, HC: %lf g, CO: %lf g, NOX: %lf g, VMT: %lf miles, VHT: %lf hours, %d trips\n", 
 		   m_fuel_truck(), m_CO2_truck(), m_HC_truck(), m_CO_truck(), m_NOX_truck(), m_VMT_truck(), m_VHT_truck(), int(m_truck_set.size()));
-	return 0;
+	return _s;
 }

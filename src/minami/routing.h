@@ -21,6 +21,8 @@ public:
   virtual ~MNM_Routing();
   virtual int init_routing(Path_Table *path_table=nullptr){return 0;};
   virtual int update_routing(TInt timestamp){return 0;};
+  virtual int remove_finished(MNM_Veh* veh){return 0;};
+  
   PNEGraph m_graph;
   MNM_OD_Factory *m_od_factory;
   MNM_Link_Factory *m_link_factory;
@@ -71,6 +73,7 @@ public:
 // private:
   int set_path_table(Path_Table *path_table);
   virtual int register_veh(MNM_Veh* veh, bool track = true);
+  virtual int remove_finished(MNM_Veh* veh) override;
   int add_veh_path(MNM_Veh* veh, std::deque<TInt> *link_que);
   virtual int change_choice_portion(TInt interval);
   Path_Table *m_path_table;
@@ -92,6 +95,7 @@ public:
   virtual ~MNM_Routing_Hybrid() override;
   virtual int init_routing(Path_Table *path_table=nullptr) override;
   virtual int update_routing(TInt timestamp) override;
+  virtual int remove_finished(MNM_Veh* veh) override;
 
   MNM_Routing_Adaptive* m_routing_adaptive;
   MNM_Routing_Fixed* m_routing_fixed;
@@ -111,6 +115,7 @@ public:
   virtual ~MNM_Routing_Biclass_Fixed() override;
   virtual int update_routing(TInt timestamp) override;
   virtual int change_choice_portion(TInt interval) override;
+  virtual int remove_finished(MNM_Veh* veh) override;
   TInt m_buffer_length;
   TInt m_veh_class;
 };
@@ -126,6 +131,7 @@ public:
   virtual ~MNM_Routing_Biclass_Hybrid() override;
   virtual int init_routing(Path_Table *path_table=NULL) override;
   virtual int update_routing(TInt timestamp) override;
+  virtual int remove_finished(MNM_Veh *veh) override;
 
   MNM_Routing_Adaptive* m_routing_adaptive;
   MNM_Routing_Biclass_Fixed* m_routing_fixed_car;
@@ -142,11 +148,12 @@ class MNM_Routing_Predetermined : public MNM_Routing
 {
 public:
   MNM_Routing_Predetermined(PNEGraph &graph,
-              MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory
-              ,Path_Table *p_table, MNM_Pre_Routing *pre_routing, TInt max_int);
+              MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory,
+              Path_Table *p_table, MNM_Pre_Routing *pre_routing, TInt max_int);
   virtual ~MNM_Routing_Predetermined() override;
   virtual int init_routing(Path_Table *path_table=NULL) override;
   virtual int update_routing(TInt timestamp) override;
+  // TODO: remove_finished()
   // MNM_Pre_Routing* virtual get_routing_table(){return m_pre_routing;};
   // private:
   // int set_path_table(Path_Table *path_table);

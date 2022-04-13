@@ -53,6 +53,14 @@ int main()
         exit(-1);
     }
 
+    std::string emission_file_name = folder + "/" + rec_folder + "/emission";
+    std::ofstream emission_file;
+    emission_file.open(emission_file_name, std::ofstream::out);
+    if (!emission_file.is_open()){
+        printf("Error happens when open emission_file\n");
+        exit(-1);
+    }
+
     TFlt gap;
     for (int i = 0; i < test_due -> m_max_iter; ++i) {
         printf("---------- Iteration %d ----------\n", i);
@@ -91,13 +99,15 @@ int main()
             // print to terminal
             // freopen("CON", "w", stdout);
             // print to file
-            freopen((folder + "/" + rec_folder + "/output.log").c_str(), "w", stdout);
-            mmdta -> m_emission -> output();
+            // freopen((folder + "/" + rec_folder + "/output.log").c_str(), "w", stdout);
+            // mmdta -> m_emission -> output();
+            emission_file << mmdta -> m_emission -> output();
         }
         delete mmdta;
     }
 
     gap_file.close();
+    emission_file.close();
 
     delete config;
     // delete mmdta;

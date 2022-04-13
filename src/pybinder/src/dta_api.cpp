@@ -673,10 +673,9 @@ int Mcdta_Api::get_cur_loading_interval()
   return m_mcdta -> m_current_loading_interval();
 }
 
-int Mcdta_Api::print_emission_stats()
+std::string Mcdta_Api::print_emission_stats()
 {
-  m_mcdta -> m_emission -> output();
-  return 0;
+  return m_mcdta -> m_emission -> output();
 }
 
 int Mcdta_Api::print_simulation_results(const std::string &folder, int cong_frequency)
@@ -1487,19 +1486,25 @@ int Mmdta_Api::initialize(const std::string &folder)
 {
     m_mmdue = new MNM_MM_Due(folder);
     m_mmdue -> initialize();
+    // m_mmdue -> m_passenger_path_table are created, at least one path for each mode for each OD pair, if connected
+    // m_mmdue -> m_driving_path_table, m_mmdue -> m_pnr_path_table, and m_mmdue -> m_bus_path_table are all nullptr
+    // m_mmdue -> m_truck_path_table and m_mmdue -> m_bus_path_table are pointing to the corresponding attributes of m_mmdue -> m_mmdta 
+    // However, the attributes of m_mmdue -> m_mmdta are based on the input files
     IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid" ||
             m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid_ColumnGeneration" ||
-            m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_FixedPath");
+            m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_FixedPath" ||
+            m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_ColumnGeneration");
     IAssert(m_mmdue -> m_passenger_path_table != nullptr && !m_mmdue -> m_passenger_path_table -> empty());
 
     m_mmdta = m_mmdue -> m_mmdta;
-    m_is_mmdta_new = false;
+    m_is_mmdta_new = false;  // indicate m_mmdta is either created with new method or just the m_mmdue -> m_mmdta
 
-//    m_mmdta = new MNM_Dta_Multimodal(folder);
-//    m_mmdta -> build_from_files();
-//    m_mmdta -> hook_up_node_and_link();
-//    m_mmdta -> find_connected_pnr_parkinglot_for_destination();
-//    m_mmdta -> is_ok();
+    //    m_mmdta = new MNM_Dta_Multimodal(folder);
+    //    m_mmdta -> build_from_files();
+    //    m_mmdta -> hook_up_node_and_link();
+    //    m_mmdta -> find_connected_pnr_parkinglot_for_destination();
+    //    m_mmdta -> is_ok();
+    //    m_is_mmdta_new = true;
 
     auto* _tmp_conf = new MNM_ConfReader(m_mmdue -> m_file_folder + "/config.conf", "FIXED");
     if (_tmp_conf -> get_int("num_driving_path") > 0) {
@@ -1584,6 +1589,7 @@ int Mmdta_Api::install_cc_tree()
 
 int Mmdta_Api::run_whole()
 {
+    IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid");
     m_mmdta -> pre_loading();
     m_mmdta -> loading(true);
     return 0;
@@ -1591,6 +1597,9 @@ int Mmdta_Api::run_whole()
 
 int Mmdta_Api::run_mmdue(const std::string &folder)
 {
+    IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_FixedPath" ||
+            m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_ColumnGeneration");
+
     MNM_ConfReader *config = new MNM_ConfReader(folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
     
@@ -1666,6 +1675,8 @@ int Mmdta_Api::run_mmdue(const std::string &folder)
 
 int Mmdta_Api::run_mmdta_adaptive(const std::string &folder, int cong_frequency)
 {
+    IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid");
+
     m_mmdta = m_mmdue -> run_mmdta_adaptive(true);
     m_is_mmdta_new = true;
 
@@ -1824,10 +1835,9 @@ int Mmdta_Api::get_cur_loading_interval()
     return m_mmdta -> m_current_loading_interval();
 }
 
-int Mmdta_Api::print_emission_stats()
+std::string Mmdta_Api::print_emission_stats()
 {
-    m_mmdta -> m_emission -> output();
-    return 0;
+    return m_mmdta -> m_emission -> output();
 }
 
 int Mmdta_Api::print_simulation_results(const std::string &folder, int cong_frequency)
@@ -1952,56 +1962,68 @@ py::array_t<double> Mmdta_Api::get_travel_stats()
 {
     TInt _count_car = 0, _count_truck = 0, _count_bus = 0, _count_passenger = 0;
     TFlt _tot_tt_car = 0.0, _tot_tt_truck = 0.0, _tot_tt_bus = 0.0, _tot_tt_passenger = 0.0;
-    MNM_Veh_Multimodal *_veh;
-    MNM_Passenger *_passenger;
-    int _end_time = get_cur_loading_interval();
 
-    for (auto _map_it : m_mmdta -> m_veh_factory -> m_veh_map){
-        _veh = dynamic_cast<MNM_Veh_Multimodal *>(_map_it.second);
-        if (_veh -> m_class == 0){
-            _count_car += 1;
-            if (_veh -> m_finish_time > 0) {
-                _tot_tt_car += (_veh -> m_finish_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
-            }
-            else {
-                _tot_tt_car += (_end_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
-            }
-        }
-        else {
-            if (_veh -> m_bus_route_ID == TInt(-1)) {
-                _count_truck += 1;
-                if (_veh -> m_finish_time > 0) {
-                    _tot_tt_truck += (_veh -> m_finish_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
-                }
-                else {
-                    _tot_tt_truck += (_end_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
-                }
-            }
-            else {
-                _count_bus += 1;
-                if (_veh -> m_finish_time > 0) {
-                    _tot_tt_bus += (_veh -> m_finish_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
-                }
-                else {
-                    _tot_tt_bus += (_end_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
-                }
-            }
+    auto *_veh_factory = dynamic_cast<MNM_Veh_Factory_Multimodal*>(m_mmdta -> m_veh_factory);
+    _count_car = _veh_factory -> m_finished_car;
+    _count_truck = _veh_factory -> m_finished_truck;
+    _count_bus = _veh_factory -> m_finished_bus;
+    _count_passenger = m_mmdta -> m_passenger_factory -> m_finished_passenger;
 
-        }
-    }
+    _tot_tt_car = _veh_factory -> m_total_time_car * m_mmdta -> m_unit_time / 3600.0;
+    _tot_tt_truck = _veh_factory -> m_total_time_truck * m_mmdta -> m_unit_time / 3600.0;
+    _tot_tt_bus = _veh_factory -> m_total_time_bus * m_mmdta -> m_unit_time / 3600.0;
+    _tot_tt_passenger = m_mmdta -> m_passenger_factory -> m_total_time_passenger * m_mmdta -> m_unit_time / 3600.0;
 
-    for (auto _map_it : m_mmdta -> m_passenger_factory -> m_passenger_map){
-        if (_map_it.second -> m_finish_time > 0) {
-            _passenger = _map_it.second;
-            _count_passenger += 1;
-            if (_passenger -> m_finish_time > 0) {
-                _tot_tt_passenger += (_passenger -> m_finish_time - _passenger -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
-            }
-            else {
-                _tot_tt_passenger += (_end_time - _passenger -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
-            }
-        }
-    }
+    // MNM_Veh_Multimodal *_veh;
+    // MNM_Passenger *_passenger;
+    // int _end_time = get_cur_loading_interval();
+
+    // for (auto _map_it : m_mmdta -> m_veh_factory -> m_veh_map){
+    //     _veh = dynamic_cast<MNM_Veh_Multimodal *>(_map_it.second);
+    //     if (_veh -> m_class == 0){
+    //         _count_car += 1;
+    //         if (_veh -> m_finish_time > 0) {
+    //             _tot_tt_car += (_veh -> m_finish_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    //         }
+    //         else {
+    //             _tot_tt_car += (_end_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    //         }
+    //     }
+    //     else {
+    //         if (_veh -> m_bus_route_ID == TInt(-1)) {
+    //             _count_truck += 1;
+    //             if (_veh -> m_finish_time > 0) {
+    //                 _tot_tt_truck += (_veh -> m_finish_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    //             }
+    //             else {
+    //                 _tot_tt_truck += (_end_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    //             }
+    //         }
+    //         else {
+    //             _count_bus += 1;
+    //             if (_veh -> m_finish_time > 0) {
+    //                 _tot_tt_bus += (_veh -> m_finish_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    //             }
+    //             else {
+    //                 _tot_tt_bus += (_end_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    //             }
+    //         }
+
+    //     }
+    // }
+
+    // for (auto _map_it : m_mmdta -> m_passenger_factory -> m_passenger_map){
+    //     if (_map_it.second -> m_finish_time > 0) {
+    //         _passenger = _map_it.second;
+    //         _count_passenger += 1;
+    //         if (_passenger -> m_finish_time > 0) {
+    //             _tot_tt_passenger += (_passenger -> m_finish_time - _passenger -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    //         }
+    //         else {
+    //             _tot_tt_passenger += (_end_time - _passenger -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    //         }
+    //     }
+    // }
 
 //    printf("\n\nTotal car: %d, Total truck: %d, Total bus : %d, Total passenger: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours, Total passenger tt: %.2f hours\n\n",
 //           int(_count_car/m_mmdta -> m_flow_scalar), int(_count_truck/m_mmdta -> m_flow_scalar), int(_count_bus/m_mmdta -> m_flow_scalar), int(_count_passenger),

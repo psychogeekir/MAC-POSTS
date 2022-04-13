@@ -149,9 +149,22 @@ int MNM_Cumulative_Emission::update(MNM_Veh_Factory* veh_factory)
   return 0;
 }
 
-int MNM_Cumulative_Emission::output()
+std::string MNM_Cumulative_Emission::output()
 {
+
+  std::string _s = "";
+
+	_s += "The emission stats are: \n";
+	_s += "fuel: " + std::to_string(m_fuel()) + " gallons, ";
+	_s += "CO2: " + std::to_string(m_CO2()) + " g, ";
+	_s += "HC: " + std::to_string(m_HC()) + " g, ";
+	_s += "CO: " + std::to_string(m_CO()) + " g, ";
+	_s += "NOX: " + std::to_string(m_NOX()) + " g, ";
+	_s += "VMT: " + std::to_string(m_VMT()) + " miles\n";
+
   printf("The emission stats are: ");
-  printf("%d, %lf, %lf, %lf, %lf, %lf, %lf\n", m_link_vector[0] -> m_link_ID(), m_fuel(), m_CO2(), m_HC(), m_CO(), m_NOX(), m_VMT());
-  return 0;
+	printf("fuel: %lf gallons, CO2: %lf g, HC: %lf g, CO: %lf g, NOX: %lf g, VMT: %lf miles\n", 
+		     m_fuel(), m_CO2(), m_HC(), m_CO(), m_NOX(), m_VMT());
+
+  return _s;
 }

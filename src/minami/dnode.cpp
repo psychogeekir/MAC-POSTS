@@ -65,7 +65,7 @@ int MNM_DMOND::evolve(TInt timestamp)
   MNM_Veh *_veh;
   for (unsigned i=0; i<m_out_link_array.size(); ++i){
     _link = m_out_link_array[i];
-    if (_link -> m_N_in != nullptr) {
+    if (_link -> m_N_in != nullptr && m_out_volume.find(_link) -> second > 0) {
       _link -> m_N_in -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp + 1), TFlt(m_out_volume.find(_link) -> second)/m_flow_scalar));
     }
 //    if (!m_in_veh_queue.empty()){
@@ -155,7 +155,7 @@ int MNM_DMDND::evolve(TInt timestamp)
   for (size_t i = 0; i<m_in_link_array.size(); ++i){
     _link = m_in_link_array[i];
     _size = _link->m_finished_array.size();
-    if (_link -> m_N_out != nullptr) {
+    if (_link -> m_N_out != nullptr && _size > 0) {
       _link -> m_N_out -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp + 1), TFlt(_size)/m_flow_scalar));
     }
     for (size_t j=0; j<_size; ++j){
@@ -310,7 +310,7 @@ int MNM_Dnode_Inout::record_cumulative_curve(TInt timestamp)
       _num_to_move = m_veh_tomove[i * _offset + j];
       _temp_sum += _num_to_move;
     }
-    if (_out_link -> m_N_out != nullptr) {
+    if (_out_link -> m_N_out != nullptr && _temp_sum > 0) {
       // printf("record out link cc: link ID %d, time %d, value %f\n", _out_link -> m_link_ID(), timestamp()+1, (float) TFlt(_temp_sum)/m_flow_scalar);
       _out_link -> m_N_in -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum)/m_flow_scalar));
     }
@@ -324,7 +324,7 @@ int MNM_Dnode_Inout::record_cumulative_curve(TInt timestamp)
       _num_to_move = m_veh_tomove[i * _offset + j];
       _temp_sum += _num_to_move;
     }
-    if (_in_link -> m_N_in != nullptr) {
+    if (_in_link -> m_N_in != nullptr && _temp_sum > 0) {
       // printf("record in link cc: link ID %d, time %d, value %f\n", _in_link -> m_link_ID(), timestamp()+1, (float) TFlt(_temp_sum)/m_flow_scalar);
       _in_link -> m_N_out -> add_increment(std::pair<TFlt, TFlt>(TFlt(timestamp+1), TFlt(_temp_sum)/m_flow_scalar));
     }

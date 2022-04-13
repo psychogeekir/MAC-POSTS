@@ -79,7 +79,7 @@ int MNM_Dta::set_statistics()
   MNM_ConfReader *_record_config = new MNM_ConfReader(m_file_folder + "/config.conf", "STAT");
   if (_record_config -> get_string("rec_mode") == "LRn"){
     m_statistics = new MNM_Statistics_Lrn(m_file_folder, m_config, _record_config,
-                                   m_od_factory, m_node_factory, m_link_factory);
+                                          m_od_factory, m_node_factory, m_link_factory);
   }
   // printf("set_statistics finished\n");
   return 0;
@@ -321,7 +321,6 @@ int MNM_Dta::check_origin_destination_connectivity()
         return false;
       }
     }
-// }
   }
   return true;
 }
@@ -441,7 +440,8 @@ int MNM_Dta::load_once(bool verbose, TInt load_int, TInt assign_int)
   // step 5: Destination receive vehicle  
   for (auto _dest_it = m_od_factory -> m_destination_map.begin(); _dest_it != m_od_factory -> m_destination_map.end(); _dest_it++){
     _dest = _dest_it -> second;
-    _dest -> receive(load_int);
+    // _dest -> receive(load_int);
+    _dest -> receive(load_int, m_routing, m_veh_factory);
   }
 
   if (verbose) printf("Update record!\n");
@@ -554,7 +554,8 @@ int MNM_Dta::loading(bool verbose)
     // step 5: Destination receive vehicle  
     for (auto _dest_it = m_od_factory -> m_destination_map.begin(); _dest_it != m_od_factory -> m_destination_map.end(); _dest_it++){
       _dest = _dest_it -> second;
-      _dest -> receive(_cur_int);
+      // _dest -> receive(_cur_int);
+      _dest -> receive(_cur_int, m_routing, m_veh_factory);
     }
 
     if(verbose) printf("Update record!\n");
@@ -595,14 +596,16 @@ int MNM_Dta::record_queue_vehicles()
 
 int MNM_Dta::record_enroute_vehicles()
 {
-  TInt _total_veh = TInt(m_veh_factory -> m_veh_map.size());
-  TInt _finished_veh = 0;
-  TInt _enroute_veh;
-  for (auto _map_it : m_veh_factory -> m_veh_map){
-    if (_map_it.second -> m_finish_time > 0) _finished_veh += 1;
-  }
-  _enroute_veh = _total_veh - _finished_veh;
-  m_enroute_veh_num.push_back(_enroute_veh);
+  // TInt _total_veh = TInt(m_veh_factory -> m_veh_map.size());
+  // TInt _finished_veh = 0;
+  // TInt _enroute_veh;
+  // for (auto _map_it : m_veh_factory -> m_veh_map){
+  //   if (_map_it.second -> m_finish_time > 0) _finished_veh += 1;
+  // }
+  // _enroute_veh = _total_veh - _finished_veh;
+  // m_enroute_veh_num.push_back(_enroute_veh);
+
+  m_enroute_veh_num.push_back(m_veh_factory -> m_enroute);
   return 0;
 }
 
@@ -638,14 +641,16 @@ namespace MNM
 {
 int print_vehicle_statistics(MNM_Veh_Factory *veh_factory)
 {
-  TInt _total_veh = TInt(veh_factory -> m_veh_map.size());
-  TInt _finished_veh = 0;
-  TInt _enroute_veh;
-  for (auto _map_it : veh_factory -> m_veh_map){
-    if (_map_it.second -> m_finish_time > 0) _finished_veh += 1;
-  }
-  _enroute_veh = _total_veh - _finished_veh;
-  printf("Released vehicle %d, Enroute vehicle %d, Finished vehicle %d\n", _total_veh(), _enroute_veh(), _finished_veh());
+  // TInt _total_veh = TInt(veh_factory -> m_veh_map.size());
+  // TInt _finished_veh = 0;
+  // TInt _enroute_veh;
+  // for (auto _map_it : veh_factory -> m_veh_map){
+  //   if (_map_it.second -> m_finish_time > 0) _finished_veh += 1;
+  // }
+  // _enroute_veh = _total_veh - _finished_veh;
+  // printf("Released vehicle %d, Enroute vehicle %d, Finished vehicle %d\n", _total_veh(), _enroute_veh(), _finished_veh());
+
+  printf("Released vehicle %d, Enroute vehicle %d, Finished vehicle %d\n", veh_factory -> m_num_veh(), veh_factory -> m_enroute(), veh_factory -> m_finished());
   return 0;
 }
 
@@ -663,14 +668,16 @@ int print_vehicle_info(MNM_Veh_Factory *veh_factory)
 
 bool has_running_vehicle(MNM_Veh_Factory *veh_factory)
 {
-  TInt _total_veh = TInt(veh_factory -> m_veh_map.size());
-  TInt _finished_veh = 0;
-  TInt _enroute_veh;
-  for (auto _map_it : veh_factory -> m_veh_map){
-    if (_map_it.second -> m_finish_time > 0) _finished_veh += 1;
-  }
-  _enroute_veh = _total_veh - _finished_veh;  
-  return _enroute_veh != 0;
+  // TInt _total_veh = TInt(veh_factory -> m_veh_map.size());
+  // TInt _finished_veh = 0;
+  // TInt _enroute_veh;
+  // for (auto _map_it : veh_factory -> m_veh_map){
+  //   if (_map_it.second -> m_finish_time > 0) _finished_veh += 1;
+  // }
+  // _enroute_veh = _total_veh - _finished_veh;  
+  // return _enroute_veh != 0;
+
+  return veh_factory -> m_num_veh != veh_factory -> m_finished;
 }
 
 }

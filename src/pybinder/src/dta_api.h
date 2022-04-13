@@ -79,7 +79,7 @@ public:
   int register_links(py::array_t<int> links);
   int get_cur_loading_interval();
   py::array_t<double> get_travel_stats();
-  int print_emission_stats();
+  std::string print_emission_stats();
   int print_simulation_results(const std::string &folder, int cong_frequency = 180);
   
   py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals);
@@ -137,7 +137,7 @@ public:
     int register_links_bus(py::array_t<int> links_bus);
     int get_cur_loading_interval();
     py::array_t<double> get_travel_stats();
-    int print_emission_stats();
+    std::string print_emission_stats();
     int print_simulation_results(const std::string &folder, int cong_frequency = 180);
 
     py::array_t<int> get_od_mode_connectivity();

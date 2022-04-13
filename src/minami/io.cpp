@@ -418,9 +418,14 @@ Path_Table *MNM_IO::load_path_table(const std::string& file_name, const PNEGraph
   if (w_ID){
     throw std::runtime_error("Error, MNM_IO::load_path_table, with ID loading not implemented");
   }
-  printf("Loading Path Table!\n");
+  printf("Loading Path Table for Driving!\n");
   TInt Num_Path = num_path;
   printf("Number of path %d\n", Num_Path());
+
+  if (Num_Path <= 0) {
+    printf("Finish Loading Path Table for Driving, which is nullptr!\n");
+    return nullptr;
+  }
 
   std::ifstream _path_table_file, _buffer_file;
   std::string _buffer_file_name;
@@ -496,7 +501,7 @@ Path_Table *MNM_IO::load_path_table(const std::string& file_name, const PNEGraph
     printf("Can't open path table file!\n");
     exit(-1);
   }
-  printf("Finish Loading Path Table!\n");
+  printf("Finish Loading Path Table for Driving!\n");
   // printf("path table %p\n", _path_table);
   // printf("path table %s\n", _path_table -> find(100283) -> second -> find(150153) -> second 
   //                           -> m_path_vec.front() -> node_vec_to_string());

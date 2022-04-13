@@ -374,7 +374,7 @@ int MNM_Routing_Fixed::update_routing(TInt timestamp)
       // according to Dr. Wei Ma, add a nominal path to adaptive users for DAR extraction, not rigorous, but will do the DODE job
       else if (_veh -> m_type == MNM_TYPE_ADAPTIVE) {
           if (_veh -> m_path == nullptr) {
-              register_veh(_veh, false);
+              register_veh(_veh, false);  // adpative user not in m_tracker
           }
           IAssert(_veh -> m_path != nullptr);
       }
@@ -464,6 +464,18 @@ int MNM_Routing_Fixed::register_veh(MNM_Veh* veh, bool track)
   return 0;
 }
 
+int MNM_Routing_Fixed::remove_finished(MNM_Veh* veh)
+{
+  IAssert(veh -> m_finish_time > 0 && veh -> m_finish_time > veh -> m_start_time);
+  if (m_tracker.find(veh) != m_tracker.end()) {
+    IAssert(veh -> m_type == MNM_TYPE_STATIC);  // adaptive user not in m_tracker
+    m_tracker.find(veh) -> second -> clear();
+    delete m_tracker.find(veh) -> second;
+    m_tracker.erase(veh);
+  }
+  return 0;
+}
+
 int MNM_Routing_Fixed::set_path_table(Path_Table *path_table)
 {
   m_path_table = path_table;
@@ -513,7 +525,11 @@ int MNM_Routing_Hybrid::update_routing(TInt timestamp)
   return 0;
 }
 
-
+int MNM_Routing_Hybrid::remove_finished(MNM_Veh *veh)
+{
+  m_routing_fixed -> remove_finished(veh);
+  return 0;
+}
 
 
 
@@ -559,6 +575,13 @@ int MNM_Routing_Biclass_Hybrid::update_routing(TInt timestamp)
   // printf("Finished update STATIC cars routing\n");
   m_routing_fixed_truck -> update_routing(timestamp);
   // printf("Finished update STATIC trucks routing\n");
+  return 0;
+}
+
+int MNM_Routing_Biclass_Hybrid::remove_finished(MNM_Veh *veh)
+{
+  m_routing_fixed_car -> remove_finished(veh);
+  m_routing_fixed_truck -> remove_finished(veh);
   return 0;
 }
 
@@ -691,4 +714,10 @@ int MNM_Routing_Biclass_Fixed::update_routing(TInt timestamp)
   return 0;
 }
 
-
+int MNM_Routing_Biclass_Fixed::remove_finished(MNM_Veh* veh)
+{
+  if (veh -> get_class() == m_veh_class) {
+    MNM_Routing_Fixed::remove_finished(veh);
+  }
+  return 0;
+}

@@ -817,7 +817,7 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_ma
         path->m_node_vec.push_back(_cur_node_ID);
         _cur_link_ID = m_tree[_cur_node_ID][round_time(_cur_time)];
         if (_cur_link_ID == -1) {
-            printf("No available path between node %d and node %d\n", src_node_ID, m_dest_node_ID);
+            printf("No available path between node %d and node %d\n", src_node_ID(), m_dest_node_ID());
             exit(-1);
         } 
         path->m_link_vec.push_back(_cur_link_ID);
@@ -839,7 +839,7 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time,
         path->m_node_vec.push_back(_cur_node_ID);
         _cur_link_ID = m_tree[_cur_node_ID][round_time(_cur_time)];
         if (_cur_link_ID == -1) {
-            printf("No available path between node %d and node %d\n", src_node_ID, m_dest_node_ID);
+            printf("No available path between node %d and node %d\n", src_node_ID(), m_dest_node_ID());
             exit(-1);
         } 
         path->m_link_vec.push_back(_cur_link_ID);

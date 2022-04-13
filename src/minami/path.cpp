@@ -239,7 +239,7 @@ namespace MNM {
             }
             _current_link_ID = output_map[_current_node_ID];
             if (_current_link_ID == -1) {
-                printf("Cannot extract path from origin node %d to destination node %d\n", origin_node_ID, dest_node_ID);
+                printf("Cannot extract path from origin node %d to destination node %d\n", origin_node_ID(), dest_node_ID());
                 return nullptr;
             }
             _path->m_node_vec.push_back(_current_node_ID);

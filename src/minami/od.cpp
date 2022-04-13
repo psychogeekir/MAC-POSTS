@@ -1,4 +1,5 @@
 #include "od.h"
+#include "routing.h"
 
 MNM_Origin::MNM_Origin(TInt ID, TInt max_interval, TFlt flow_scalar, TInt frequency)
 {
@@ -113,6 +114,28 @@ int MNM_Destination::receive(TInt current_interval)
     m_dest_node -> m_out_veh_queue.pop_front();
   }
   
+  return 0;
+}
+
+int MNM_Destination::receive(TInt current_interval, MNM_Routing *routing, MNM_Veh_Factory *veh_factory)
+{
+  MNM_Veh *_veh;
+  size_t _num_to_receive = m_dest_node -> m_out_veh_queue.size();
+  // printf("Dest node %d out vehicle: %d\n", m_dest_node -> m_node_ID, _num_to_receive);
+  for (size_t i=0; i < _num_to_receive; ++i){
+    _veh = m_dest_node -> m_out_veh_queue.front();
+    if (_veh -> get_destination() != this){
+      printf("The veh is heading to %d, but we are %d\n", (int)_veh -> get_destination() -> m_dest_node -> m_node_ID, (int)m_dest_node -> m_node_ID);
+      printf("MNM_Destination::receive: Something wrong!\n");
+      exit(-1);
+    }
+    _veh -> finish(current_interval);
+    // printf("Receive Vehicle ID: %d, origin node is %d, destination node is %d\n", _veh -> m_veh_ID(), _veh -> get_origin() -> m_origin_node -> m_node_ID(), _veh -> get_destination() -> m_dest_node -> m_node_ID());
+    m_dest_node -> m_out_veh_queue.pop_front();
+
+    routing -> remove_finished(_veh);  // remove from m_tracker
+    veh_factory -> remove_finished_veh(_veh);
+  }
   return 0;
 }
 

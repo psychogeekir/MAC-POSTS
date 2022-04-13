@@ -25,6 +25,7 @@ class MNM_Cumulative_Curve
 public:
   MNM_Cumulative_Curve();
   ~MNM_Cumulative_Curve();
+  // <timestamp, flow>
   std::deque<std::pair<TFlt, TFlt>> m_recorder;
   int add_record(std::pair<TFlt, TFlt> r);
   int add_increment(std::pair<TFlt, TFlt> r);
@@ -87,6 +88,7 @@ public:
 
   MNM_Cumulative_Curve *m_N_in;
   MNM_Cumulative_Curve *m_N_out;
+  TFlt m_last_valid_time = TFlt(-1);
   MNM_Tree_Cumulative_Curve *m_N_in_tree;
   MNM_Tree_Cumulative_Curve *m_N_out_tree;
 

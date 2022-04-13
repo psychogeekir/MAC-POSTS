@@ -74,6 +74,22 @@ float MNM_Ults::roundoff(float value, unsigned char prec)
   return round(value * pow_10) / pow_10;
 }
 
+bool MNM_Ults::approximate_equal(TFlt a, TFlt b, float p) 
+{
+  // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
+  if (abs(a - b) <= p * max(abs(a), abs(b))) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool MNM_Ults::approximate_less_than(TFlt a, TFlt b, float p) 
+{
+  return a + p * max(abs(a), abs(b)) < b;
+}
+
 
 Chameleon::Chameleon(std::string const& value) 
 {

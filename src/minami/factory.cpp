@@ -7,6 +7,11 @@ MNM_Veh_Factory::MNM_Veh_Factory()
 {
   m_veh_map = std::unordered_map<TInt, MNM_Veh*>();
   m_num_veh = TInt(0);
+
+  m_enroute = TInt(0);
+  m_finished = TInt(0);
+
+  m_total_time = TFlt(0);
 }
 
 MNM_Veh_Factory::~MNM_Veh_Factory()
@@ -26,7 +31,27 @@ MNM_Veh *MNM_Veh_Factory::make_veh(TInt timestamp, Vehicle_type veh_type)
   _veh -> m_type = veh_type;
   m_veh_map.insert(std::pair<TInt, MNM_Veh*>(m_num_veh + 1, _veh));
   m_num_veh += 1;
+  m_enroute += 1;
   return _veh;
+}
+
+int MNM_Veh_Factory::remove_finished_veh(MNM_Veh *veh)
+{
+  if (m_veh_map.find(veh -> m_veh_ID) == m_veh_map.end() || m_veh_map.find(veh -> m_veh_ID) -> second != veh) {
+    printf("veh not in factory!\n");
+    exit(-1);
+  }
+  m_veh_map.erase(veh -> m_veh_ID);
+
+  IAssert(veh -> m_finish_time > veh -> m_start_time);
+  m_total_time += (veh -> m_finish_time - veh -> m_start_time);
+  
+  delete veh;
+
+
+  m_finished += 1;
+  m_enroute -= 1;
+  return 0;
 }
 
 

@@ -26,6 +26,11 @@ public:
   MNM_Veh* make_veh(TInt timestamp, Vehicle_type veh_type);
   TInt m_num_veh;
   std::unordered_map<TInt, MNM_Veh*> m_veh_map;
+
+  TInt m_enroute;
+  TInt m_finished;
+  TFlt m_total_time;  // intervals
+  virtual int remove_finished_veh(MNM_Veh *veh);
 };
 
 

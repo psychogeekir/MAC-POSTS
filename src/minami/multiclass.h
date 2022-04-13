@@ -54,6 +54,7 @@ public:
   	MNM_Cumulative_Curve *m_N_out_car;
   	MNM_Cumulative_Curve *m_N_in_truck;
   	MNM_Cumulative_Curve *m_N_out_truck;
+	TFlt m_last_valid_time_truck = TFlt(-1);
 
   	// Two seperate N-curve_trees for private cars and trucks
 	MNM_Tree_Cumulative_Curve *m_N_in_tree_car;
@@ -447,6 +448,15 @@ public:
 
 	// use this one instead of make_veh in the base class
 	MNM_Veh_Multiclass* make_veh_multiclass(TInt timestamp, Vehicle_type veh_type, TInt vehicle_cls);
+	virtual int remove_finished_veh(MNM_Veh *veh) override;
+	TInt m_num_car;
+	TInt m_num_truck;
+	TInt m_enroute_car;
+	TInt m_enroute_truck;
+	TInt m_finished_car;
+	TInt m_finished_truck;
+	TFlt m_total_time_car;  // intervals
+	TFlt m_total_time_truck;  // intervals
 };
 
 class MNM_Node_Factory_Multiclass : public MNM_Node_Factory
@@ -603,7 +613,7 @@ public:
   TFlt calculate_NOX_rate_truck(TFlt v);
 
   virtual int update(MNM_Veh_Factory* veh_factory) override;
-  virtual int output() override;
+  virtual std::string output() override;
 
   TFlt m_fuel_truck;
   TFlt m_CO2_truck;

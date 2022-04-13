@@ -26,7 +26,7 @@ public:
   TFlt calculate_NOX_rate(TFlt v);
 
   virtual int update(MNM_Veh_Factory* veh_factory);
-  virtual int output();
+  virtual std::string output();
 
   TFlt m_fuel;
   TFlt m_CO2;
