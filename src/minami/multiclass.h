@@ -448,7 +448,7 @@ public:
 
 	// use this one instead of make_veh in the base class
 	MNM_Veh_Multiclass* make_veh_multiclass(TInt timestamp, Vehicle_type veh_type, TInt vehicle_cls);
-	virtual int remove_finished_veh(MNM_Veh *veh) override;
+	virtual int remove_finished_veh(MNM_Veh *veh, bool del=true) override;
 	TInt m_num_car;
 	TInt m_num_truck;
 	TInt m_enroute_car;

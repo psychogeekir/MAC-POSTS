@@ -228,7 +228,7 @@ int MNM_Busstop_Virtual::install_cumulative_curve_multiclass() {
     return 0;
 }
 
-TFlt MNM_Busstop_Virtual::get_bus_waiting_time(TFlt time) {
+TFlt MNM_Busstop_Virtual::get_bus_waiting_time(TFlt time) {   // waiting for the next bus, does not consider current bus
     if ((int)m_N_in_bus -> m_recorder.size() == 1 || MNM_Ults::approximate_equal(m_N_in_bus -> m_recorder.back().second, TFlt(0))) {
         return std::numeric_limits<double>::infinity();
     }
@@ -237,12 +237,13 @@ TFlt MNM_Busstop_Virtual::get_bus_waiting_time(TFlt time) {
         return std::numeric_limits<double>::infinity();
     }
     else {
-        TFlt _end_time = m_N_in_bus -> get_time(_cc + 1);
-        if (_end_time < time) {
-            printf("Debug\n");
-            exit(-1);
+        for (int i = 1; i <= int(m_N_in_bus -> m_recorder.back().first) - int(time); ++i) {
+            if (MNM_Ults::approximate_less_than(_cc, m_N_in_bus -> get_result(time + i))) {
+                return TFlt(i); // interval
+            }
         }
-        return _end_time - time;  // interval
+        printf("Debug");
+        exit(-1);
     }
 }
 
@@ -636,7 +637,7 @@ TFlt MNM_Parking_Lot::get_cruise_time(TInt timestamp) {
     }
 }
 
-int MNM_Parking_Lot::release_one_interval_passenger(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing) {
+int MNM_Parking_Lot::release_one_interval_passenger(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing, bool del) {
     MNM_Veh *_veh;
     MNM_Veh_Multimodal *_veh_multimodal;
     MNM_Passenger* _passenger;
@@ -707,8 +708,8 @@ int MNM_Parking_Lot::release_one_interval_passenger(TInt timestamp, MNM_Routing_
             _veh_it = m_dest_node -> m_out_veh_queue.erase(_veh_it);
 
             if (routing != nullptr) {
-                routing -> remove_finished(_veh);
-                m_veh_factory -> remove_finished_veh(_veh);
+                routing -> remove_finished(_veh, del);
+                m_veh_factory -> remove_finished_veh(_veh, del);
             }
         }
         else {
@@ -936,20 +937,25 @@ MNM_Passenger* MNM_Passenger_Factory::get_passenger(TInt ID)
     return _passenger_it -> second;
 }
 
-int MNM_Passenger_Factory::remove_finished_passenger(MNM_Passenger *passenger)
+int MNM_Passenger_Factory::remove_finished_passenger(MNM_Passenger *passenger, bool del)
 {
     if (m_passenger_map.find(passenger -> m_passenger_ID) == m_passenger_map.end() || m_passenger_map.find(passenger -> m_passenger_ID) -> second != passenger) {
         printf("passenger not in factory!\n");
         exit(-1);
     }
-    m_passenger_map.erase(passenger -> m_passenger_ID);
-
+    if (del) {
+        m_passenger_map.erase(passenger -> m_passenger_ID);
+    }
+    
     IAssert(passenger -> m_finish_time > passenger -> m_start_time);
     m_total_time_passenger += (passenger -> m_finish_time - passenger -> m_start_time);
-    delete passenger;
+    if (del) {
+        delete passenger;
+    }
 
     m_finished_passenger += 1;
     m_enroute_passenger -= 1;
+    IAssert(m_num_passenger == m_finished_passenger + m_enroute_passenger);
     return 0;
 }
 
@@ -1161,7 +1167,7 @@ MNM_Veh_Multimodal* MNM_Veh_Factory_Multimodal::make_veh_multimodal(TInt timesta
     return _veh;
 }
 
-int MNM_Veh_Factory_Multimodal::remove_finished_veh(MNM_Veh *veh)
+int MNM_Veh_Factory_Multimodal::remove_finished_veh(MNM_Veh *veh, bool del)
 {
     MNM_Veh_Multimodal *_veh_multimodal = dynamic_cast<MNM_Veh_Multimodal*>(veh);
     IAssert(_veh_multimodal != nullptr);
@@ -1172,16 +1178,18 @@ int MNM_Veh_Factory_Multimodal::remove_finished_veh(MNM_Veh *veh)
         m_total_time_car += (veh -> m_finish_time - veh -> m_start_time);
 	}
 	else if (_veh_multimodal -> m_class == 1) {
-		m_finished_truck += 1;
-		m_enroute_truck -= 1;
-        m_total_time_truck += (veh -> m_finish_time - veh -> m_start_time);
-        if (_veh_multimodal -> m_bus_route_ID != -1) {
+        if (_veh_multimodal -> m_bus_route_ID == TInt(-1)) {
+            m_finished_truck += 1;
+		    m_enroute_truck -= 1;
+            m_total_time_truck += (veh -> m_finish_time - veh -> m_start_time);
+        }
+        else {
             m_finished_bus += 1;
             m_enroute_bus -= 1;
             m_total_time_bus += (veh -> m_finish_time - veh -> m_start_time);
         }
 	}
-    MNM_Veh_Factory::remove_finished_veh(veh);
+    MNM_Veh_Factory::remove_finished_veh(veh, del);
     return 0;
 }
 
@@ -1236,7 +1244,7 @@ int MNM_Destination_Multimodal::evolve(TInt timestamp) {
 int MNM_Destination_Multimodal::receive(TInt timestamp) {
     // vehicles
     if (m_parking_lot != nullptr) {
-        m_parking_lot -> release_one_interval_passenger(timestamp);
+        m_parking_lot -> release_one_interval_passenger(timestamp, nullptr, false);
     }
 
     MNM_Veh *_veh;
@@ -1273,11 +1281,11 @@ int MNM_Destination_Multimodal::receive(TInt timestamp) {
     return 0;
 }
 
-int MNM_Destination_Multimodal::receive(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing, MNM_Veh_Factory *veh_factory, MNM_Passenger_Factory *passenger_factory)
+int MNM_Destination_Multimodal::receive(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing, MNM_Veh_Factory *veh_factory, MNM_Passenger_Factory *passenger_factory, bool del)
 {
     // vehicles
     if (m_parking_lot != nullptr) {
-        m_parking_lot -> release_one_interval_passenger(timestamp, routing);
+        m_parking_lot -> release_one_interval_passenger(timestamp, routing, del);
     }
 
     MNM_Veh *_veh;
@@ -1295,8 +1303,8 @@ int MNM_Destination_Multimodal::receive(TInt timestamp, MNM_Routing_Multimodal_H
         // printf("Receive Vehicle ID: %d, origin node is %d, destination node is %d\n", _veh -> m_veh_ID(), _veh -> get_origin() -> m_origin_node -> m_node_ID(), _veh -> get_destination() -> m_dest_node -> m_node_ID());
         m_dest_node -> m_out_veh_queue.pop_front();
 
-        routing -> remove_finished(_veh);
-        veh_factory -> remove_finished_veh(_veh);
+        routing -> remove_finished(_veh, del);
+        veh_factory -> remove_finished_veh(_veh, del);
     }
 
     // passengers
@@ -1314,8 +1322,8 @@ int MNM_Destination_Multimodal::receive(TInt timestamp, MNM_Routing_Multimodal_H
         // printf("Receive Passenger ID: %d, origin node is %d, destination node is %d\n", _passenger -> m_ID(), _passenger -> get_origin() -> m_origin_node -> m_node_ID(), _passenger -> get_destination() -> m_dest_node -> m_node_ID());
         m_out_passenger_queue.pop_front();
 
-        routing -> remove_finished_passenger(_passenger);
-        passenger_factory -> remove_finished_passenger(_passenger);
+        routing -> remove_finished_passenger(_passenger, del);
+        passenger_factory -> remove_finished_passenger(_passenger, del);
     }
     return 0;
 }
@@ -3363,10 +3371,10 @@ int MNM_Routing_Bus::update_routing(TInt timestamp) {
 }
 
 
-int MNM_Routing_Bus::remove_finished(MNM_Veh *veh)
+int MNM_Routing_Bus::remove_finished(MNM_Veh *veh, bool del)
 {
     if (veh -> get_bus_route_ID() != -1) {
-        MNM_Routing_Biclass_Fixed::remove_finished(veh);
+        MNM_Routing_Biclass_Fixed::remove_finished(veh, del);
     }
     return 0;
 }
@@ -3567,10 +3575,10 @@ int MNM_Routing_PnR_Fixed::update_routing(TInt timestamp)
     return 0;
 }
 
-int MNM_Routing_PnR_Fixed::remove_finished(MNM_Veh *veh)
+int MNM_Routing_PnR_Fixed::remove_finished(MNM_Veh *veh, bool del)
 {
     if (veh -> get_ispnr()) {
-        MNM_Routing_Biclass_Fixed::remove_finished(veh);
+        MNM_Routing_Biclass_Fixed::remove_finished(veh, del);
     }
     return 0;
 }
@@ -3708,10 +3716,10 @@ int MNM_Routing_PassengerBusTransit_Fixed::register_passenger(MNM_Passenger* pas
     return 0;
 }
 
-int MNM_Routing_PassengerBusTransit_Fixed::remove_finished(MNM_Passenger *passenger)
+int MNM_Routing_PassengerBusTransit_Fixed::remove_finished(MNM_Passenger *passenger, bool del)
 {
     IAssert(passenger -> m_finish_time > 0 && passenger -> m_finish_time > passenger -> m_start_time);
-    if (m_tracker.find(passenger) != m_tracker.end()) {
+    if (m_tracker.find(passenger) != m_tracker.end() && del) {
         IAssert(passenger -> m_passenger_type == MNM_TYPE_STATIC);  // adaptive user not in m_tracker
         m_tracker.find(passenger) -> second -> clear();
         delete m_tracker.find(passenger) -> second;
@@ -4540,22 +4548,22 @@ int MNM_Routing_Multimodal_Hybrid::update_routing(TInt timestamp)
     return 0;
 }
 
-int MNM_Routing_Multimodal_Hybrid::remove_finished(MNM_Veh *veh)
+int MNM_Routing_Multimodal_Hybrid::remove_finished(MNM_Veh *veh, bool del)
 {
     if (veh -> get_class() == TInt(0)) {
         if (veh -> get_ispnr()) {
-            m_routing_car_pnr_fixed -> remove_finished(veh);
+            m_routing_car_pnr_fixed -> remove_finished(veh, del);
         }
         else {
-            m_routing_fixed_car -> remove_finished(veh);
+            m_routing_fixed_car -> remove_finished(veh, del);
         }
     }
     else if (veh -> get_class() == TInt(1)) {
         if (veh -> get_bus_route_ID() != -1) {
-            m_routing_bus_fixed -> remove_finished(veh);
+            m_routing_bus_fixed -> remove_finished(veh, del);
         }
         else {
-            m_routing_fixed_truck -> remove_finished(veh);
+            m_routing_fixed_truck -> remove_finished(veh, del);
         }
     }
     else {
@@ -4565,9 +4573,9 @@ int MNM_Routing_Multimodal_Hybrid::remove_finished(MNM_Veh *veh)
     return 0;
 }
 
-int MNM_Routing_Multimodal_Hybrid::remove_finished_passenger(MNM_Passenger *passenger)
+int MNM_Routing_Multimodal_Hybrid::remove_finished_passenger(MNM_Passenger *passenger, bool del)
 {
-    m_routing_passenger_fixed -> remove_finished(passenger);
+    m_routing_passenger_fixed -> remove_finished(passenger, del);
     return 0;
 }
 
@@ -6596,7 +6604,7 @@ int MNM_Dta_Multimodal::load_once(bool verbose, TInt load_int, TInt assign_int)
     for (auto _dest_it : m_od_factory -> m_destination_map){
         _dest = _dest_it.second;
         // _dest -> receive(load_int);
-        dynamic_cast<MNM_Destination_Multimodal*>(_dest) -> receive(load_int, _routing_multimodal_hybrid, m_veh_factory, m_passenger_factory);
+        dynamic_cast<MNM_Destination_Multimodal*>(_dest) -> receive(load_int, _routing_multimodal_hybrid, m_veh_factory, m_passenger_factory, true);  // true means delete finished vehicles and passengers
     }
 
     if (verbose) printf("Routing passengers in PnR mode!\n");
@@ -12281,7 +12289,7 @@ MNM_Dta_Multimodal *MNM_MM_Due::run_mmdta_adaptive(bool verbose) {
     }
     mmdta -> m_statistics -> post_record();
     mmdta -> m_current_loading_interval = _current_inter;
-    // return _current_inter;  // total number of actual loading intervals = _current_inter)
+    // return _current_inter;  // total number of actual loading intervals = _current_inter
 
     return mmdta;
 }

@@ -464,10 +464,10 @@ int MNM_Routing_Fixed::register_veh(MNM_Veh* veh, bool track)
   return 0;
 }
 
-int MNM_Routing_Fixed::remove_finished(MNM_Veh* veh)
+int MNM_Routing_Fixed::remove_finished(MNM_Veh* veh, bool del)
 {
   IAssert(veh -> m_finish_time > 0 && veh -> m_finish_time > veh -> m_start_time);
-  if (m_tracker.find(veh) != m_tracker.end()) {
+  if (m_tracker.find(veh) != m_tracker.end() && del) {
     IAssert(veh -> m_type == MNM_TYPE_STATIC);  // adaptive user not in m_tracker
     m_tracker.find(veh) -> second -> clear();
     delete m_tracker.find(veh) -> second;
@@ -525,9 +525,9 @@ int MNM_Routing_Hybrid::update_routing(TInt timestamp)
   return 0;
 }
 
-int MNM_Routing_Hybrid::remove_finished(MNM_Veh *veh)
+int MNM_Routing_Hybrid::remove_finished(MNM_Veh *veh, bool del)
 {
-  m_routing_fixed -> remove_finished(veh);
+  m_routing_fixed -> remove_finished(veh, del);
   return 0;
 }
 
@@ -578,10 +578,10 @@ int MNM_Routing_Biclass_Hybrid::update_routing(TInt timestamp)
   return 0;
 }
 
-int MNM_Routing_Biclass_Hybrid::remove_finished(MNM_Veh *veh)
+int MNM_Routing_Biclass_Hybrid::remove_finished(MNM_Veh *veh, bool del)
 {
-  m_routing_fixed_car -> remove_finished(veh);
-  m_routing_fixed_truck -> remove_finished(veh);
+  m_routing_fixed_car -> remove_finished(veh, del);
+  m_routing_fixed_truck -> remove_finished(veh, del);
   return 0;
 }
 
@@ -714,10 +714,10 @@ int MNM_Routing_Biclass_Fixed::update_routing(TInt timestamp)
   return 0;
 }
 
-int MNM_Routing_Biclass_Fixed::remove_finished(MNM_Veh* veh)
+int MNM_Routing_Biclass_Fixed::remove_finished(MNM_Veh* veh, bool del)
 {
   if (veh -> get_class() == m_veh_class) {
-    MNM_Routing_Fixed::remove_finished(veh);
+    MNM_Routing_Fixed::remove_finished(veh, del);
   }
   return 0;
 }

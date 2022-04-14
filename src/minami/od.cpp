@@ -117,7 +117,7 @@ int MNM_Destination::receive(TInt current_interval)
   return 0;
 }
 
-int MNM_Destination::receive(TInt current_interval, MNM_Routing *routing, MNM_Veh_Factory *veh_factory)
+int MNM_Destination::receive(TInt current_interval, MNM_Routing *routing, MNM_Veh_Factory *veh_factory, bool del)
 {
   MNM_Veh *_veh;
   size_t _num_to_receive = m_dest_node -> m_out_veh_queue.size();
@@ -133,8 +133,8 @@ int MNM_Destination::receive(TInt current_interval, MNM_Routing *routing, MNM_Ve
     // printf("Receive Vehicle ID: %d, origin node is %d, destination node is %d\n", _veh -> m_veh_ID(), _veh -> get_origin() -> m_origin_node -> m_node_ID(), _veh -> get_destination() -> m_dest_node -> m_node_ID());
     m_dest_node -> m_out_veh_queue.pop_front();
 
-    routing -> remove_finished(_veh);  // remove from m_tracker
-    veh_factory -> remove_finished_veh(_veh);
+    routing -> remove_finished(_veh, del);  // remove from m_tracker
+    veh_factory -> remove_finished_veh(_veh, del);
   }
   return 0;
 }

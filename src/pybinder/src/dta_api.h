@@ -45,7 +45,7 @@ public:
   int install_cc();
   int install_cc_tree();
   int run_once();
-  int run_whole();
+  int run_whole(bool verbose=true);
   int register_links(py::array_t<int> links);
   int register_paths(py::array_t<int> paths);
   int get_cur_loading_interval();
@@ -75,7 +75,7 @@ public:
   int initialize(const std::string &folder);
   int install_cc();
   int install_cc_tree();
-  int run_whole();
+  int run_whole(bool verbose=true);
   int register_links(py::array_t<int> links);
   int get_cur_loading_interval();
   py::array_t<double> get_travel_stats();
@@ -129,9 +129,9 @@ public:
     int initialize_mmdue(const std::string &folder);
     int install_cc();
     int install_cc_tree();
-    int run_whole();
-    int run_mmdue(const std::string &folder);
-    int run_mmdta_adaptive(const std::string &folder, int cong_frequency = 180);
+    int run_whole(bool verbose=true);
+    int run_mmdue(const std::string &folder, bool verbose=true);
+    int run_mmdta_adaptive(const std::string &folder, int cong_frequency = 180, bool verbose=true);
     int register_links_driving(py::array_t<int> links_driving);
     int register_links_walking(py::array_t<int> links_walking);
     int register_links_bus(py::array_t<int> links_bus);

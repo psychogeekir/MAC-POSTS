@@ -30,7 +30,7 @@ public:
   TInt m_enroute;
   TInt m_finished;
   TFlt m_total_time;  // intervals
-  virtual int remove_finished_veh(MNM_Veh *veh);
+  virtual int remove_finished_veh(MNM_Veh *veh, bool del=true);
 };
 
 

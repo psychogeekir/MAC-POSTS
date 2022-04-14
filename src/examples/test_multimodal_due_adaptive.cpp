@@ -20,9 +20,9 @@ int main()
     printf("BEGIN multimodal DUE test!\n");
 
     // std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_columngeneration";
-    // std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_fixedpath";
+    std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_fixedpath";
 
-    std::string folder = "/srv/data/qiling/Projects/CentralOhio_Honda_Project/Multimodal/scenarios/mobility_service/input_files_CentralOhio_mmdue_AM";
+    // std::string folder = "/srv/data/qiling/Projects/CentralOhio_Honda_Project/Multimodal/scenarios/mobility_service/input_files_CentralOhio_mmdue_AM";
     // std::string folder = "/home/qiling/Documents/CentralOhio_Honda_Project/Multimodal/scenarios/no_mobility_service/input_files_CentralOhio_mmdue_AM";
 
     // std::string folder = "/home/qiling/Documents/CentralOhio_Honda_Project/Multimodal/scenarios/mobility_service/input_files_CentralOhio_mmdue_AM_1.1";
@@ -205,9 +205,16 @@ int main()
     _vis_file4 << _str;
     if (_vis_file4.is_open()) _vis_file4.close();
 
-
-    freopen((folder + "/" + rec_folder + "/emission_output.log").c_str(), "w", stdout);
-    mmdta -> m_emission -> output();
+    std::string emission_file_name = folder + "/" + rec_folder + "/emission";
+    std::ofstream emission_file;
+    emission_file.open(emission_file_name, std::ofstream::out);
+    if (!emission_file.is_open()){
+        printf("Error happens when open emission_file\n");
+        exit(-1);
+    }
+    // freopen((folder + "/" + rec_folder + "/emission_output.log").c_str(), "w", stdout);
+    emission_file << mmdta -> m_emission -> output();
+    emission_file.close();
 
     delete mmdta;
     delete config;

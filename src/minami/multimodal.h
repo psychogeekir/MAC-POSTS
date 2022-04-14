@@ -149,7 +149,7 @@ public:
     MNM_Parking_Lot(TInt ID, TInt node_ID, MNM_Passenger_Factory *passenger_factory, MNM_Veh_Factory *veh_factory, 
                     TFlt base_price, TFlt price_surge_coeff, TFlt avg_parking_time, TFlt capacity, TFlt unit_time);
     virtual ~MNM_Parking_Lot();
-    int release_one_interval_passenger(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing=nullptr);  // invoked in MNM_Destination_Multimodal::receive()
+    int release_one_interval_passenger(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing=nullptr, bool del=false);  // invoked in MNM_Destination_Multimodal::receive()
     int evolve(TInt timestamp);
     TFlt get_cruise_time(TInt timestamp); // intervals
 
@@ -254,7 +254,7 @@ public:
 
     MNM_Passenger* make_passenger(TInt timestamp, TInt passenger_type);
     MNM_Passenger* get_passenger(TInt ID);
-    int remove_finished_passenger(MNM_Passenger *passenger);
+    int remove_finished_passenger(MNM_Passenger *passenger, bool del=true);
 
     std::unordered_map<TInt, MNM_Passenger*> m_passenger_map;
 
@@ -317,7 +317,7 @@ public:
     MNM_Veh_Multimodal* make_veh_multimodal(TInt timestamp, Vehicle_type veh_type, TInt vehicle_cls, TInt capacity=TInt(1),
                                             TInt bus_route=TInt(-1), bool is_pnr=false, TInt pickup_waiting_time=TInt(0));
     
-    virtual int remove_finished_veh(MNM_Veh *veh) override;
+    virtual int remove_finished_veh(MNM_Veh *veh, bool del=true) override;
 
     TInt m_bus_capacity;
     TInt m_min_dwell_intervals;
@@ -345,7 +345,7 @@ public:
     virtual ~MNM_Destination_Multimodal() override;
     int evolve(TInt timestamp);
     virtual int receive(TInt timestamp) override;
-    int receive(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing, MNM_Veh_Factory *veh_factory, MNM_Passenger_Factory *passenger_factory);
+    int receive(TInt timestamp, MNM_Routing_Multimodal_Hybrid *routing, MNM_Veh_Factory *veh_factory, MNM_Passenger_Factory *passenger_factory, bool del=true);
 
     MNM_Parking_Lot *m_parking_lot;
     std::deque<MNM_Passenger*> m_out_passenger_queue;
@@ -759,7 +759,7 @@ public:
     virtual int register_veh(MNM_Veh* veh, bool track = true) override;
     virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
     virtual int update_routing(TInt timestamp) override;
-    virtual int remove_finished(MNM_Veh *veh) override;
+    virtual int remove_finished(MNM_Veh *veh, bool del) override;
 
     Bus_Path_Table *m_bus_path_table;
 };
@@ -780,7 +780,7 @@ public:
     virtual int register_veh(MNM_Veh* veh, bool track = true) override;
     virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
     virtual int update_routing(TInt timestamp) override;
-    virtual int remove_finished(MNM_Veh *veh) override;
+    virtual int remove_finished(MNM_Veh *veh, bool del=true) override;
 
     PnR_Path_Table *m_pnr_path_table;
 };
@@ -800,7 +800,7 @@ public:
     virtual ~MNM_Routing_PassengerBusTransit();
     virtual int init_routing(Path_Table *path_table=nullptr){return 0;};
     virtual int update_routing(TInt timestamp){return 0;};
-    virtual int remove_finished(MNM_Passenger *passenger){return 0;};
+    virtual int remove_finished(MNM_Passenger *passenger, bool del=true){return 0;};
 
     PNEGraph m_graph;
     MNM_OD_Factory *m_od_factory;
@@ -826,7 +826,7 @@ public:
                                           TInt buffer_length=TInt(-1));
     virtual ~MNM_Routing_PassengerBusTransit_Fixed() override;
     int register_passenger(MNM_Passenger* passenger, bool track = true);
-    virtual int remove_finished(MNM_Passenger *passenger) override;
+    virtual int remove_finished(MNM_Passenger *passenger, bool del=true) override;
     int add_passenger_path(MNM_Passenger* passenger, std::deque<TInt> *link_que);
     virtual int init_routing(Path_Table *path_table=nullptr) override;
     int update_routing_origin(TInt timestamp);
@@ -908,8 +908,8 @@ public:
     virtual ~MNM_Routing_Multimodal_Hybrid() override;
     virtual int init_routing(Path_Table *driving_path_table=nullptr) override;
     virtual int update_routing(TInt timestamp) override;
-    virtual int remove_finished(MNM_Veh *veh) override;
-    virtual int remove_finished_passenger(MNM_Passenger *passenger);
+    virtual int remove_finished(MNM_Veh *veh, bool del=true) override;
+    virtual int remove_finished_passenger(MNM_Passenger *passenger, bool del=true);
 
     MNM_Routing_Bus *m_routing_bus_fixed;
     MNM_Routing_PnR_Fixed *m_routing_car_pnr_fixed;

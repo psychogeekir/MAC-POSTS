@@ -94,13 +94,19 @@ int main()
 	}
 
 	// Output total travels and travel time, before divided by flow_scalar
-	TInt _count_car = 0, _count_truck = 0;
-	TFlt _tot_tt_car = 0.0, _tot_tt_truck = 0.0;
+	TInt _count_car, _count_truck;
+	TFlt _tot_tt_car, _tot_tt_truck;
 	_count_car = dynamic_cast<MNM_Veh_Factory_Multiclass*>(test_dta -> m_veh_factory) -> m_finished_car;
     _count_truck = dynamic_cast<MNM_Veh_Factory_Multiclass*>(test_dta -> m_veh_factory) -> m_finished_truck;
-	_tot_tt_car = dynamic_cast<MNM_Veh_Factory_Multiclass*>(test_dta -> m_veh_factory) -> m_total_time_car;
-	_tot_tt_truck = dynamic_cast<MNM_Veh_Factory_Multiclass*>(test_dta -> m_veh_factory) -> m_total_time_truck;
+	_tot_tt_car = dynamic_cast<MNM_Veh_Factory_Multiclass*>(test_dta -> m_veh_factory) -> m_total_time_car * test_dta -> m_unit_time / 3600.0;
+	_tot_tt_truck = dynamic_cast<MNM_Veh_Factory_Multiclass*>(test_dta -> m_veh_factory) -> m_total_time_truck * test_dta -> m_unit_time / 3600.0;
+	printf("\n\n\nTotal car: %d, Total truck: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours\n\n\n\n", int(_count_car), int(_count_truck), float(_tot_tt_car), float(_tot_tt_truck));
+
 	if ((int)test_dta -> m_veh_factory -> m_veh_map.size() == test_dta -> m_veh_factory -> m_num_veh) {
+		_count_car = 0;
+		_count_truck = 0;
+		_tot_tt_car = 0.0;
+		_tot_tt_truck = 0.0;
 		for (auto _map_it : test_dta -> m_veh_factory -> m_veh_map){
 			if (_map_it.second -> m_finish_time > 0) {
 				_veh = dynamic_cast<MNM_Veh_Multiclass *>(_map_it.second);
@@ -114,9 +120,8 @@ int main()
 				}
 			}
 		}
+		printf("\n\n\nTotal car: %d, Total truck: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours\n\n\n\n", int(_count_car), int(_count_truck), float(_tot_tt_car), float(_tot_tt_truck));
 	}
-	printf("\n\n\nTotal car: %d, Total truck: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours\n\n\n\n", int(_count_car), int(_count_truck), float(_tot_tt_car), float(_tot_tt_truck));
-
 
 
 	if (output_veh_locs){

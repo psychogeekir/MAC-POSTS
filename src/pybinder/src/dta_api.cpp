@@ -270,10 +270,10 @@ int Dta_Api::install_cc_tree()
   return 0;
 }
 
-int Dta_Api::run_whole()
+int Dta_Api::run_whole(verbose)
 {
   m_dta -> pre_loading();
-  m_dta -> loading(false);
+  m_dta -> loading(verbose);
   return 0;
 }
 
@@ -631,10 +631,10 @@ int Mcdta_Api::install_cc_tree()
   return 0;
 }
 
-int Mcdta_Api::run_whole()
+int Mcdta_Api::run_whole(bool verbose)
 {
   m_mcdta -> pre_loading();
-  m_mcdta -> loading(true);
+  m_mcdta -> loading(verbose);
   return 0;
 }
 
@@ -755,33 +755,42 @@ py::array_t<double> Mcdta_Api::get_travel_stats()
 {
     TInt _count_car = 0, _count_truck = 0;
     TFlt _tot_tt_car = 0.0, _tot_tt_truck = 0.0;
-    MNM_Veh_Multiclass* _veh;
-    int _end_time = get_cur_loading_interval();
-    for (auto _map_it : m_mcdta -> m_veh_factory -> m_veh_map){
-        _veh = dynamic_cast<MNM_Veh_Multiclass *>(_map_it.second);
-        if (_veh -> m_class == 0){
-            _count_car += 1;
-            if (_veh -> m_finish_time > 0) {
-                _tot_tt_car += (_veh -> m_finish_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
-            }
-            else {
-                _tot_tt_car += (_end_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
-            }
-        }
-        else {
-            _count_truck += 1;
-            if (_veh -> m_finish_time > 0) {
-                _tot_tt_truck += (_veh -> m_finish_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
-            }
-            else {
-                _tot_tt_truck += (_end_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
-            }
-        }
-    }
-//     printf("\n\nTotal car: %d, Total truck: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours\n\n", 
-//            int(_count_car/m_mcdta -> m_flow_scalar), int(_count_truck/m_mcdta -> m_flow_scalar), 
-//            float(_tot_tt_car/m_mcdta -> m_flow_scalar), float(_tot_tt_truck/m_mcdta -> m_flow_scalar));
-//     m_mcdta -> m_emission -> output();
+
+    auto *_veh_factory = dynamic_cast<MNM_Veh_Factory_Multiclass*>(m_mcdta -> m_veh_factory);
+    _count_car = _veh_factory -> m_finished_car;
+    _count_truck = _veh_factory -> m_finished_truck;
+
+    _tot_tt_car = _veh_factory -> m_total_time_car * m_mmdta -> m_unit_time / 3600.0;
+    _tot_tt_truck = _veh_factory -> m_total_time_truck * m_mmdta -> m_unit_time / 3600.0;
+
+    // MNM_Veh_Multiclass* _veh;
+    // int _end_time = get_cur_loading_interval();
+    // for (auto _map_it : m_mcdta -> m_veh_factory -> m_veh_map){
+    //     _veh = dynamic_cast<MNM_Veh_Multiclass *>(_map_it.second);
+    //     if (_veh -> m_class == 0){
+    //         _count_car += 1;
+    //         if (_veh -> m_finish_time > 0) {
+    //             _tot_tt_car += (_veh -> m_finish_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
+    //         }
+    //         else {
+    //             _tot_tt_car += (_end_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
+    //         }
+    //     }
+    //     else {
+    //         _count_truck += 1;
+    //         if (_veh -> m_finish_time > 0) {
+    //             _tot_tt_truck += (_veh -> m_finish_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
+    //         }
+    //         else {
+    //             _tot_tt_truck += (_end_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
+    //         }
+    //     }
+    // }
+
+    // printf("\n\nTotal car: %d, Total truck: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours\n\n", 
+    //        int(_count_car/m_mcdta -> m_flow_scalar), int(_count_truck/m_mcdta -> m_flow_scalar), 
+    //        float(_tot_tt_car/m_mcdta -> m_flow_scalar), float(_tot_tt_truck/m_mcdta -> m_flow_scalar));
+    // m_mcdta -> m_emission -> output();
     
     int new_shape[1] = {4};
     auto result = py::array_t<double>(new_shape);
@@ -1587,15 +1596,15 @@ int Mmdta_Api::install_cc_tree()
     return 0;
 }
 
-int Mmdta_Api::run_whole()
+int Mmdta_Api::run_whole(bool verbose)
 {
     IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid");
     m_mmdta -> pre_loading();
-    m_mmdta -> loading(true);
+    m_mmdta -> loading(verbose);
     return 0;
 }
 
-int Mmdta_Api::run_mmdue(const std::string &folder)
+int Mmdta_Api::run_mmdue(const std::string &folder, bool verbose=true)
 {
     IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_FixedPath" ||
             m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_ColumnGeneration");
@@ -1626,7 +1635,7 @@ int Mmdta_Api::run_mmdue(const std::string &folder)
         printf("---------- Iteration %d ----------\n", i);
 
         // DNL using dta, new dta is built from scratch
-        mmdta = m_mmdue->run_mmdta(true);
+        mmdta = m_mmdue->run_mmdta(verbose);
 
         // update time dependent cost and save existing path table
         m_mmdue -> build_link_cost_map(mmdta);
@@ -1673,11 +1682,11 @@ int Mmdta_Api::run_mmdue(const std::string &folder)
     return 0;
 }
 
-int Mmdta_Api::run_mmdta_adaptive(const std::string &folder, int cong_frequency)
+int Mmdta_Api::run_mmdta_adaptive(const std::string &folder, int cong_frequency, bool verbose)
 {
     IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid");
 
-    m_mmdta = m_mmdue -> run_mmdta_adaptive(true);
+    m_mmdta = m_mmdue -> run_mmdta_adaptive(verbose);
     m_is_mmdta_new = true;
 
     // m_mmdue -> build_link_cost_map(m_mmdta);
@@ -2025,10 +2034,10 @@ py::array_t<double> Mmdta_Api::get_travel_stats()
     //     }
     // }
 
-//    printf("\n\nTotal car: %d, Total truck: %d, Total bus : %d, Total passenger: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours, Total passenger tt: %.2f hours\n\n",
-//           int(_count_car/m_mmdta -> m_flow_scalar), int(_count_truck/m_mmdta -> m_flow_scalar), int(_count_bus/m_mmdta -> m_flow_scalar), int(_count_passenger),
-//           float(_tot_tt_car/m_mmdta -> m_flow_scalar), float(_tot_tt_truck/m_mmdta -> m_flow_scalar), float(_tot_tt_bus/m_mmdta -> m_flow_scalar), float(_tot_tt_passenger));
-//    m_mmdta -> m_emission -> output();
+    // printf("\n\nTotal car: %d, Total truck: %d, Total bus : %d, Total passenger: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours, Total passenger tt: %.2f hours\n\n",
+    //         int(_count_car/m_mmdta -> m_flow_scalar), int(_count_truck/m_mmdta -> m_flow_scalar), int(_count_bus/m_mmdta -> m_flow_scalar), int(_count_passenger),
+    //         float(_tot_tt_car/m_mmdta -> m_flow_scalar), float(_tot_tt_truck/m_mmdta -> m_flow_scalar), float(_tot_tt_bus/m_mmdta -> m_flow_scalar), float(_tot_tt_passenger));
+    // m_mmdta -> m_emission -> output();
 
     int new_shape[1] = {8};
     auto result = py::array_t<double>(new_shape);

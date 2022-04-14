@@ -441,7 +441,7 @@ int MNM_Dta::load_once(bool verbose, TInt load_int, TInt assign_int)
   for (auto _dest_it = m_od_factory -> m_destination_map.begin(); _dest_it != m_od_factory -> m_destination_map.end(); _dest_it++){
     _dest = _dest_it -> second;
     // _dest -> receive(load_int);
-    _dest -> receive(load_int, m_routing, m_veh_factory);
+    _dest -> receive(load_int, m_routing, m_veh_factory, true);
   }
 
   if (verbose) printf("Update record!\n");
@@ -555,7 +555,7 @@ int MNM_Dta::loading(bool verbose)
     for (auto _dest_it = m_od_factory -> m_destination_map.begin(); _dest_it != m_od_factory -> m_destination_map.end(); _dest_it++){
       _dest = _dest_it -> second;
       // _dest -> receive(_cur_int);
-      _dest -> receive(_cur_int, m_routing, m_veh_factory);
+      _dest -> receive(_cur_int, m_routing, m_veh_factory, true);
     }
 
     if(verbose) printf("Update record!\n");

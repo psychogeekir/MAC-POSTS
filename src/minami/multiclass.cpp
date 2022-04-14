@@ -2328,7 +2328,7 @@ MNM_Veh_Multiclass* MNM_Veh_Factory_Multiclass::make_veh_multiclass(TInt timesta
 	return _veh;
 }
 
-int MNM_Veh_Factory_Multiclass::remove_finished_veh(MNM_Veh *veh)
+int MNM_Veh_Factory_Multiclass::remove_finished_veh(MNM_Veh *veh, bool del)
 {
 	MNM_Veh_Multiclass *_veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
 	IAssert(_veh_multiclass != nullptr);
@@ -2343,7 +2343,7 @@ int MNM_Veh_Factory_Multiclass::remove_finished_veh(MNM_Veh *veh)
 		m_enroute_truck -= 1;
 		m_total_time_truck += (veh -> m_finish_time - veh -> m_start_time);
 	}
-	MNM_Veh_Factory::remove_finished_veh(veh);
+	MNM_Veh_Factory::remove_finished_veh(veh, del);
 	return 0;
 }
 

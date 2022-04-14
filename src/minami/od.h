@@ -50,7 +50,7 @@ public:
   TFlt m_flow_scalar;
   MNM_DMDND *m_dest_node;
   virtual int receive(TInt current_interval);
-  virtual int receive(TInt current_interval, MNM_Routing *routing, MNM_Veh_Factory *veh_factory);
+  virtual int receive(TInt current_interval, MNM_Routing *routing, MNM_Veh_Factory *veh_factory, bool del=true);
 };
 
 namespace MNM{

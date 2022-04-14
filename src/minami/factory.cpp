@@ -35,22 +35,27 @@ MNM_Veh *MNM_Veh_Factory::make_veh(TInt timestamp, Vehicle_type veh_type)
   return _veh;
 }
 
-int MNM_Veh_Factory::remove_finished_veh(MNM_Veh *veh)
+int MNM_Veh_Factory::remove_finished_veh(MNM_Veh *veh, bool del)
 {
   if (m_veh_map.find(veh -> m_veh_ID) == m_veh_map.end() || m_veh_map.find(veh -> m_veh_ID) -> second != veh) {
     printf("veh not in factory!\n");
     exit(-1);
   }
-  m_veh_map.erase(veh -> m_veh_ID);
+
+  if (del) {
+    m_veh_map.erase(veh -> m_veh_ID);
+  }
 
   IAssert(veh -> m_finish_time > veh -> m_start_time);
   m_total_time += (veh -> m_finish_time - veh -> m_start_time);
   
-  delete veh;
-
+  if (del) {
+    delete veh;
+  }
 
   m_finished += 1;
   m_enroute -= 1;
+  IAssert(m_num_veh == m_finished + m_enroute);
   return 0;
 }
 
