@@ -8,7 +8,27 @@ In the codes, we also note it as MINAMI (MNM), which represents Multi-functIonal
 
 #### Introduction
 
-MAC-POSTS is a mesoscopic traffic simulation software for dynamic network loading. It is interface based and is friendly to new node/link/routing models.
+MAC-POSTS is the abbreviation of Mobility Data Analytics Center - Prediction, Optimization, and Simulation toolkit for Transportation Systems. It is an open-source mesoscopic dynamic traffic simulation toolkit for large-scale transportation networks. Its core traffic simulation module is written in C++ for the performance purpose while it also provides convenient Python-APIs for input and output data processing.
+
+#### What MAC-POSTS can do?
+
+MAC-POSTS can be used in many dynamic transportation network modeling tasks, such as dynamic network loading and dynamic traffic assignment. Particularly, it has the following highlighted features:
+
+- High spatial and temporal granularity
+    - MAC-POSTS can produce second-by-second vehicle traces through the entire trip.
+- Large-scale simulation
+    - Compared to existing off-the-shelf dynamic models, MAC-POSTS can handle much larger networks (e.g., regional networks with tens of thousands of links and origin-destination (O-D) pairs and millions of vehicles)
+- High fidelity
+    - The dynamic traffic O-D demands for the simulation can be calibrated efficiently using our machine-learning-based dynamic O-D demand estimation algorithm, which minimizes discrepancies between simulated data and observed data in the real world.
+- Multi-source data
+    - MAC-POSTS can utilize traffic data from multiple sources, such as traffic counts, travel speeds, bus transit, and parking.  
+- Multi-class vehicles
+    - MAC-POSTS can handle multi-class vehicles (e.g., cars and trucks) while the existing dynamic models often assume only single class vehicles exist.
+- Rich travel modes and behavior
+    - MAC-POSTS provides more travel modes and behavior models for simulation, e.g., driving, bus transit, mobility services, and parking and ride.
+- Traffic and emission metrics
+    - Based on the high-granularity simulation, MAC-POSTS can produce many useful metrics related to traffic, fuel consumptions, and emissions.
+
 
 #### Contributors
 
