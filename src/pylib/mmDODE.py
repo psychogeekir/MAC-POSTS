@@ -15,6 +15,9 @@ import MNMAPI
 
 class MMDODE:
     def __init__(self, nb, config):
+        self.reinitialize(nb, config)
+
+    def reinitialize(self, nb, config):
         self.config = config
         self.nb = nb
 
@@ -72,6 +75,26 @@ class MMDODE:
         # demand
         self.demand_list_total_passenger = self.nb.demand_total_passenger.demand_list
         self.demand_list_truck_driving = self.nb.demand_driving.demand_list
+
+    def check_registered_links_covered_by_registered_paths(self, folder):
+        self.save_simulation_input_files(folder)
+
+        a = MNMAPI.mmdta_api()
+        a.initialize(folder)
+
+        a.register_links_driving(self.observed_links_driving)
+        a.register_links_bus(self.observed_links_bus)
+        a.register_links_walking(self.observed_links_walking)
+
+        a.register_paths(self.paths_list)
+        a.register_paths_driving(self.paths_list_driving)
+        a.register_paths_bustransit(self.paths_list_bustransit)
+        a.register_paths_pnr(self.paths_list_pnr)
+        a.register_paths_bus(self.paths_list_busroute)
+
+        is_updated = a.generate_paths_to_cover_registered_links_driving()
+        is_updated += a.generate_paths_to_cover_registered_links_bus_walking()
+        return is_updated
         
     def _add_car_link_flow_data(self, link_flow_df_list):
         # assert(self.config['use_car_link_flow'])
@@ -204,19 +227,22 @@ class MMDODE:
         a.install_cc()
         a.install_cc_tree()
 
-        a.run_whole()
+        # a.run_whole(False)
+        a.run_mmdta_adaptive(new_folder, -1, False)
         # print("Finish simulation", time.time())
 
         travel_stats = a.get_travel_stats()
+        assert(len(travel_stats) == 9)
         print("\n************ travel stats ************")
         print("car count: {}".format(travel_stats[0]))
-        print("truck count: {}".format(travel_stats[1]))
-        print("bus count: {}".format(travel_stats[2]))
-        print("passenger count: {}".format(travel_stats[3]))
-        print("car total travel time (hours): {}".format(travel_stats[4]))
-        print("truck total travel time (hours): {}".format(travel_stats[5]))
-        print("bus total travel time (hours): {}".format(travel_stats[6]))
-        print("passenger total travel time (hours): {}".format(travel_stats[7]))
+        print("car pnr count: {}".format(travel_stats[1]))
+        print("truck count: {}".format(travel_stats[2]))
+        print("bus count: {}".format(travel_stats[3]))
+        print("passenger count: {}".format(travel_stats[4]))
+        print("car total travel time (hours): {}".format(travel_stats[5]))
+        print("truck total travel time (hours): {}".format(travel_stats[6]))
+        print("bus total travel time (hours): {}".format(travel_stats[7]))
+        print("passenger total travel time (hours): {}".format(travel_stats[8]))
         print("************ travel stats ************\n")
 
         # print_emission_stats() only works if folder is not removed, cannot find reason
@@ -301,19 +327,36 @@ class MMDODE:
                                                self.num_assign_interval * len(self.paths_list_pnr)))
         
         if self.config['use_car_link_flow'] or self.config['use_car_link_tt']:
-            car_dar_matrix_driving = self.get_car_dar_matrix_driving(dta, f_car_driving)   
+            car_dar_matrix_driving = self.get_car_dar_matrix_driving(dta, f_car_driving)
+            if car_dar_matrix_driving.max() == 0.:
+                print("car_dar_matrix_driving is empty!")
+        
             car_dar_matrix_pnr = self.get_car_dar_matrix_pnr(dta, f_car_pnr)
+            if car_dar_matrix_pnr.max() == 0.:
+                print("car_dar_matrix_pnr is empty!")
             
         if self.config['use_truck_link_flow'] or self.config['use_truck_link_tt']:
             truck_dar_matrix_driving = self.get_truck_dar_matrix_driving(dta, f_truck_driving)
+            if truck_dar_matrix_driving.max() == 0.:
+                print("truck_dar_matrix_driving is empty!")
 
         if self.config['use_bus_link_flow'] or self.config['use_bus_link_tt']:
             bus_dar_matrix_transit_link = self.get_bus_dar_matrix_bustransit_link(dta, f_bus)
+            if bus_dar_matrix_transit_link.max() == 0.:
+                print("bus_dar_matrix_transit_link is empty!")
+
             bus_dar_matrix_driving_link = self.get_bus_dar_matrix_driving_link(dta, f_bus)
+            if bus_dar_matrix_driving_link.max() == 0.:
+                print("bus_dar_matrix_driving_link is empty!")
 
         if self.config['use_passenger_link_flow'] or self.config['use_passenger_link_tt']:
             passenger_dar_matrix_bustransit = self.get_passenger_dar_matrix_bustransit(dta, f_passenger_bustransit)
+            if passenger_dar_matrix_bustransit.max() == 0.:
+                print("passenger_dar_matrix_bustransit is empty!")
+
             passenger_dar_matrix_pnr = self.get_passenger_dar_matrix_pnr(dta, f_car_pnr)
+            if passenger_dar_matrix_pnr.max() == 0.:
+                print("passenger_dar_matrix_pnr is empty!")
             
         return car_dar_matrix_driving, truck_dar_matrix_driving, car_dar_matrix_pnr, bus_dar_matrix_transit_link, bus_dar_matrix_driving_link, \
                passenger_dar_matrix_bustransit, passenger_dar_matrix_pnr
@@ -1039,6 +1082,7 @@ class MMDODE:
             self.nb.update_demand_path_driving(f_car_driving, f_truck_driving)
             self.nb.update_demand_path_bustransit(f_passenger_bustransit)
             self.nb.update_demand_path_pnr(f_car_pnr)
+            self.nb.get_mode_portion_matrix()
         else:
             f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr = \
                 self.init_path_flow(car_driving_scale, truck_driving_scale, passenger_bustransit_scale, car_pnr_scale)

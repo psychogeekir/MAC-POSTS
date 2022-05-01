@@ -45,6 +45,9 @@ public:
   float static roundoff(float value, unsigned char prec);
   bool static approximate_equal(TFlt a, TFlt b, float p = 1e-4);
   bool static approximate_less_than(TFlt a, TFlt b, float p = 1e-4);
+
+  int static round_up_time(TFlt time, float p = 1e-4);
+  PNEGraph static reverse_graph(const PNEGraph &graph);
 };
 
 

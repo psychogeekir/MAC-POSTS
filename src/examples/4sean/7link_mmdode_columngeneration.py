@@ -55,7 +55,7 @@ from mmDODE import MMDODE
 data_folder_observed = os.path.join('/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_dode')
 # data_folder_observed = os.path.join('/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_dode_columngeneration/record/input_files_estimate_demand')
 # data_folder_observed = os.path.join('/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_dode_columngeneration/record/input_files_estimate_path_flow')
-data_folder = data_folder_observed  # os.path.join('/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_dode_columngeneration')
+data_folder = os.path.join('/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_dode_columngeneration')
 
 # %%
 nb = MNM_network_builder()  # from MNM_mcnb, for python analysis
@@ -301,7 +301,7 @@ else:
     )
 
 # %%
-nb = MNM_network_builder()  # from MNM_mcnb, for python analysis
+nb = MNM_network_builder()  # from MNM_mmnb, for python analysis
 nb.load_from_folder(data_folder)
 print(nb)
 
@@ -316,8 +316,25 @@ config['paths_list_busroute'] = np.array(
 config['paths_list'] = np.concatenate((config['paths_list_driving'], config['paths_list_bustransit'],
                                        config['paths_list_pnr'], config['paths_list_busroute']))
 
-
+# %%
 dode = MMDODE(nb, config)
+is_updated = dode.check_registered_links_covered_by_registered_paths(data_folder + '/corrected_input_files')
+if is_updated > 0:
+    nb = MNM_network_builder()  # from MNM_mmnb, for python analysis
+    nb.load_from_folder(data_folder + '/corrected_input_files')
+
+    config['paths_list_driving'] = np.array(
+        [ID for ID in nb.path_table_driving.ID2path.keys()], dtype=int)
+    config['paths_list_bustransit'] = np.array(
+        [ID for ID in nb.path_table_bustransit.ID2path.keys()], dtype=int)
+    config['paths_list_pnr'] = np.array(
+        [ID for ID in nb.path_table_pnr.ID2path.keys()], dtype=int)
+    config['paths_list_busroute'] = np.array(
+        [ID for ID in nb.path_table_bus.ID2path.keys()], dtype=int)
+    config['paths_list'] = np.concatenate((config['paths_list_driving'], config['paths_list_bustransit'],
+                                           config['paths_list_pnr'], config['paths_list_busroute']))
+    dode.reinitialize(nb, config)
+
 dode.add_data(data_dict)
 
 # %%
@@ -351,9 +368,9 @@ dode.add_data(data_dict)
 #                                 alpha_mode=(1., 1.5, 2.), beta_mode=1, alpha_path=1, beta_path=1, 
 #                                 use_file_as_init=None, save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
 
-max_epoch = 50
+max_epoch = 70
 column_generation = np.zeros(max_epoch, dtype=bool)
-# column_generation[:5] = 1
+column_generation[:10] = 1
 
 # f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
 #     dode.estimate_path_flow(car_driving_scale=100, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
@@ -386,12 +403,12 @@ car_pnr_step_size_modifier = np.ones(max_epoch, dtype=bool)
 
 f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
     dode.estimate_path_flow_pytorch(car_driving_scale=10, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
-                                    car_driving_step_size=2, truck_driving_step_size=1, passenger_bustransit_step_size=1, car_pnr_step_size=1,
+                                    car_driving_step_size=1.5, truck_driving_step_size=0.8, passenger_bustransit_step_size=0.3, car_pnr_step_size=0.8,
                                     car_driving_step_size_modifier=car_driving_step_size_modifier, 
                                     truck_driving_step_size_modifier=truck_driving_step_size_modifier, 
                                     passenger_bustransit_step_size_modifier=passenger_bustransit_step_size_modifier, 
                                     car_pnr_step_size_modifier=car_pnr_step_size_modifier,
-                                    max_epoch=max_epoch, column_generation=column_generation, use_tdsp=False,
+                                    max_epoch=max_epoch, column_generation=column_generation, use_tdsp=True,
                                     use_file_as_init=None, 
                                     save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
 

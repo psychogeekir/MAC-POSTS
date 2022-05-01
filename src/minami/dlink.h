@@ -72,6 +72,7 @@ public:
   virtual TFlt get_link_flow() {return TFlt(0);};
   virtual TFlt get_link_tt() {return TFlt(0);};
   virtual TFlt get_link_tt_from_flow(TFlt flow) {return TFlt(0);};
+  virtual TFlt get_link_freeflow_tt();  // seconds
 
   int install_cumulative_curve();
   int install_cumulative_curve_tree();

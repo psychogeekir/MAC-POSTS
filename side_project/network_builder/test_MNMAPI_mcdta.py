@@ -57,7 +57,14 @@ a.install_cc_tree()
 
 
 # %%
-a.run_whole()
+a.run_whole(False)
+
+r = a.get_waiting_time_at_intersections()
+print(r)
+r = a.get_waiting_time_at_intersections_car()
+print(r)
+r = a.get_waiting_time_at_intersections_truck()
+print(r)
 
 
 # %%

@@ -23,8 +23,8 @@ int main()
     // std::string folder = "/home/alanpi/Desktop/MAC-POSTS/data/input_files_SPC_separate_Routing";
     // std::string folder = "/home/lemma/Documents/MAC-POSTS/src/examples/mcDODE/a6e7b31067d2ead8d3725fc0ed587d06c958f63c";
 
-    // std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_columngeneration";
-    std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_fixedpath";
+    std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_columngeneration";
+    // std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_due_fixedpath";
     // std::string folder = "/home/qiling/Documents/CentralOhio_Honda_Project/Multimodal/scenarios/mobility_service/input_files_CentralOhio_mmdue_AM";
 
     // on macOS (Mac air)
@@ -96,6 +96,23 @@ int main()
         test_due->update_path_table_gp_fixed_departure_time_choice(mmdta, i);
 
         if (i == test_due -> m_max_iter - 1) {
+            TInt _count_car, _count_car_pnr, _count_truck, _count_bus, _count_passenger, _count_passenger_pnr;
+            TFlt _tot_tt_car, _tot_tt_truck, _tot_tt_bus, _tot_tt_passenger;
+            _count_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_car;
+            _count_car_pnr = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_car_pnr;
+            _count_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_truck;
+            _count_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_bus;
+            _tot_tt_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_car * mmdta -> m_unit_time / 3600.0;
+            _tot_tt_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_truck * mmdta -> m_unit_time / 3600.0;
+            _tot_tt_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_bus * mmdta -> m_unit_time / 3600.0;
+            printf("\nTotal driving car: %d, Total pnr car:, %d, Total truck: %d, Total bus: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours\n", 
+                    int(_count_car), int(_count_car_pnr), int(_count_truck), int(_count_bus), float(_tot_tt_car), float(_tot_tt_truck), float(_tot_tt_bus));
+            _count_passenger = mmdta -> m_passenger_factory -> m_finished_passenger;
+            _count_passenger_pnr = mmdta -> m_passenger_factory -> m_finished_passenger_pnr;
+            _tot_tt_passenger = mmdta -> m_passenger_factory -> m_total_time_passenger * mmdta -> m_unit_time / 3600.0;
+            printf("Total passenger: %d, Total pnr passenger: %d, Total Total tt: %.2f hours\n", 
+                    int(_count_passenger), int(_count_passenger_pnr), float(_tot_tt_passenger));
+                    
             // print to terminal
             // freopen("CON", "w", stdout);
             // print to file

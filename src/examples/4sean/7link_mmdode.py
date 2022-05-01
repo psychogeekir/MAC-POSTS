@@ -56,7 +56,7 @@ data_folder = os.path.join('/home/qiling/Documents/MAC-POSTS/data/input_files_7l
 # data_folder = os.path.join('/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_dode_columngeneration')
 
 # %%
-nb = MNM_network_builder()  # from MNM_mcnb, for python analysis
+nb = MNM_network_builder()  # from MNM_mmnb, for python analysis
 nb.load_from_folder(data_folder)
 print(nb)
 
@@ -120,23 +120,23 @@ true_f_bus = nb.demand_bus.path_flow_matrix.flatten(order='F')
 # observed_link_walking_list = [12, 16, 17, 20, 24]
 # assert(num_observed_link_walking == len(observed_link_walking_list))
 
-num_observed_link_driving = 2
+num_observed_link_driving = 3
 assert(num_observed_link_driving <= len(nb.link_driving_list))
-observed_link_driving_list = [4, 5]
+observed_link_driving_list = [3, 4, 5]
 assert(num_observed_link_driving <= len(observed_link_driving_list))
 
 num_observed_link_bus = 2
 assert(num_observed_link_bus <= len(nb.link_bus_list))
 # observed_link_bus_list = list(map(lambda x: x.ID, np.random.choice(
 #     nb.link_bus_list, num_observed_link_bus, replace=False)))
-observed_link_bus_list = [205, 206]
+observed_link_bus_list = [207, 211]
 assert(num_observed_link_bus == len(observed_link_bus_list))
 
-num_observed_link_walking = 3
+num_observed_link_walking = 2
 assert(num_observed_link_walking <= len(nb.link_walking_list))
 # observed_link_walking_list = list(map(lambda x: x.ID, np.random.choice(
 #     nb.link_walking_list, num_observed_link_walking, replace=False)))
-observed_link_walking_list = [16, 17, 20]
+observed_link_walking_list = [2, 33]
 assert(num_observed_link_walking == len(observed_link_walking_list))
 
 ml_car = num_observed_link_driving
@@ -166,10 +166,10 @@ config['use_truck_link_flow'] = True
 config['use_bus_link_flow'] = True
 config['use_passenger_link_flow'] = True
 
-config['use_car_link_tt'] = True
-config['use_truck_link_tt'] = True
-config['use_bus_link_tt'] = True
-config['use_passenger_link_tt'] = True
+config['use_car_link_tt'] = False
+config['use_truck_link_tt'] = False
+config['use_bus_link_tt'] = False
+config['use_passenger_link_tt'] = False
 
 config['car_count_agg'] = True
 config['truck_count_agg'] = True
@@ -285,10 +285,27 @@ for i in range(config['num_data']):
 
 # %%
 dode = MMDODE(nb, config)
+is_updated = dode.check_registered_links_covered_by_registered_paths(data_folder + '/corrected_input_files')
+if is_updated > 0:
+    nb = MNM_network_builder()  # from MNM_mmnb, for python analysis
+    nb.load_from_folder(data_folder + '/corrected_input_files')
+
+    config['paths_list_driving'] = np.array(
+        [ID for ID in nb.path_table_driving.ID2path.keys()], dtype=int)
+    config['paths_list_bustransit'] = np.array(
+        [ID for ID in nb.path_table_bustransit.ID2path.keys()], dtype=int)
+    config['paths_list_pnr'] = np.array(
+        [ID for ID in nb.path_table_pnr.ID2path.keys()], dtype=int)
+    config['paths_list_busroute'] = np.array(
+        [ID for ID in nb.path_table_bus.ID2path.keys()], dtype=int)
+    config['paths_list'] = np.concatenate((config['paths_list_driving'], config['paths_list_bustransit'],
+                                           config['paths_list_pnr'], config['paths_list_busroute']))
+    dode.reinitialize(nb, config)
+
 dode.add_data(data_dict)
 
 # %%
-max_epoch = 200
+# max_epoch = 200
 
 # passenger_step_size = np.ones(max_epoch)
 # passenger_step_size[:250] = 0.01
@@ -318,20 +335,20 @@ max_epoch = 100
 
 # f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
 #     dode.estimate_path_flow(car_driving_scale=100, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
-#                             car_driving_step_size=1.5, truck_driving_step_size=1, passenger_bustransit_step_size=1, car_pnr_step_size=1,
+#                             car_driving_step_size=2, truck_driving_step_size=1, passenger_bustransit_step_size=1, car_pnr_step_size=1,
 #                             max_epoch=max_epoch, adagrad=True, column_generation=False,
 #                             use_file_as_init=None, save_folder=None)
 
 f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
-    dode.estimate_path_flow_pytorch(car_driving_scale=100, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
-                                    car_driving_step_size=1.5, truck_driving_step_size=1, passenger_bustransit_step_size=1, car_pnr_step_size=1,
+    dode.estimate_path_flow_pytorch(car_driving_scale=10, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
+                                    car_driving_step_size=1.5, truck_driving_step_size=0.8, passenger_bustransit_step_size=1, car_pnr_step_size=1,
                                     max_epoch=max_epoch, column_generation=False,
                                     use_file_as_init=None, save_folder=None)
 
-print("r2 --- f_car_driving: {}, f_truck_driving: {}, f_passenger_bustransit: {}, f_car_pnr: {}"
-      .format(r2_score(f_car_driving, true_f_car_driving), r2_score(f_truck_driving, true_f_truck_driving),
-              r2_score(f_passenger_bustransit, true_f_passenger_bustransit),
-              r2_score(f_car_pnr, true_f_car_pnr)))
+# print("r2 --- f_car_driving: {}, f_truck_driving: {}, f_passenger_bustransit: {}, f_car_pnr: {}"
+#       .format(r2_score(f_car_driving, true_f_car_driving), r2_score(f_truck_driving, true_f_truck_driving),
+#               r2_score(f_passenger_bustransit, true_f_passenger_bustransit),
+#               r2_score(f_car_pnr, true_f_car_pnr)))
 
 # %% 
 result_folder = os.path.join(data_folder, 'record')
@@ -403,7 +420,7 @@ plt.plot(np.arange(len(loss_list))+1, list(map(lambda x: x[1]['passenger_count_l
 
 plt.ylabel('Loss')
 plt.xlabel('Iteration')
-plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.legend(loc='upper center', bbox_to_anchor=(1, 0.5))
 plt.ylim([0, 1])
 plt.xlim([1, len(loss_list)])
 
@@ -437,6 +454,13 @@ m_car_estimated = L_car.dot(estimated_car_x)
 m_truck_estimated = L_truck.dot(estimated_truck_x)
 m_bus_estimated = L_bus.dot(estimated_bus_x)
 m_passenger_estimated = L_passenger.dot(estimated_passenger_x)
+
+r2_car_count = r2_score(m_car_estimated, m_car)
+r2_truck_count = r2_score(m_truck_estimated, m_truck)
+r2_passenger_count = r2_score(m_passenger_estimated, m_passenger)
+r2_bus_count = r2_score(m_bus_estimated, m_bus)
+print("r2 count --- r2_car_count: {}, r2_truck_count: {}, r2_passenger_count: {}, r2_bus_count: {}"
+      .format(r2_car_count, r2_truck_count, r2_passenger_count, r2_bus_count))
 
 # %%
 m_car_max = int(np.max((np.max(m_car), np.max(m_car_estimated))) + 1)

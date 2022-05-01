@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <string>
+#include <set>
 
 class MNM_Path
 {
@@ -28,6 +29,9 @@ public:
   TInt m_buffer_length;
   // only used in multimodal
   int m_path_type = -1;
+
+  std::set<TInt> m_link_set;
+  virtual bool is_link_in(TInt link_ID);
 
   TFlt get_path_tt(MNM_Link_Factory *link_factory);
   TFlt get_path_fftt(MNM_Link_Factory *link_factory);

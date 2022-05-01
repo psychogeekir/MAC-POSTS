@@ -143,8 +143,11 @@ py::array_t<double> Tdsp_Api::extract_tdsp(int origin_node_ID, int timestamp)
     MNM_Path *_path;
     std::string _str;
 
+    IAssert(m_tdsp_tree -> m_dist.find(origin_node_ID) != m_tdsp_tree -> m_dist.end());
+    IAssert(m_tdsp_tree -> m_dist[origin_node_ID] != nullptr);
+
     printf("get distance to dest\n");
-    tmp_tt = m_tdsp_tree -> get_distance_to_destination(origin_node_ID, TFlt(timestamp));
+    tmp_tt = m_tdsp_tree -> m_dist[origin_node_ID][timestamp < m_tdsp_tree -> m_max_interval ? timestamp : m_tdsp_tree -> m_max_interval - 1];
     printf("At time %d, minimum tt is %f\n", timestamp, tmp_tt());
     _path = new MNM_Path();
     m_tdsp_tree -> get_tdsp(origin_node_ID, timestamp, m_td_link_cost, m_td_node_cost, _path);
@@ -270,7 +273,7 @@ int Dta_Api::install_cc_tree()
   return 0;
 }
 
-int Dta_Api::run_whole(verbose)
+int Dta_Api::run_whole(bool verbose)
 {
   m_dta -> pre_loading();
   m_dta -> loading(verbose);
@@ -338,6 +341,199 @@ int Dta_Api::register_paths(py::array_t<int> paths)
   }
   // m_path_set = std::set<MNM_Path*> (m_path_vec.begin(), m_path_vec.end());
   return 0;
+}
+
+std::vector<bool> Dta_Api::check_registered_links_in_registered_paths()
+{
+    std::vector<bool> _link_existing = std::vector<bool> ();
+    if (m_link_vec.empty()){
+        printf("Warning, Dta_Api::check_registered_links_in_registered_paths, no link registered\n");
+        return _link_existing;
+    }
+    for (size_t k=0; k < m_link_vec.size(); ++k) {
+        _link_existing.push_back(false);
+    }
+    if (m_path_vec.empty()){
+        printf("Warning, Dta_Api::check_registered_links_in_registered_paths, no path registered\n");
+        return _link_existing;
+    }
+    for (auto* _path : m_path_vec) {
+        for (size_t i = 0; i < m_link_vec.size(); ++i) {
+            _link_existing[i] = _path -> is_link_in(m_link_vec[i] -> m_link_ID);
+        }
+        if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+            break;
+        }
+    }
+    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+        printf("Warning: some observed bus links in m_link_vec are not covered by generated paths in m_path_vec!\n");
+    }
+    return _link_existing;
+}
+
+int Dta_Api::generate_paths_to_cover_registered_links()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing = check_registered_links_in_registered_paths();
+    if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+        printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
+        return 0;
+    }
+
+    PNEGraph reversed_graph = MNM_Ults::reverse_graph(m_dta -> m_graph);
+    std::unordered_map<TInt, TFlt> _cost_map = std::unordered_map<TInt, TFlt> ();
+    for (auto _link_it : m_dta -> m_link_factory -> m_link_map) {
+        _cost_map.insert(std::pair<TInt, TFlt>(_link_it.first, _link_it.second -> get_link_freeflow_tt()));
+    }
+    std::unordered_map<TInt, TInt> _shortest_path_tree = std::unordered_map<TInt, TInt>();
+    std::unordered_map<TInt, TInt> _shortest_path_tree_reversed = std::unordered_map<TInt, TInt>();
+    TInt _from_node_ID, _to_node_ID;
+    MNM_Origin *_origin;
+    MNM_Destination *_dest;
+    MNM_Path *_path_1, *_path_2, *_path;
+    std::random_device rng; // random sequence
+    std::vector<std::pair<TInt, MNM_Origin*>> pair_ptrs_1 = std::vector<std::pair<TInt, MNM_Origin*>> ();
+    std::vector<std::pair<MNM_Destination*, TFlt*>> pair_ptrs_2 = std::vector<std::pair<MNM_Destination*, TFlt*>> ();
+
+    for (size_t i = 0; i < m_link_vec.size(); ++i) {
+        if (!_link_existing[i]) {
+            // generate new path including this link
+            _from_node_ID = m_dta -> m_graph -> GetEI(m_link_vec[i] -> m_link_ID).GetSrcNId(); 
+            _to_node_ID = m_dta -> m_graph -> GetEI(m_link_vec[i] -> m_link_ID).GetDstNId();
+
+            // path from origin to from_node_ID
+            if (!_shortest_path_tree.empty()) {
+                _shortest_path_tree.clear();
+            }
+            if (dynamic_cast<MNM_DMOND*>(m_dta -> m_node_factory -> get_node(_from_node_ID)) != nullptr) {
+                _path_1 = new MNM_Path();
+                _path_1->m_node_vec.push_back(_from_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_from_node_ID, m_dta -> m_graph, _cost_map, _shortest_path_tree);
+            }
+            
+            // path from to_node_ID to destination
+            if (!_shortest_path_tree_reversed.empty()) {
+                _shortest_path_tree_reversed.clear();
+            }
+            if (dynamic_cast<MNM_DMDND*>(m_dta -> m_node_factory -> get_node(_to_node_ID)) != nullptr) {
+                _path_2 = new MNM_Path();
+                _path_2 -> m_node_vec.push_back(_to_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_to_node_ID, reversed_graph, _cost_map, _shortest_path_tree_reversed);
+            }
+
+            _origin = nullptr;
+            _dest = nullptr;
+            bool _flg = false;
+
+            if (!pair_ptrs_1.empty()) {
+                pair_ptrs_1.clear();
+            }
+            for(const auto& p : m_dta -> m_od_factory -> m_origin_map) 
+            {
+                pair_ptrs_1.emplace_back(p);
+            }
+            std::shuffle(std::begin(pair_ptrs_1), std::end(pair_ptrs_1), rng);
+            for (auto _it : pair_ptrs_1) {
+                _origin = _it.second;
+                if (_origin -> m_demand.empty()) {
+                    continue;
+                }
+
+                if (!pair_ptrs_2.empty()) {
+                    pair_ptrs_2.clear();
+                }
+                for(const auto& p : _origin -> m_demand) 
+                {
+                    pair_ptrs_2.emplace_back(p);
+                }
+                std::shuffle(std::begin(pair_ptrs_2), std::end(pair_ptrs_2), rng);
+                for (auto _it_it : pair_ptrs_2) {
+                    _dest = _it_it.first;
+                    if (_shortest_path_tree.find(_origin -> m_origin_node -> m_node_ID) -> second != -1 &&
+                        _shortest_path_tree_reversed.find(_dest -> m_dest_node -> m_node_ID) -> second != -1) {
+                        _flg = true;
+                        break;
+                    }
+                }
+                if (_flg) {
+                    break;
+                }
+            }
+
+            if (!_flg) {
+                printf("Cannot generate path covering this link\n");
+                exit(-1);
+            }
+            IAssert(_origin != nullptr && _dest != nullptr);
+
+            if (!_shortest_path_tree.empty()) {
+                _path_1 = MNM::extract_path(_origin -> m_origin_node -> m_node_ID, _from_node_ID, 
+                                            _shortest_path_tree, m_dta -> m_graph); 
+            }
+            if (!_shortest_path_tree_reversed.empty()) {
+                _path_2 = MNM::extract_path(_dest -> m_dest_node -> m_node_ID, _to_node_ID,
+                                            _shortest_path_tree_reversed, reversed_graph); 
+            }
+            
+            // merge the paths to a complete path
+            _path = new MNM_Path();
+            _path -> m_link_vec = _path_1 -> m_link_vec;
+            _path -> m_link_vec.push_back(m_link_vec[i] -> m_link_ID);
+            _path -> m_link_vec.insert(_path -> m_link_vec.end(), _path_2 -> m_link_vec.rbegin(), _path_2 -> m_link_vec.rend());
+            _path -> m_node_vec = _path_1 -> m_node_vec;
+            _path -> m_node_vec.insert(_path -> m_node_vec.end(), _path_2 -> m_node_vec.rbegin(), _path_2 -> m_node_vec.rend());
+            _path -> allocate_buffer(m_dta -> m_config -> get_int("max_interval"));
+            delete _path_1;
+            delete _path_2;
+
+            // add this new path to path table
+            dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_fixed -> m_path_table->find(_origin -> m_origin_node -> m_node_ID) -> second->find(_dest -> m_dest_node -> m_node_ID) -> second -> m_path_vec.push_back(_path);
+            m_path_vec.push_back(_path);
+            _link_existing[i] = true;
+
+            // check if this new path cover other links
+            for (size_t j = 0; j < m_link_vec.size(); ++j) {
+                if (!_link_existing[j]) {
+                    _link_existing[j] = _path -> is_link_in(m_link_vec[j] -> m_link_ID);
+                }
+            }
+            if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+                printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
+                break;
+            }
+        }
+    }
+
+    if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+        printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
+    }
+    else {
+        printf("Something wrong in Dta_Api::generate_paths_to_cover_registered_links\n");
+        exit(-1);
+    }
+
+    save_path_table(m_dta -> m_file_folder);
+    
+    _link_existing.clear();
+    _cost_map.clear();
+    _shortest_path_tree.clear();
+    _shortest_path_tree_reversed.clear();
+    reversed_graph.Clr();
+    pair_ptrs_1.clear();
+    pair_ptrs_2.clear();
+    return 1;
+}
+
+int Dta_Api::save_path_table(const std::string &folder)
+{
+    // write updated path table to file
+    MNM::save_path_table(folder, dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_fixed -> m_path_table, 
+                         m_dta -> m_od_factory, true);
+    return 0;
 }
 
 py::array_t<double> Dta_Api::get_link_inflow(py::array_t<int>start_intervals, py::array_t<int>end_intervals)
@@ -607,7 +803,7 @@ int Mcdta_Api::initialize(const std::string &folder)
   if (MNM_Routing_Biclass_Hybrid *_routing = dynamic_cast<MNM_Routing_Biclass_Hybrid *>(m_mcdta -> m_routing)){
     printf("MNM_Routing_Biclass_Hybrid start load ID path mapping\n");
     MNM::get_ID_path_mapping(m_ID_path_mapping, _routing -> m_routing_fixed_car -> m_path_table);
-    printf("MNM_Routing_Biclass_Hybrid mapping size %d\n", m_ID_path_mapping.size());
+    printf("MNM_Routing_Biclass_Hybrid mapping size %d\n", (int)m_ID_path_mapping.size());
     return 0;
   }
   printf("xxx\n");
@@ -753,16 +949,33 @@ int Mcdta_Api::print_simulation_results(const std::string &folder, int cong_freq
 
 py::array_t<double> Mcdta_Api::get_travel_stats()
 {
+    // finished 
     TInt _count_car = 0, _count_truck = 0;
     TFlt _tot_tt_car = 0.0, _tot_tt_truck = 0.0;
 
     auto *_veh_factory = dynamic_cast<MNM_Veh_Factory_Multiclass*>(m_mcdta -> m_veh_factory);
     _count_car = _veh_factory -> m_finished_car;
     _count_truck = _veh_factory -> m_finished_truck;
+    _tot_tt_car = _veh_factory -> m_total_time_car * m_mcdta -> m_unit_time / 3600.0;
+    _tot_tt_truck = _veh_factory -> m_total_time_truck * m_mcdta -> m_unit_time / 3600.0;
 
-    _tot_tt_car = _veh_factory -> m_total_time_car * m_mmdta -> m_unit_time / 3600.0;
-    _tot_tt_truck = _veh_factory -> m_total_time_truck * m_mmdta -> m_unit_time / 3600.0;
+    // unfinished
+    MNM_Veh_Multiclass* _veh;
+    int _end_time = get_cur_loading_interval();
+    for (auto _map_it : m_mcdta -> m_veh_factory -> m_veh_map){
+        _veh = dynamic_cast<MNM_Veh_Multiclass *>(_map_it.second);
+        IAssert(_veh -> m_finish_time < 0);
+        if (_veh -> m_class == 0){
+            _count_car += 1;
+            _tot_tt_car += (_end_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
+        }
+        else {
+            _count_truck += 1;
+            _tot_tt_truck += (_end_time - _veh -> m_start_time) * m_mcdta -> m_unit_time / 3600.0;
+        }
+    }
 
+    // // for vehicles not deleted
     // MNM_Veh_Multiclass* _veh;
     // int _end_time = get_cur_loading_interval();
     // for (auto _map_it : m_mcdta -> m_veh_factory -> m_veh_map){
@@ -792,6 +1005,7 @@ py::array_t<double> Mcdta_Api::get_travel_stats()
     //        float(_tot_tt_car/m_mcdta -> m_flow_scalar), float(_tot_tt_truck/m_mcdta -> m_flow_scalar));
     // m_mcdta -> m_emission -> output();
     
+    // for all released vehicles
     int new_shape[1] = {4};
     auto result = py::array_t<double>(new_shape);
     auto result_buf = result.request();
@@ -812,6 +1026,32 @@ py::array_t<double> Mcdta_Api::get_waiting_time_at_intersections()
   double *result_prt = (double *) result_buf.ptr;
   for (size_t i = 0; i < m_link_vec.size(); ++i){  
     result_prt[i] = MNM_DTA_GRADIENT::get_average_waiting_time_at_intersection(m_link_vec[i])();  // seconds
+  }
+    
+  return result;
+}
+
+py::array_t<double> Mcdta_Api::get_waiting_time_at_intersections_car()
+{
+  int new_shape [1] = { (int) m_link_vec.size()}; 
+  auto result = py::array_t<double>(new_shape);
+  auto result_buf = result.request();
+  double *result_prt = (double *) result_buf.ptr;
+  for (size_t i = 0; i < m_link_vec.size(); ++i){  
+    result_prt[i] = MNM_DTA_GRADIENT::get_average_waiting_time_at_intersection_car(m_link_vec[i])();  // seconds
+  }
+    
+  return result;
+}
+
+py::array_t<double> Mcdta_Api::get_waiting_time_at_intersections_truck()
+{
+  int new_shape [1] = { (int) m_link_vec.size()}; 
+  auto result = py::array_t<double>(new_shape);
+  auto result_buf = result.request();
+  double *result_prt = (double *) result_buf.ptr;
+  for (size_t i = 0; i < m_link_vec.size(); ++i){  
+    result_prt[i] = MNM_DTA_GRADIENT::get_average_waiting_time_at_intersection_truck(m_link_vec[i])();  // seconds
   }
     
   return result;
@@ -1135,6 +1375,199 @@ int Mcdta_Api::register_paths(py::array_t<int> paths)
   }
   m_path_set = std::set<MNM_Path*> (m_path_vec.begin(), m_path_vec.end());
   return 0;
+}
+
+std::vector<bool> Mcdta_Api::check_registered_links_in_registered_paths()
+{
+    std::vector<bool> _link_existing = std::vector<bool> ();
+    if (m_link_vec.empty()){
+        printf("Warning, Mcdta_Api::check_registered_links_in_registered_paths, no link registered\n");
+        return _link_existing;
+    }
+    for (size_t k=0; k < m_link_vec.size(); ++k) {
+        _link_existing.push_back(false);
+    }
+    if (m_path_vec.empty()){
+        printf("Warning, Mcdta_Api::check_registered_links_in_registered_paths, no path registered\n");
+        return _link_existing;
+    }
+    for (auto* _path : m_path_vec) {
+        for (size_t i = 0; i < m_link_vec.size(); ++i) {
+            _link_existing[i] = _path -> is_link_in(m_link_vec[i] -> m_link_ID);
+        }
+        if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+            break;
+        }
+    }
+    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+        printf("Warning: some observed bus links in m_link_vec are not covered by generated paths in m_path_vec!\n");
+    }
+    return _link_existing;
+}
+
+int Mcdta_Api::generate_paths_to_cover_registered_links()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing = check_registered_links_in_registered_paths();
+    if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+        printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
+        return 0;
+    }
+
+    PNEGraph reversed_graph = MNM_Ults::reverse_graph(m_mcdta -> m_graph);
+    std::unordered_map<TInt, TFlt> _cost_map = std::unordered_map<TInt, TFlt> ();
+    for (auto _link_it : m_mcdta -> m_link_factory -> m_link_map) {
+        _cost_map.insert(std::pair<TInt, TFlt>(_link_it.first, dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second) -> get_link_freeflow_tt_car()));
+    }
+    std::unordered_map<TInt, TInt> _shortest_path_tree = std::unordered_map<TInt, TInt>();
+    std::unordered_map<TInt, TInt> _shortest_path_tree_reversed = std::unordered_map<TInt, TInt>();
+    TInt _from_node_ID, _to_node_ID;
+    MNM_Origin_Multiclass *_origin;
+    MNM_Destination_Multiclass *_dest;
+    MNM_Path *_path_1, *_path_2, *_path;
+    std::random_device rng; // random sequence
+    std::vector<std::pair<TInt, MNM_Origin*>> pair_ptrs_1 = std::vector<std::pair<TInt, MNM_Origin*>> ();
+    std::vector<std::pair<MNM_Destination*, TFlt*>> pair_ptrs_2 = std::vector<std::pair<MNM_Destination*, TFlt*>> ();
+
+
+    for (size_t i = 0; i < m_link_vec.size(); ++i) {
+        if (!_link_existing[i]) {
+            // generate new path including this link
+            _from_node_ID = m_mcdta -> m_graph -> GetEI(m_link_vec[i] -> m_link_ID).GetSrcNId(); 
+            _to_node_ID = m_mcdta -> m_graph -> GetEI(m_link_vec[i] -> m_link_ID).GetDstNId();
+
+            // path from origin to from_node_ID
+            if (!_shortest_path_tree.empty()) {
+                _shortest_path_tree.clear();
+            }
+            if (dynamic_cast<MNM_DMOND_Multiclass*>(m_mcdta -> m_node_factory -> get_node(_from_node_ID)) != nullptr) {
+                _path_1 = new MNM_Path();
+                _path_1->m_node_vec.push_back(_from_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_from_node_ID, m_mcdta -> m_graph, _cost_map, _shortest_path_tree);
+            }
+            
+            // path from to_node_ID to destination
+            if (!_shortest_path_tree_reversed.empty()) {
+                _shortest_path_tree_reversed.clear();
+            }
+            if (dynamic_cast<MNM_DMDND_Multiclass*>(m_mcdta -> m_node_factory -> get_node(_to_node_ID)) != nullptr) {
+                _path_2 = new MNM_Path();
+                _path_2 -> m_node_vec.push_back(_to_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_to_node_ID, reversed_graph, _cost_map, _shortest_path_tree_reversed);
+            }
+
+            _origin = nullptr;
+            _dest = nullptr;
+            bool _flg = false;
+
+            if (!pair_ptrs_1.empty()) {
+                pair_ptrs_1.clear();
+            }
+            for(const auto& p : m_mcdta -> m_od_factory -> m_origin_map) 
+            {
+                pair_ptrs_1.emplace_back(p);
+            }
+            std::shuffle(std::begin(pair_ptrs_1), std::end(pair_ptrs_1), rng);
+            for (auto _it : pair_ptrs_1) {
+                _origin = dynamic_cast<MNM_Origin_Multiclass*>(_it.second);
+                if (_origin -> m_demand_car.empty()) {
+                    continue;
+                }
+
+                if (!pair_ptrs_2.empty()) {
+                    pair_ptrs_2.clear();
+                }
+                for(const auto& p : _origin -> m_demand_car) 
+                {
+                    pair_ptrs_2.emplace_back(p);
+                }
+                std::shuffle(std::begin(pair_ptrs_2), std::end(pair_ptrs_2), rng);
+                for (auto _it_it : pair_ptrs_2) {
+                    _dest = dynamic_cast<MNM_Destination_Multiclass*>(_it_it.first);
+                    if (_shortest_path_tree.find(_origin -> m_origin_node -> m_node_ID) -> second != -1 &&
+                        _shortest_path_tree_reversed.find(_dest -> m_dest_node -> m_node_ID) -> second != -1) {
+                        _flg = true;
+                        break;
+                    }
+                }
+                if (_flg) {
+                    break;
+                }
+            }
+
+            if (!_flg) {
+                printf("Cannot generate path covering this link\n");
+                exit(-1);
+            }
+            IAssert(_origin != nullptr && _dest != nullptr);
+
+            if (!_shortest_path_tree.empty()) {
+                _path_1 = MNM::extract_path(_origin -> m_origin_node -> m_node_ID, _from_node_ID, 
+                                            _shortest_path_tree, m_mcdta -> m_graph); 
+            }
+            if (!_shortest_path_tree_reversed.empty()) {
+                _path_2 = MNM::extract_path(_dest -> m_dest_node -> m_node_ID, _to_node_ID,
+                                            _shortest_path_tree_reversed, reversed_graph); 
+            }
+            
+            // merge the paths to a complete path
+            _path = new MNM_Path();
+            _path -> m_link_vec = _path_1 -> m_link_vec;
+            _path -> m_link_vec.push_back(m_link_vec[i] -> m_link_ID);
+            _path -> m_link_vec.insert(_path -> m_link_vec.end(), _path_2 -> m_link_vec.rbegin(), _path_2 -> m_link_vec.rend());
+            _path -> m_node_vec = _path_1 -> m_node_vec;
+            _path -> m_node_vec.insert(_path -> m_node_vec.end(), _path_2 -> m_node_vec.rbegin(), _path_2 -> m_node_vec.rend());
+            _path -> allocate_buffer(2 * m_mcdta -> m_config -> get_int("max_interval"));
+            delete _path_1;
+            delete _path_2;
+            // add this new path to path table
+            dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_fixed_car -> m_path_table->find(_origin -> m_origin_node -> m_node_ID) -> second->find(_dest -> m_dest_node -> m_node_ID) -> second -> m_path_vec.push_back(_path);
+            m_path_vec.push_back(_path);
+            _link_existing[i] = true;
+
+            // check if this new path cover other links
+            for (size_t j = 0; j < m_link_vec.size(); ++j) {
+                if (!_link_existing[j]) {
+                    _link_existing[j] = _path -> is_link_in(m_link_vec[j] -> m_link_ID);
+                }
+            }
+            if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+                printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
+                break;
+            }
+        }
+    }
+
+    if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+        printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
+    }
+    else {
+        printf("Something wrong in Mcdta_Api::generate_paths_to_cover_registered_links\n");
+        exit(-1);
+    }
+
+    save_path_table(m_mcdta -> m_file_folder);
+    
+    _link_existing.clear();
+    _cost_map.clear();
+    _shortest_path_tree.clear();
+    _shortest_path_tree_reversed.clear();
+    reversed_graph.Clr();
+    pair_ptrs_1.clear();
+    pair_ptrs_2.clear();
+    return 1;
+}
+
+int Mcdta_Api::save_path_table(const std::string &folder)
+{
+    // write updated path table to file
+    MNM::save_path_table(folder, dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_fixed_car -> m_path_table, 
+                         m_mcdta -> m_od_factory, true);
+    return 0;
 }
 
 py::array_t<double> Mcdta_Api::get_car_link_out_cc(int link_ID)
@@ -1534,7 +1967,10 @@ int Mmdta_Api::initialize(const std::string &folder)
         // !!!!!! make sure path_IDs across all modes are unique
         printf("MNM_Routing_Multimodal_Hybrid start load ID path mapping\n");
         // car and truck share the same path_table
-        // m_mmdue -> m_passenger_path_table is also affected
+        // NOTE: be careful with the construction of m_mmdue -> m_passenger_path_table in MNM::build_existing_passenger_pathset()
+        // the path in passenger_path_table and that in path_table from m_mmdta SHOULD BE in the same memory address
+        // because the registered link's cc_tree stored the path in path_table in m_mmdta
+        // This is to ensure the correctness of DAR extraction
         MNM::get_ID_path_mapping_all_mode(m_ID_path_mapping,
                                           _routing -> m_routing_fixed_car -> m_path_table,
                                           _routing -> m_routing_bus_fixed -> m_bus_path_table,
@@ -1604,7 +2040,7 @@ int Mmdta_Api::run_whole(bool verbose)
     return 0;
 }
 
-int Mmdta_Api::run_mmdue(const std::string &folder, bool verbose=true)
+int Mmdta_Api::run_mmdue(const std::string &folder, bool verbose)
 {
     IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_FixedPath" ||
             m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_DUE_ColumnGeneration");
@@ -1627,6 +2063,14 @@ int Mmdta_Api::run_mmdue(const std::string &folder, bool verbose=true)
     gap_file.open(gap_file_name, std::ofstream::out);
     if (!gap_file.is_open()){
         printf("Error happens when open gap_file\n");
+        exit(-1);
+    }
+
+    std::string emission_file_name = folder + "/" + rec_folder + "/emission";
+    std::ofstream emission_file;
+    emission_file.open(emission_file_name, std::ofstream::out);
+    if (!emission_file.is_open()){
+        printf("Error happens when open emission_file\n");
         exit(-1);
     }
 
@@ -1665,16 +2109,35 @@ int Mmdta_Api::run_mmdue(const std::string &folder, bool verbose=true)
         m_mmdue->update_path_table_gp_fixed_departure_time_choice(mmdta, i);
 
         if (i == m_mmdue -> m_max_iter - 1) {
+            TInt _count_car, _count_car_pnr, _count_truck, _count_bus, _count_passenger, _count_passenger_pnr;
+            TFlt _tot_tt_car, _tot_tt_truck, _tot_tt_bus, _tot_tt_passenger;
+            _count_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_car;
+            _count_car_pnr = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_car_pnr;
+            _count_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_truck;
+            _count_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_bus;
+            _tot_tt_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_car * mmdta -> m_unit_time / 3600.0;
+            _tot_tt_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_truck * mmdta -> m_unit_time / 3600.0;
+            _tot_tt_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_bus * mmdta -> m_unit_time / 3600.0;
+            printf("\nTotal driving car: %d, Total pnr car:, %d, Total truck: %d, Total bus: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours\n", 
+                    int(_count_car), int(_count_car_pnr), int(_count_truck), int(_count_bus), float(_tot_tt_car), float(_tot_tt_truck), float(_tot_tt_bus));
+            _count_passenger = mmdta -> m_passenger_factory -> m_finished_passenger;
+            _count_passenger_pnr = mmdta -> m_passenger_factory -> m_finished_passenger_pnr;
+            _tot_tt_passenger = mmdta -> m_passenger_factory -> m_total_time_passenger * mmdta -> m_unit_time / 3600.0;
+            printf("Total passenger: %d, Total pnr passenger: %d, Total Total tt: %.2f hours\n", 
+                    int(_count_passenger), int(_count_passenger_pnr), float(_tot_tt_passenger));
+                    
             // print to terminal
             // freopen("CON", "w", stdout);
             // print to file
-            freopen((folder + "/" + rec_folder + "/output.log").c_str(), "w", stdout);
-            mmdta -> m_emission -> output();
+            // freopen((folder + "/" + rec_folder + "/output.log").c_str(), "w", stdout);
+            // mmdta -> m_emission -> output();
+            emission_file << mmdta -> m_emission -> output();
         }
         delete mmdta;
     }
 
     gap_file.close();
+    emission_file.close();
 
     delete config;
     printf("====================== Finished mmdue! ====================\n");
@@ -1687,7 +2150,7 @@ int Mmdta_Api::run_mmdta_adaptive(const std::string &folder, int cong_frequency,
     IAssert(m_mmdue -> m_mmdta_config -> get_string("routing_type") == "Multimodal_Hybrid");
 
     m_mmdta = m_mmdue -> run_mmdta_adaptive(verbose);
-    m_is_mmdta_new = true;
+    m_is_mmdta_new = false;
 
     // m_mmdue -> build_link_cost_map(m_mmdta);
 
@@ -1969,11 +2432,13 @@ int Mmdta_Api::print_simulation_results(const std::string &folder, int cong_freq
 
 py::array_t<double> Mmdta_Api::get_travel_stats()
 {
-    TInt _count_car = 0, _count_truck = 0, _count_bus = 0, _count_passenger = 0;
+    // finished
+    TInt _count_car = 0, _count_pnr_car = 0, _count_truck = 0, _count_bus = 0, _count_passenger = 0;
     TFlt _tot_tt_car = 0.0, _tot_tt_truck = 0.0, _tot_tt_bus = 0.0, _tot_tt_passenger = 0.0;
 
     auto *_veh_factory = dynamic_cast<MNM_Veh_Factory_Multimodal*>(m_mmdta -> m_veh_factory);
     _count_car = _veh_factory -> m_finished_car;
+    _count_pnr_car = _veh_factory -> m_finished_car_pnr;
     _count_truck = _veh_factory -> m_finished_truck;
     _count_bus = _veh_factory -> m_finished_bus;
     _count_passenger = m_mmdta -> m_passenger_factory -> m_finished_passenger;
@@ -1983,6 +2448,42 @@ py::array_t<double> Mmdta_Api::get_travel_stats()
     _tot_tt_bus = _veh_factory -> m_total_time_bus * m_mmdta -> m_unit_time / 3600.0;
     _tot_tt_passenger = m_mmdta -> m_passenger_factory -> m_total_time_passenger * m_mmdta -> m_unit_time / 3600.0;
 
+    // unfinished 
+    MNM_Veh_Multimodal *_veh;
+    MNM_Passenger *_passenger;
+    int _end_time = get_cur_loading_interval();
+
+    for (auto _map_it : m_mmdta -> m_veh_factory -> m_veh_map){
+        _veh = dynamic_cast<MNM_Veh_Multimodal *>(_map_it.second);
+        IAssert(_veh -> m_finish_time < 0);
+        if (_veh -> m_class == 0){
+            if (_veh -> get_ispnr()) {
+                _count_pnr_car += 1;
+            }
+            else {
+                _count_car += 1;
+            }
+            _tot_tt_car += (_end_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+        }
+        else {
+            if (_veh -> m_bus_route_ID == TInt(-1)) {
+                _count_truck += 1;
+            }
+            else {
+                _count_bus += 1;
+            }
+            _tot_tt_bus += (_end_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+        }
+    }
+
+    for (auto _map_it : m_mmdta -> m_passenger_factory -> m_passenger_map){
+        _passenger = _map_it.second;
+        IAssert(_passenger -> m_finish_time < 0);
+        _count_passenger += 1;
+        _tot_tt_passenger += (_end_time - _passenger -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
+    }
+
+    // // for vehicles and passenger not deleted
     // MNM_Veh_Multimodal *_veh;
     // MNM_Passenger *_passenger;
     // int _end_time = get_cur_loading_interval();
@@ -1990,7 +2491,12 @@ py::array_t<double> Mmdta_Api::get_travel_stats()
     // for (auto _map_it : m_mmdta -> m_veh_factory -> m_veh_map){
     //     _veh = dynamic_cast<MNM_Veh_Multimodal *>(_map_it.second);
     //     if (_veh -> m_class == 0){
-    //         _count_car += 1;
+    //         if (_veh -> get_ispnr()) {
+    //             _count_pnr_car += 1;
+    //         }
+    //         else {
+    //             _count_car += 1;
+    //         }
     //         if (_veh -> m_finish_time > 0) {
     //             _tot_tt_car += (_veh -> m_finish_time - _veh -> m_start_time) * m_mmdta -> m_unit_time / 3600.0;
     //         }
@@ -2039,18 +2545,20 @@ py::array_t<double> Mmdta_Api::get_travel_stats()
     //         float(_tot_tt_car/m_mmdta -> m_flow_scalar), float(_tot_tt_truck/m_mmdta -> m_flow_scalar), float(_tot_tt_bus/m_mmdta -> m_flow_scalar), float(_tot_tt_passenger));
     // m_mmdta -> m_emission -> output();
 
-    int new_shape[1] = {8};
+    // for all released vehicles and passengers
+    int new_shape[1] = {9};
     auto result = py::array_t<double>(new_shape);
     auto result_buf = result.request();
     double *result_ptr = (double *)result_buf.ptr;
     result_ptr[0] = _count_car/m_mmdta -> m_flow_scalar;
-    result_ptr[1] = _count_truck/m_mmdta -> m_flow_scalar;
-    result_ptr[2] = _count_bus/m_mmdta -> m_flow_scalar;
-    result_ptr[3] = _count_passenger;
-    result_ptr[4] = _tot_tt_car/m_mmdta -> m_flow_scalar;  // hours
-    result_ptr[5] = _tot_tt_truck/m_mmdta -> m_flow_scalar;  // hours
-    result_ptr[6] = _tot_tt_bus/m_mmdta -> m_flow_scalar;  // hours
-    result_ptr[7] = _tot_tt_passenger;  // hours
+    result_ptr[1] = _count_pnr_car/m_mmdta -> m_flow_scalar;
+    result_ptr[2] = _count_truck/m_mmdta -> m_flow_scalar;
+    result_ptr[3] = _count_bus/m_mmdta -> m_flow_scalar;
+    result_ptr[4] = _count_passenger;
+    result_ptr[5] = _tot_tt_car/m_mmdta -> m_flow_scalar;  // hours
+    result_ptr[6] = _tot_tt_truck/m_mmdta -> m_flow_scalar;  // hours
+    result_ptr[7] = _tot_tt_bus/m_mmdta -> m_flow_scalar;  // hours
+    result_ptr[8] = _tot_tt_passenger;  // hours
 
     return result;
 }
@@ -2258,6 +2766,757 @@ int Mmdta_Api::register_paths_bus(py::array_t<int> paths) {
     return 0;
 }
 
+std::vector<bool> Mmdta_Api::check_registered_links_in_registered_paths_driving()
+{
+    std::vector<bool> _link_existing = std::vector<bool> ();
+    if (m_link_vec_driving.empty()){
+        printf("Warning, Mmdta_Api::check_registered_links_in_registered_paths_driving, no link registered\n");
+        return _link_existing;
+    }
+    for (size_t k=0; k < m_link_vec_driving.size(); ++k) {
+        _link_existing.push_back(false);
+    }
+    if (m_path_vec_driving.empty() && m_path_vec_pnr.empty()){
+        printf("Warning, Mmdta_Api::check_registered_links_in_registered_paths_driving, no path registered\n");
+        return _link_existing;
+    }
+    for (auto* _path : m_path_vec_driving) {
+        for (size_t i = 0; i < m_link_vec_driving.size(); ++i) {
+            if (!_link_existing[i]) {
+                _link_existing[i] = _path -> is_link_in(m_link_vec_driving[i] -> m_link_ID);
+            }
+        }
+        if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+            break;
+        }
+    }
+    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+        for (auto* _path : m_path_vec_pnr) {
+            for (size_t i = 0; i < m_link_vec_driving.size(); ++i) {
+                if (!_link_existing[i]) {
+                    _link_existing[i] = _path -> is_link_in(m_link_vec_driving[i] -> m_link_ID);
+                }
+            }
+            if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+                break;
+            }
+        }
+    }
+    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+        printf("Warning: some observed driving links in m_link_vec_driving are not covered by generated paths in m_path_vec_driving and m_path_vec_pnr!\n");
+    }
+    return _link_existing;
+}
+
+std::vector<bool> Mmdta_Api::check_registered_links_in_registered_paths_bus()
+{
+    std::vector<bool> _link_existing = std::vector<bool> ();
+    if (m_link_vec_bus.empty()){
+        printf("Warning, Mmdta_Api::check_registered_links_in_registered_paths_bus, no link registered\n");
+        return _link_existing;
+    }
+    for (size_t k=0; k < m_link_vec_bus.size(); ++k) {
+        _link_existing.push_back(false);
+    }
+    if (m_path_vec_bustransit.empty() && m_path_vec_pnr.empty()){
+        printf("Warning, Mmdta_Api::check_registered_links_in_registered_paths_bus, no path registered\n");
+        return _link_existing;
+    }
+    for (auto* _path : m_path_vec_bustransit) {
+        for (size_t i = 0; i < m_link_vec_bus.size(); ++i) {
+            if (!_link_existing[i]) {
+                _link_existing[i] = _path -> is_link_in(m_link_vec_bus[i] -> m_link_ID);
+            }
+        }
+        if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+            break;
+        }
+    }
+    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+        for (auto* _path : m_path_vec_pnr) {
+            for (size_t i = 0; i < m_link_vec_bus.size(); ++i) {
+                if (!_link_existing[i]) {
+                    _link_existing[i] = _path -> is_link_in(m_link_vec_bus[i] -> m_link_ID);
+                }
+            }
+            if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+                break;
+            }
+        }
+    }
+    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+        printf("Warning: some observed bus links in m_link_vec_bus are not covered by generated paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+    }
+    return _link_existing;
+}
+
+std::vector<bool> Mmdta_Api::check_registered_links_in_registered_paths_walking()
+{
+    std::vector<bool> _link_existing = std::vector<bool> ();
+    if (m_link_vec_walking.empty()){
+        printf("Warning, Mmdta_Api::check_registered_links_in_registered_paths_walking, no link registered\n");
+        return _link_existing;
+    }
+    for (size_t k=0; k < m_link_vec_walking.size(); ++k) {
+        _link_existing.push_back(false);
+    }
+    if (m_path_vec_bustransit.empty() && m_path_vec_pnr.empty()){
+        printf("Warning, Mmdta_Api::check_registered_links_in_registered_paths_walking, no path registered\n");
+        return _link_existing;
+    }
+    for (auto* _path : m_path_vec_bustransit) {
+        for (size_t i = 0; i < m_link_vec_walking.size(); ++i) {
+            if (!_link_existing[i]) {
+                _link_existing[i] = _path -> is_link_in(m_link_vec_walking[i] -> m_link_ID);
+            }
+        }
+        if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+            break;
+        }
+    }
+    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+        for (auto* _path : m_path_vec_pnr) {
+            for (size_t i = 0; i < m_link_vec_walking.size(); ++i) {
+                if (!_link_existing[i]) {
+                    _link_existing[i] = _path -> is_link_in(m_link_vec_walking[i] -> m_link_ID);
+                }
+            }
+            if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+                break;
+            }
+        }
+    }
+    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+        printf("Warning: some observed walking links in m_link_vec_walking are not covered by generated paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+    }
+    return _link_existing;
+}
+
+int Mmdta_Api::generate_paths_to_cover_registered_links_driving()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing_driving = check_registered_links_in_registered_paths_driving();
+    if (std::all_of(_link_existing_driving.cbegin(), _link_existing_driving.cend(), [](bool v){return v;})) {
+        printf("driving_path_table NOT updated! All links in m_link_vec_driving are covered by paths in m_path_vec_driving!\n");
+        return 0;
+    }
+    
+    PNEGraph reversed_graph = MNM_Ults::reverse_graph(m_mmdta -> m_graph);
+    std::unordered_map<TInt, TFlt> _cost_map = std::unordered_map<TInt, TFlt> ();
+    for (auto _link_it : m_mmdta -> m_link_factory -> m_link_map) {
+        _cost_map.insert(std::pair<TInt, TFlt>(_link_it.first, dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second) -> get_link_freeflow_tt_car()));
+    }
+    std::unordered_map<TInt, TInt> _shortest_path_tree = std::unordered_map<TInt, TInt>();
+    std::unordered_map<TInt, TInt> _shortest_path_tree_reversed = std::unordered_map<TInt, TInt>();
+    TInt _from_node_ID, _to_node_ID;
+    MNM_Origin_Multimodal *_origin;
+    MNM_Destination_Multimodal *_dest;
+    MNM_Path *_path_1, *_path_2, *_path;
+    std::random_device rng; // random sequence
+    std::vector<std::pair<TInt, MNM_Origin*>> pair_ptrs_1 = std::vector<std::pair<TInt, MNM_Origin*>> ();
+    std::vector<std::pair<MNM_Destination*, TFlt*>> pair_ptrs_2 = std::vector<std::pair<MNM_Destination*, TFlt*>> ();
+
+    for (size_t i = 0; i < m_link_vec_driving.size(); ++i) {
+        if (!_link_existing_driving[i]) {
+            // generate new path including this link
+            _from_node_ID = m_mmdta -> m_graph -> GetEI(m_link_vec_driving[i] -> m_link_ID).GetSrcNId(); 
+            _to_node_ID = m_mmdta -> m_graph -> GetEI(m_link_vec_driving[i] -> m_link_ID).GetDstNId();
+
+            // path from origin to from_node_ID
+            if (!_shortest_path_tree.empty()) {
+                _shortest_path_tree.clear();
+            }
+            if (dynamic_cast<MNM_DMOND_Multiclass*>(m_mmdta -> m_node_factory -> get_node(_from_node_ID)) != nullptr) {
+                _path_1 = new MNM_Path();
+                _path_1->m_node_vec.push_back(_from_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_from_node_ID, m_mmdta -> m_graph, _cost_map, _shortest_path_tree);
+            }
+            
+            // path from to_node_ID to destination
+            if (!_shortest_path_tree_reversed.empty()) {
+                _shortest_path_tree_reversed.clear();
+            }
+            if (dynamic_cast<MNM_DMDND_Multiclass*>(m_mmdta -> m_node_factory -> get_node(_to_node_ID)) != nullptr) {
+                _path_2 = new MNM_Path();
+                _path_2 -> m_node_vec.push_back(_to_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_to_node_ID, reversed_graph, _cost_map, _shortest_path_tree_reversed);
+            }
+
+            _origin = nullptr;
+            _dest = nullptr;
+            bool _flg = false;
+
+            if (!pair_ptrs_1.empty()) {
+                pair_ptrs_1.clear();
+            }
+            for(const auto& p : m_mmdta -> m_od_factory -> m_origin_map) 
+            {
+                pair_ptrs_1.emplace_back(p);
+            }
+            std::shuffle(std::begin(pair_ptrs_1), std::end(pair_ptrs_1), rng);
+            for (auto _it : pair_ptrs_1) {
+                _origin = dynamic_cast<MNM_Origin_Multimodal*>(_it.second);
+                if (_origin -> m_demand_car.empty()) {
+                    continue;
+                }
+
+                if (!pair_ptrs_2.empty()) {
+                    pair_ptrs_2.clear();
+                }
+                for(const auto& p : _origin -> m_demand_car) 
+                {
+                    pair_ptrs_2.emplace_back(p);
+                }
+                std::shuffle(std::begin(pair_ptrs_2), std::end(pair_ptrs_2), rng);
+                for (auto _it_it : pair_ptrs_2) {
+                    _dest = dynamic_cast<MNM_Destination_Multimodal*>(_it_it.first);
+                    if (_shortest_path_tree.find(_origin -> m_origin_node -> m_node_ID) -> second != -1 &&
+                        _shortest_path_tree_reversed.find(_dest -> m_dest_node -> m_node_ID) -> second != -1) {
+                        _flg = true;
+                        break;
+                    }
+                }
+                if (_flg) {
+                    break;
+                }
+            }
+
+            if (!_flg) {
+                printf("Cannot generate driving path covering this link\n");
+                exit(-1);
+            }
+            IAssert(_origin != nullptr && _dest != nullptr);
+
+            if (!_shortest_path_tree.empty()) {
+                _path_1 = MNM::extract_path(_origin -> m_origin_node -> m_node_ID, _from_node_ID, 
+                                            _shortest_path_tree, m_mmdta -> m_graph); 
+            }
+            if (!_shortest_path_tree_reversed.empty()) {
+                _path_2 = MNM::extract_path(_dest -> m_dest_node -> m_node_ID, _to_node_ID,
+                                            _shortest_path_tree_reversed, reversed_graph); 
+            }
+            
+            // merge the paths to a complete path
+            _path = new MNM_Path();
+            _path -> m_link_vec = _path_1 -> m_link_vec;
+            _path -> m_link_vec.push_back(m_link_vec_driving[i] -> m_link_ID);
+            _path -> m_link_vec.insert(_path -> m_link_vec.end(), _path_2 -> m_link_vec.rbegin(), _path_2 -> m_link_vec.rend());
+            _path -> m_node_vec = _path_1 -> m_node_vec;
+            _path -> m_node_vec.insert(_path -> m_node_vec.end(), _path_2 -> m_node_vec.rbegin(), _path_2 -> m_node_vec.rend());
+            _path -> allocate_buffer(2 * m_mmdta -> m_config -> get_int("max_interval"));
+            delete _path_1;
+            delete _path_2;
+            // add this new path to path table, not the passenger_path_table
+            dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_fixed_car -> m_path_table->find(_origin -> m_origin_node -> m_node_ID) -> second->find(_dest -> m_dest_node -> m_node_ID) -> second -> m_path_vec.push_back(_path);
+            m_path_vec_driving.push_back(_path);
+            _link_existing_driving[i] = true;
+
+            // check if this new path cover other links
+            for (size_t j = 0; j < m_link_vec_driving.size(); ++j) {
+                if (!_link_existing_driving[j]) {
+                    _link_existing_driving[j] = _path -> is_link_in(m_link_vec_driving[j] -> m_link_ID);
+                }
+            }
+            if (std::all_of(_link_existing_driving.cbegin(), _link_existing_driving.cend(), [](bool v){return v;})) {
+                printf("All links in m_link_vec_driving are covered by paths in m_path_vec_driving!\n");
+                break;
+            }
+        }
+    }
+
+    if (std::all_of(_link_existing_driving.cbegin(), _link_existing_driving.cend(), [](bool v){return v;})) {
+        printf("driving_path_table updated! All links in m_link_vec_driving are covered by paths in m_path_vec_driving!\n");
+    }
+    else {
+        printf("Something wrong in Mmdta_Api::generate_paths_to_cover_registered_links_driving\n");
+        exit(-1);
+    }
+
+    MNM::save_driving_path_table(m_mmdta -> m_file_folder, dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_fixed_car -> m_path_table,
+                                 "driving_path_table", "driving_path_table_buffer", true);
+    
+    _link_existing_driving.clear();
+    _cost_map.clear();
+    _shortest_path_tree.clear();
+    _shortest_path_tree_reversed.clear();
+    reversed_graph.Clr();
+    pair_ptrs_1.clear();
+    pair_ptrs_2.clear();
+    return 1;
+}
+
+int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing_bus = check_registered_links_in_registered_paths_bus();
+    std::vector<bool> _link_existing_walking = check_registered_links_in_registered_paths_walking();
+    if (std::all_of(_link_existing_bus.cbegin(), _link_existing_bus.cend(), [](bool v){return v;}) &&
+        std::all_of(_link_existing_walking.cbegin(), _link_existing_walking.cend(), [](bool v){return v;})) {
+        printf("bustransit_path_table and pnr_path_table NOT updated! All links in m_link_vec_bus and m_link_vec_walking are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+        return 0;
+    }
+    
+    PNEGraph reversed_graph = MNM_Ults::reverse_graph(m_mmdta -> m_bus_transit_graph);
+    std::unordered_map<TInt, TFlt> _cost_map_driving = std::unordered_map<TInt, TFlt> ();
+    for (auto _link_it : m_mmdta -> m_link_factory -> m_link_map) {
+        _cost_map_driving.insert(std::pair<TInt, TFlt>(_link_it.first, dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second) -> get_link_freeflow_tt_car()));
+    }
+    std::unordered_map<TInt, TFlt> _cost_map = std::unordered_map<TInt, TFlt> ();
+    for (auto _link_it : m_mmdta -> m_transitlink_factory -> m_transit_link_map) {
+        _cost_map.insert(std::pair<TInt, TFlt>(_link_it.first, _link_it.second -> m_fftt));
+    }
+    std::unordered_map<TInt, TInt> _shortest_path_tree = std::unordered_map<TInt, TInt>();
+    std::unordered_map<TInt, TInt> _shortest_path_tree_reversed = std::unordered_map<TInt, TInt>();
+    TInt _from_node_ID, _to_node_ID;
+    MNM_Origin_Multimodal *_origin;
+    MNM_Destination_Multimodal *_dest;
+    MNM_Path *_path_1, *_path_2, *_path;
+    MNM_PnR_Path *_pnr_path;
+    TInt _mid_parking_lot_ID = -1;
+    TInt _mid_dest_node_ID = -1;
+    bool _is_bustransit, _is_pnr;
+    std::random_device rng; // random sequence
+    std::vector<std::pair<TInt, MNM_Origin*>> pair_ptrs_1 = std::vector<std::pair<TInt, MNM_Origin*>> ();
+    std::vector<std::pair<MNM_Destination*, TFlt*>> pair_ptrs_2 = std::vector<std::pair<MNM_Destination*, TFlt*>> ();
+
+    for (size_t i = 0; i < m_link_vec_bus.size(); ++i) {
+        if (!_link_existing_bus[i]) {
+            _is_bustransit = false;
+            _is_pnr = false;
+
+            // generate new path including this link
+            _from_node_ID = m_mmdta -> m_bus_transit_graph -> GetEI(m_link_vec_bus[i] -> m_link_ID).GetSrcNId(); 
+            _to_node_ID = m_mmdta -> m_bus_transit_graph -> GetEI(m_link_vec_bus[i] -> m_link_ID).GetDstNId();
+
+            // path from origin to from_node_ID
+            if (!_shortest_path_tree.empty()) {
+                _shortest_path_tree.clear();
+            }
+            if (m_mmdta -> m_bus_transit_graph -> GetNI(_from_node_ID).GetInDeg() == 0) {
+                _path_1 = new MNM_Path();
+                _path_1->m_node_vec.push_back(_from_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_from_node_ID, m_mmdta -> m_bus_transit_graph, _cost_map, _shortest_path_tree);
+            }
+            
+            // path from to_node_ID to destination
+            if (!_shortest_path_tree_reversed.empty()) {
+                _shortest_path_tree_reversed.clear();
+            }
+            if (m_mmdta -> m_bus_transit_graph -> GetNI(_from_node_ID).GetOutDeg() == 0) {
+                _path_2 = new MNM_Path();
+                _path_2 -> m_node_vec.push_back(_to_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_to_node_ID, reversed_graph, _cost_map, _shortest_path_tree_reversed);
+            }
+
+            _origin = nullptr;
+            _dest = nullptr;
+            bool _flg = false;
+
+            if (!pair_ptrs_1.empty()) {
+                pair_ptrs_1.clear();
+            }
+            for(const auto& p : m_mmdta -> m_od_factory -> m_origin_map) 
+            {
+                pair_ptrs_1.emplace_back(p);
+            }
+            std::shuffle(std::begin(pair_ptrs_1), std::end(pair_ptrs_1), rng);
+            for (auto _it : pair_ptrs_1) {
+                _origin = dynamic_cast<MNM_Origin_Multimodal*>(_it.second);
+                if (_origin -> m_demand_passenger_bus.empty()) {
+                    continue;
+                }
+
+                if (!pair_ptrs_2.empty()) {
+                    pair_ptrs_2.clear();
+                }
+                for(const auto& p : _origin -> m_demand_passenger_bus) 
+                {
+                    pair_ptrs_2.emplace_back(p);
+                }
+                std::shuffle(std::begin(pair_ptrs_2), std::end(pair_ptrs_2), rng);
+                for (auto _it_it : pair_ptrs_2) {
+                    _dest = dynamic_cast<MNM_Destination_Multimodal*>(_it_it.first);
+                    if (_shortest_path_tree.find(_origin -> m_origin_node -> m_node_ID) -> second != -1 &&
+                        _shortest_path_tree_reversed.find(_dest -> m_dest_node -> m_node_ID) -> second != -1) {
+                        _flg = true;
+                        _is_bustransit = true;
+                        break;
+                    }
+                }
+                if (_flg) {
+                    break;
+                }
+            }
+
+            if (!_flg) {
+                // PnR path
+                IAssert(!pair_ptrs_1.empty());
+                for (auto _it : pair_ptrs_1) {
+                    _origin = dynamic_cast<MNM_Origin_Multimodal*>(_it.second);
+                    if (_origin -> m_demand_pnr_car.empty()) {
+                        continue;
+                    }
+
+                    if (!pair_ptrs_2.empty()) {
+                        pair_ptrs_2.clear();
+                    }
+                    for(const auto& p : _origin -> m_demand_pnr_car) 
+                    {
+                        pair_ptrs_2.emplace_back(p);
+                    }
+                    std::shuffle(std::begin(pair_ptrs_2), std::end(pair_ptrs_2), rng);
+                    for (auto _it_it : pair_ptrs_2) {
+                        _dest = dynamic_cast<MNM_Destination_Multimodal*>(_it_it.first);
+                        if (!_dest -> m_connected_pnr_parkinglot_vec.empty()) {
+                            for (auto *_parking_lot : _dest -> m_connected_pnr_parkinglot_vec) {
+                                if (_shortest_path_tree.find(_parking_lot -> m_node_ID) -> second != -1 &&
+                                    _shortest_path_tree_reversed.find(_dest -> m_dest_node -> m_node_ID) -> second != -1) {
+                                    _mid_dest_node_ID = _parking_lot -> m_node_ID;
+                                    _mid_parking_lot_ID = _parking_lot -> m_ID;
+                                    _flg = true;
+                                    _is_pnr = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (_flg) {
+                            break;
+                        }
+                    }
+                    if (_flg) {
+                        break;
+                    }
+                }
+            }
+
+            if (!_flg) {
+                printf("Cannot generate bustransit or PnR path covering this link\n");
+                exit(-1);
+            }
+            IAssert(_origin != nullptr && _dest != nullptr);
+            if (_is_pnr) {
+                IAssert(_mid_dest_node_ID > -1);
+            }
+
+            if (!_shortest_path_tree.empty()) {
+                if (_is_bustransit) {
+                    _path_1 = MNM::extract_path(_origin -> m_origin_node -> m_node_ID, _from_node_ID, 
+                                                _shortest_path_tree, m_mmdta -> m_bus_transit_graph); 
+                }
+                else if (_is_pnr) {
+                    _path_1 = MNM::extract_path(_mid_dest_node_ID, _from_node_ID, 
+                                                _shortest_path_tree, m_mmdta -> m_bus_transit_graph); 
+                }
+                else {
+                    printf("Cannot generate bustransit or PnR path covering this link\n");
+                    exit(-1);
+                }
+            }
+            if (!_shortest_path_tree_reversed.empty()) {
+                _path_2 = MNM::extract_path(_dest -> m_dest_node -> m_node_ID, _to_node_ID,
+                                            _shortest_path_tree_reversed, reversed_graph); 
+            }
+            
+            // merge the paths to a complete path
+            _path = new MNM_Path();
+            _path -> m_link_vec = _path_1 -> m_link_vec;
+            _path -> m_link_vec.push_back(m_link_vec_bus[i] -> m_link_ID);
+            _path -> m_link_vec.insert(_path -> m_link_vec.end(), _path_2 -> m_link_vec.rbegin(), _path_2 -> m_link_vec.rend());
+            _path -> m_node_vec = _path_1 -> m_node_vec;
+            _path -> m_node_vec.insert(_path -> m_node_vec.end(), _path_2 -> m_node_vec.rbegin(), _path_2 -> m_node_vec.rend());
+            delete _path_1;
+            delete _path_2;
+
+            // add this new path to path table, not the passenger_path_table
+            if (_is_bustransit) {
+                _path -> allocate_buffer(m_mmdta -> m_config -> get_int("max_interval"));
+                dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_passenger_fixed -> m_bustransit_path_table->find(_origin -> m_origin_node -> m_node_ID) -> second->find(_dest -> m_dest_node -> m_node_ID) -> second -> m_path_vec.push_back(_path);
+                m_path_vec_bustransit.push_back(_path);
+            }
+            else if (_is_pnr) {
+                _shortest_path_tree.clear();
+                MNM_Shortest_Path::all_to_one_FIFO(_mid_dest_node_ID, m_mmdta -> m_graph, _cost_map_driving, _shortest_path_tree);
+                IAssert(_shortest_path_tree.find(_origin -> m_origin_node -> m_node_ID) -> second != -1);
+                _path_1 = MNM::extract_path(_origin -> m_origin_node -> m_node_ID, _mid_dest_node_ID, 
+                                            _shortest_path_tree, m_mmdta -> m_graph); 
+                _pnr_path = new MNM_PnR_Path((int)m_path_vec_pnr.size(), _mid_parking_lot_ID, _mid_dest_node_ID, _path_1, _path);
+                _pnr_path -> allocate_buffer(m_mmdta -> m_config -> get_int("max_interval"));
+                delete _path_1;
+                delete _path;
+                dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_car_pnr_fixed -> m_pnr_path_table ->find(_origin -> m_origin_node -> m_node_ID) -> second->find(_dest -> m_dest_node -> m_node_ID) -> second -> m_path_vec.push_back(_pnr_path);
+                m_path_vec_pnr.push_back(_pnr_path);
+            }
+            else {
+                printf("Cannot generate bustransit or PnR path covering this link\n");
+                exit(-1);
+            }
+            _link_existing_bus[i] = true;
+            
+            // check if this new path cover other links
+            for (size_t j = 0; j < m_link_vec_bus.size(); ++j) {
+                if (!_link_existing_bus[j]) {
+                    if (_is_bustransit) {
+                        _link_existing_bus[j] = _path -> is_link_in(m_link_vec_bus[j] -> m_link_ID);
+                    }
+                    else if (_is_pnr) {
+                        _link_existing_bus[j] = _pnr_path -> is_link_in(m_link_vec_bus[j] -> m_link_ID);
+                    }
+                }
+            }
+            for (size_t j = 0; j < m_link_vec_walking.size(); ++j) {
+                if (!_link_existing_walking[j]) {
+                    if (_is_bustransit) {
+                        _link_existing_walking[j] = _path -> is_link_in(m_link_vec_walking[j] -> m_link_ID);
+                    }
+                    else if (_is_pnr) {
+                        _link_existing_walking[j] = _pnr_path -> is_link_in(m_link_vec_walking[j] -> m_link_ID);
+                    }
+                }
+            }
+            if (std::all_of(_link_existing_bus.cbegin(), _link_existing_bus.cend(), [](bool v){return v;})) {
+                printf("All links in m_link_vec_bus are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+                break;
+            }
+        }
+    }
+
+    if (std::all_of(_link_existing_bus.cbegin(), _link_existing_bus.cend(), [](bool v){return v;})) {
+        printf("bustransit_path_table updated! All links in m_link_vec_bus are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+    }
+    else {
+        printf("Something wrong in Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking\n");
+        exit(-1);
+    }
+
+    for (size_t i = 0; i < m_link_vec_walking.size(); ++i) {
+        if (!_link_existing_walking[i]) {
+            _is_bustransit = false;
+            _is_pnr = false;
+
+            // generate new path including this link
+            _from_node_ID = m_mmdta -> m_bus_transit_graph -> GetEI(m_link_vec_walking[i] -> m_link_ID).GetSrcNId(); 
+            _to_node_ID = m_mmdta -> m_bus_transit_graph -> GetEI(m_link_vec_walking[i] -> m_link_ID).GetDstNId();
+
+            // path from origin to from_node_ID
+            if (!_shortest_path_tree.empty()) {
+                _shortest_path_tree.clear();
+            }
+            if (m_mmdta -> m_bus_transit_graph -> GetNI(_from_node_ID).GetInDeg() == 0) {
+                _path_1 = new MNM_Path();
+                _path_1->m_node_vec.push_back(_from_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_from_node_ID, m_mmdta -> m_bus_transit_graph, _cost_map, _shortest_path_tree);
+            }
+            
+            // path from to_node_ID to destination
+            if (!_shortest_path_tree_reversed.empty()) {
+                _shortest_path_tree_reversed.clear();
+            }
+            if (m_mmdta -> m_bus_transit_graph -> GetNI(_from_node_ID).GetOutDeg() == 0) {
+                _path_2 = new MNM_Path();
+                _path_2 -> m_node_vec.push_back(_to_node_ID);
+            }
+            else {
+                MNM_Shortest_Path::all_to_one_FIFO(_to_node_ID, reversed_graph, _cost_map, _shortest_path_tree_reversed);
+            }
+
+            _origin = nullptr;
+            _dest = nullptr;
+            bool _flg = false;
+
+            if (!pair_ptrs_1.empty()) {
+                pair_ptrs_1.clear();
+            }
+            for(const auto& p : m_mmdta -> m_od_factory -> m_origin_map) 
+            {
+                pair_ptrs_1.emplace_back(p);
+            }
+            std::shuffle(std::begin(pair_ptrs_1), std::end(pair_ptrs_1), rng);
+            for (auto _it : pair_ptrs_1) {
+                _origin = dynamic_cast<MNM_Origin_Multimodal*>(_it.second);
+                if (_origin -> m_demand_passenger_bus.empty()) {
+                    continue;
+                }
+
+                if (!pair_ptrs_2.empty()) {
+                    pair_ptrs_2.clear();
+                }
+                for(const auto& p : _origin -> m_demand_passenger_bus) 
+                {
+                    pair_ptrs_2.emplace_back(p);
+                }
+                std::shuffle(std::begin(pair_ptrs_2), std::end(pair_ptrs_2), rng);
+                for (auto _it_it : pair_ptrs_2) {
+                    _dest = dynamic_cast<MNM_Destination_Multimodal*>(_it_it.first);
+                    if (_shortest_path_tree.find(_origin -> m_origin_node -> m_node_ID) -> second != -1 &&
+                        _shortest_path_tree_reversed.find(_dest -> m_dest_node -> m_node_ID) -> second != -1) {
+                        _flg = true;
+                        _is_bustransit = true;
+                        break;
+                    }
+                }
+                if (_flg) {
+                    break;
+                }
+            }
+
+            if (!_flg) {
+                // PnR path
+                IAssert(!pair_ptrs_1.empty());
+                for (auto _it : pair_ptrs_1) {
+                    _origin = dynamic_cast<MNM_Origin_Multimodal*>(_it.second);
+                    if (_origin -> m_demand_pnr_car.empty()) {
+                        continue;
+                    }
+                    
+                    if (!pair_ptrs_2.empty()) {
+                        pair_ptrs_2.clear();
+                    }
+                    for(const auto& p : _origin -> m_demand_pnr_car) 
+                    {
+                        pair_ptrs_2.emplace_back(p);
+                    }
+                    std::shuffle(std::begin(pair_ptrs_2), std::end(pair_ptrs_2), rng);
+                    for (auto _it_it : pair_ptrs_2) {
+                        _dest = dynamic_cast<MNM_Destination_Multimodal*>(_it_it.first);
+                        if (!_dest -> m_connected_pnr_parkinglot_vec.empty()) {
+                            for (auto *_parking_lot : _dest -> m_connected_pnr_parkinglot_vec) {
+                                if (_shortest_path_tree.find(_parking_lot -> m_node_ID) -> second != -1 &&
+                                    _shortest_path_tree_reversed.find(_dest -> m_dest_node -> m_node_ID) -> second != -1) {
+                                    _mid_dest_node_ID = _parking_lot -> m_node_ID;
+                                    _mid_parking_lot_ID = _parking_lot -> m_ID;
+                                    _flg = true;
+                                    _is_pnr = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (_flg) {
+                            break;
+                        }
+                    }
+                    if (_flg) {
+                        break;
+                    }
+                }
+            }
+
+            if (!_flg) {
+                printf("Cannot generate bustransit or PnR path covering this link\n");
+                exit(-1);
+            }
+            IAssert(_origin != nullptr && _dest != nullptr);
+            if (_is_pnr) {
+                IAssert(_mid_dest_node_ID > -1);
+            }
+
+            if (!_shortest_path_tree.empty()) {
+                if (_is_bustransit) {
+                    _path_1 = MNM::extract_path(_origin -> m_origin_node -> m_node_ID, _from_node_ID, 
+                                                _shortest_path_tree, m_mmdta -> m_bus_transit_graph); 
+                }
+                else if (_is_pnr) {
+                    _path_1 = MNM::extract_path(_mid_dest_node_ID, _from_node_ID, 
+                                                _shortest_path_tree, m_mmdta -> m_bus_transit_graph); 
+                }
+                else {
+                    printf("Cannot generate bustransit or PnR path covering this link\n");
+                    exit(-1);
+                }
+            }
+            if (!_shortest_path_tree_reversed.empty()) {
+                _path_2 = MNM::extract_path(_dest -> m_dest_node -> m_node_ID, _to_node_ID,
+                                            _shortest_path_tree_reversed, reversed_graph); 
+            }
+            
+            // merge the paths to a complete path
+            _path = new MNM_Path();
+            _path -> m_link_vec = _path_1 -> m_link_vec;
+            _path -> m_link_vec.push_back(m_link_vec_walking[i] -> m_link_ID);
+            _path -> m_link_vec.insert(_path -> m_link_vec.end(), _path_2 -> m_link_vec.rbegin(), _path_2 -> m_link_vec.rend());
+            _path -> m_node_vec = _path_1 -> m_node_vec;
+            _path -> m_node_vec.insert(_path -> m_node_vec.end(), _path_2 -> m_node_vec.rbegin(), _path_2 -> m_node_vec.rend());
+            delete _path_1;
+            delete _path_2;
+
+            // add this new path to path table, not the passenger_path_table
+            if (_is_bustransit) {
+                _path -> allocate_buffer(m_mmdta -> m_config -> get_int("max_interval"));
+                dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_passenger_fixed -> m_bustransit_path_table->find(_origin -> m_origin_node -> m_node_ID) -> second->find(_dest -> m_dest_node -> m_node_ID) -> second -> m_path_vec.push_back(_path);
+                m_path_vec_bustransit.push_back(_path);
+            }
+            else if (_is_pnr) {
+                _shortest_path_tree.clear();
+                MNM_Shortest_Path::all_to_one_FIFO(_mid_dest_node_ID, m_mmdta -> m_graph, _cost_map_driving, _shortest_path_tree);
+                IAssert(_shortest_path_tree.find(_origin -> m_origin_node -> m_node_ID) -> second != -1);
+                _path_1 = MNM::extract_path(_origin -> m_origin_node -> m_node_ID, _mid_dest_node_ID, 
+                                            _shortest_path_tree, m_mmdta -> m_graph); 
+                _pnr_path = new MNM_PnR_Path((int)m_path_vec_pnr.size(), _mid_parking_lot_ID, _mid_dest_node_ID, _path_1, _path);
+                _pnr_path -> allocate_buffer(m_mmdta -> m_config -> get_int("max_interval"));
+                delete _path_1;
+                delete _path;
+                dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_car_pnr_fixed -> m_pnr_path_table ->find(_origin -> m_origin_node -> m_node_ID) -> second->find(_dest -> m_dest_node -> m_node_ID) -> second -> m_path_vec.push_back(_pnr_path);
+                m_path_vec_pnr.push_back(_pnr_path);
+            }
+            else {
+                printf("Cannot generate bustransit or PnR path covering this link\n");
+                exit(-1);
+            }
+            _link_existing_walking[i] = true;
+            
+            // check if this new path cover other links
+            for (size_t j = 0; j < m_link_vec_walking.size(); ++j) {
+                if (!_link_existing_walking[j]) {
+                    if (_is_bustransit) {
+                        _link_existing_walking[j] = _path -> is_link_in(m_link_vec_walking[j] -> m_link_ID);
+                    }
+                    else if (_is_pnr) {
+                        _link_existing_walking[j] = _pnr_path -> is_link_in(m_link_vec_walking[j] -> m_link_ID);
+                    }
+                }
+            }
+            if (std::all_of(_link_existing_walking.cbegin(), _link_existing_walking.cend(), [](bool v){return v;})) {
+                printf("All links in m_link_vec_walking are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+                break;
+            }
+        }
+    }
+
+    if (std::all_of(_link_existing_bus.cbegin(), _link_existing_bus.cend(), [](bool v){return v;}) &&
+        std::all_of(_link_existing_walking.cbegin(), _link_existing_walking.cend(), [](bool v){return v;})) {
+        printf("bustransit_path_table and/or pnr_path_table updated! All links in m_link_vec_bus and m_link_vec_walking are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+    }
+    else {
+        printf("Something wrong in Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking\n");
+        exit(-1);
+    }
+
+
+    MNM::save_bustransit_path_table(m_mmdta -> m_file_folder, dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_passenger_fixed -> m_bustransit_path_table,
+                                    "bustransit_path_table", "bustransit_path_table_buffer", true);
+    MNM::save_pnr_path_table(m_mmdta -> m_file_folder, dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_car_pnr_fixed -> m_pnr_path_table,
+                             "pnr_path_table", "pnr_path_table_buffer", true);
+    
+    _link_existing_bus.clear();
+    _cost_map_driving.clear();
+    _cost_map.clear();
+    _shortest_path_tree.clear();
+    _shortest_path_tree_reversed.clear();
+    reversed_graph.Clr();
+    pair_ptrs_1.clear();
+    pair_ptrs_2.clear();
+    return 1;
+}
+
 int Mmdta_Api::save_passenger_path_table(const std::string &file_folder)
 {
     MNM::save_passenger_path_table(m_mmdue -> m_passenger_path_table,
@@ -2427,10 +3686,13 @@ py::array_t<double> Mmdta_Api::get_passenger_path_cost_driving(py::array_t<int>l
     auto result_buf = result.request();
     double *result_prt = (double *) result_buf.ptr;
 
+    TFlt _tt;
     for (int t = 0; t < l; ++t){
-        result_prt[t] = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
+        _tt = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map);
+        // _tt = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta);
+        result_prt[t] = _tt() * m_mmdta -> m_unit_time;
         result_prt[l + t] = _p_path ->get_travel_time_truck(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
-        result_prt[2*l + t] = _p_path -> get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+        result_prt[2*l + t] = _p_path -> get_travel_cost_with_tt(TFlt(start_prt[t]), _tt, m_mmdta)();
     }
 
     delete _p_path;
@@ -2471,9 +3733,12 @@ py::array_t<double> Mmdta_Api::get_passenger_path_cost_bus(py::array_t<int>link_
     auto result_buf = result.request();
     double *result_prt = (double *) result_buf.ptr;
 
+    TFlt _tt;
     for (int t = 0; t < l; ++t){
-        result_prt[t] = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
-        result_prt[l + t] = _p_path -> get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+        _tt = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map);
+        // _tt = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta);
+        result_prt[t] = _tt() * m_mmdta -> m_unit_time;
+        result_prt[l + t] = _p_path -> get_travel_cost_with_tt(TFlt(start_prt[t]), _tt, m_mmdta)();
     }
 
     delete _p_path;
@@ -2537,9 +3802,12 @@ py::array_t<double> Mmdta_Api::get_passenger_path_cost_pnr(py::array_t<int>link_
     auto result_buf = result.request();
     double *result_prt = (double *) result_buf.ptr;
 
+    TFlt _tt;
     for (int t = 0; t < l; ++t){
-        result_prt[t] = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
-        result_prt[l + t] = _p_path -> get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+        _tt = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map);
+        // _tt = _p_path -> get_travel_time(TFlt(start_prt[t]), m_mmdta);
+        result_prt[t] = _tt() * m_mmdta -> m_unit_time;
+        result_prt[l + t] = _p_path -> get_travel_cost_with_tt(TFlt(start_prt[t]), _tt, m_mmdta)();
     }
 
     delete _p_path;
@@ -2678,7 +3946,8 @@ py::array_t<double> Mmdta_Api::get_registered_path_tt_driving(py::array_t<double
             if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_Driving*>(_p_path) == nullptr) {
                 throw std::runtime_error("Error, Mmdta_Api::get_registered_path_tt_driving, invalid passenger path");
             }
-            double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
+            double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map)() * m_mmdta -> m_unit_time;
+            // double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
             result_prt[i * l + t] = _tmp;
         }
     }
@@ -2711,7 +3980,8 @@ py::array_t<double> Mmdta_Api::get_registered_path_tt_bustransit(py::array_t<dou
             if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_Bus*>(_p_path) == nullptr) {
                 throw std::runtime_error("Error, Mmdta_Api::get_registered_path_tt_bustransit, invalid passenger path");
             }
-            double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
+            double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map)() * m_mmdta -> m_unit_time;
+            // double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
             result_prt[i * l + t] = _tmp;
         }
     }
@@ -2744,7 +4014,8 @@ py::array_t<double> Mmdta_Api::get_registered_path_tt_pnr(py::array_t<double>sta
             if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_PnR*>(_p_path) == nullptr) {
                 throw std::runtime_error("Error, Mmdta_Api::get_registered_path_tt_pnr, invalid passenger path");
             }
-            double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
+            double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map)() * m_mmdta -> m_unit_time;
+            // double _tmp = _p_path ->get_travel_time(TFlt(start_prt[t]), m_mmdta)() * m_mmdta -> m_unit_time;
             result_prt[i * l + t] = _tmp;
         }
     }
@@ -2777,7 +4048,8 @@ py::array_t<double> Mmdta_Api::get_registered_path_cost_driving(py::array_t<doub
             if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_Driving*>(_p_path) == nullptr) {
                 throw std::runtime_error("Error, Mmdta_Api::get_registered_path_cost_driving, invalid passenger path");
             }
-            double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+            // double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+            double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map)();
             result_prt[i * l + t] = _tmp;
         }
     }
@@ -2810,7 +4082,8 @@ py::array_t<double> Mmdta_Api::get_registered_path_cost_bustransit(py::array_t<d
             if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_Bus*>(_p_path) == nullptr) {
                 throw std::runtime_error("Error, Mmdta_Api::get_registered_path_cost_bustransit, invalid passenger path");
             }
-            double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+            // double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+            double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map)();
             result_prt[i * l + t] = _tmp;
         }
     }
@@ -2843,7 +4116,8 @@ py::array_t<double> Mmdta_Api::get_registered_path_cost_pnr(py::array_t<double>s
             if (_p_path == nullptr || dynamic_cast<MNM_Passenger_Path_PnR*>(_p_path) == nullptr) {
                 throw std::runtime_error("Error, Mmdta_Api::get_registered_path_cost_pnr, invalid passenger path");
             }
-            double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+            // double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta)();
+            double _tmp = _p_path ->get_travel_cost(TFlt(start_prt[t]), m_mmdta, m_mmdue -> m_link_cost_map, m_mmdue -> m_transitlink_cost_map)();
             result_prt[i * l + t] = _tmp;
         }
     }
@@ -3872,6 +5146,30 @@ py::array_t<double> Mmdta_Api::get_waiting_time_at_intersections()
     return result;
 }
 
+py::array_t<double> Mmdta_Api::get_waiting_time_at_intersections_car()
+{
+    int new_shape [1] = { (int) m_link_vec_driving.size()};
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    for (size_t i = 0; i < m_link_vec_driving.size(); ++i){
+        result_prt[i] = MNM_DTA_GRADIENT::get_average_waiting_time_at_intersection_car(m_link_vec_driving[i])();  // seconds
+    }
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_waiting_time_at_intersections_truck()
+{
+    int new_shape [1] = { (int) m_link_vec_driving.size()};
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    for (size_t i = 0; i < m_link_vec_driving.size(); ++i){
+        result_prt[i] = MNM_DTA_GRADIENT::get_average_waiting_time_at_intersection_truck(m_link_vec_driving[i])();  // seconds
+    }
+    return result;
+}
+
 py::array_t<int> Mmdta_Api::get_link_spillback()
 {
     int new_shape [1] = { (int) m_link_vec_driving.size()};
@@ -4504,6 +5802,7 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_cur_loading_interval", &Dta_Api::get_cur_loading_interval)
             .def("register_links", &Dta_Api::register_links)
             .def("register_paths", &Dta_Api::register_paths)
+            .def("generate_paths_to_cover_registered_links", &Dta_Api::generate_paths_to_cover_registered_links)
             .def("get_link_tt", &Dta_Api::get_link_tt)
             .def("get_path_tt", &Dta_Api::get_path_tt)
             .def("get_link_inflow", &Dta_Api::get_link_inflow)
@@ -4525,6 +5824,7 @@ PYBIND11_MODULE(MNMAPI, m) {
 
             .def("register_links", &Mcdta_Api::register_links)
             .def("register_paths", &Mcdta_Api::register_paths)
+            .def("generate_paths_to_cover_registered_links", &Mcdta_Api::generate_paths_to_cover_registered_links)
             .def("get_car_link_tt", &Mcdta_Api::get_car_link_tt)
             .def("get_car_link_tt_robust", &Mcdta_Api::get_car_link_tt_robust)
             .def("get_truck_link_tt", &Mcdta_Api::get_truck_link_tt)
@@ -4543,6 +5843,8 @@ PYBIND11_MODULE(MNMAPI, m) {
             
             // For scenarios in McKees Rocks project:
             .def("get_waiting_time_at_intersections", &Mcdta_Api::get_waiting_time_at_intersections)
+            .def("get_waiting_time_at_intersections_car", &Mcdta_Api::get_waiting_time_at_intersections_car)
+            .def("get_waiting_time_at_intersections_truck", &Mcdta_Api::get_waiting_time_at_intersections_truck)
             .def("get_link_spillback", &Mcdta_Api::get_link_spillback)
             .def("get_path_tt_car", &Mcdta_Api::get_path_tt_car)
             .def("get_path_tt_truck", &Mcdta_Api::get_path_tt_truck);
@@ -4570,6 +5872,9 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("register_paths_bustransit", &Mmdta_Api::register_paths_bustransit)
             .def("register_paths_pnr", &Mmdta_Api::register_paths_pnr)
             .def("register_paths_bus", &Mmdta_Api::register_paths_bus)
+
+            .def("generate_paths_to_cover_registered_links_driving", &Mmdta_Api::generate_paths_to_cover_registered_links_driving)
+            .def("generate_paths_to_cover_registered_links_bus_walking", &Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking)
 
             .def("get_od_mode_connectivity", &Mmdta_Api::get_od_mode_connectivity)
             .def("generate_init_mode_demand_file", &Mmdta_Api::generate_init_mode_demand_file)
@@ -4659,6 +5964,8 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_passenger_dar_matrix_pnr", &Mmdta_Api::get_passenger_dar_matrix_pnr)
 
             .def("get_waiting_time_at_intersections", &Mmdta_Api::get_waiting_time_at_intersections)
+            .def("get_waiting_time_at_intersections_car", &Mmdta_Api::get_waiting_time_at_intersections_car)
+            .def("get_waiting_time_at_intersections_truck", &Mmdta_Api::get_waiting_time_at_intersections_truck)
             .def("get_link_spillback", &Mmdta_Api::get_link_spillback);
 
 #ifdef VERSION_INFO

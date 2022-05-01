@@ -66,6 +66,26 @@ int main()
 
     mmdta = test_due -> run_mmdta_adaptive(true);
 
+    print_vehicle_statistics(dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory));
+    print_passenger_statistics(mmdta -> m_passenger_factory);
+
+    // TInt _count_car, _count_car_pnr, _count_truck, _count_bus, _count_passenger, _count_passenger_pnr;
+    // TFlt _tot_tt_car, _tot_tt_truck, _tot_tt_bus, _tot_tt_passenger;
+    // _count_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_car;
+    // _count_car_pnr = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_car_pnr;
+    // _count_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_truck;
+    // _count_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_finished_bus;
+    // _tot_tt_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_car * mmdta -> m_unit_time / 3600.0;
+    // _tot_tt_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_truck * mmdta -> m_unit_time / 3600.0;
+    // _tot_tt_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(mmdta -> m_veh_factory) -> m_total_time_bus * mmdta -> m_unit_time / 3600.0;
+    // printf("\nTotal driving car: %d, Total pnr car: %d, Total truck: %d, Total bus: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours\n", 
+    //         int(_count_car), int(_count_car_pnr), int(_count_truck), int(_count_bus), float(_tot_tt_car), float(_tot_tt_truck), float(_tot_tt_bus));
+    // _count_passenger = mmdta -> m_passenger_factory -> m_finished_passenger;
+    // _count_passenger_pnr = mmdta -> m_passenger_factory -> m_finished_passenger_pnr;
+    // _tot_tt_passenger = mmdta -> m_passenger_factory -> m_total_time_passenger * mmdta -> m_unit_time / 3600.0;
+    // printf("Total passenger: %d, Total pnr passenger: %d, Total Total tt: %.2f hours\n", 
+    //         int(_count_passenger), int(_count_passenger_pnr), float(_tot_tt_passenger));
+
     // test_due -> build_link_cost_map(mmdta);
 
     // MNM::save_driving_path_table(folder, test_due -> m_driving_path_table,
@@ -216,7 +236,7 @@ int main()
     emission_file << mmdta -> m_emission -> output();
     emission_file.close();
 
-    delete mmdta;
+    // delete mmdta;
     delete config;
     delete test_due;
     printf("====================== Finished delete test_due! ====================\n");

@@ -1,0 +1,2 @@
+#OriginNodeID DestNodeID MidParkinglotID MidDestNodeID <driving node IDs> <transit link IDs in MultiGraph>
+1 6 2 7 1 2 4 7 2 3 26 211 33 5

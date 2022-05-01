@@ -48,6 +48,9 @@ public:
   int run_whole(bool verbose=true);
   int register_links(py::array_t<int> links);
   int register_paths(py::array_t<int> paths);
+  std::vector<bool> check_registered_links_in_registered_paths();
+  int generate_paths_to_cover_registered_links();
+  int save_path_table(const std::string &folder);
   int get_cur_loading_interval();
   py::array_t<double> get_link_inflow(py::array_t<int>start_intervals, 
                                         py::array_t<int>end_intervals);
@@ -93,6 +96,11 @@ public:
   py::array_t<double> get_link_truck_inflow(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
   
   int register_paths(py::array_t<int> paths);
+
+  std::vector<bool> check_registered_links_in_registered_paths();
+  int generate_paths_to_cover_registered_links();
+  int save_path_table(const std::string &folder);
+
   py::array_t<double> get_car_link_out_cc(int link_ID); 
   py::array_t<double> get_car_link_in_cc(int link_ID); 
   py::array_t<double> get_truck_link_out_cc(int link_ID); 
@@ -108,6 +116,8 @@ public:
   py::array_t<double> get_truck_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
   
   py::array_t<double> get_waiting_time_at_intersections();
+  py::array_t<double> get_waiting_time_at_intersections_car();
+  py::array_t<double> get_waiting_time_at_intersections_truck();
   py::array_t<int> get_link_spillback();
   py::array_t<double> get_path_tt_car(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
   py::array_t<double> get_path_tt_truck(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
@@ -191,6 +201,13 @@ public:
     int register_paths_pnr(py::array_t<int> paths);
     int register_paths_bus(py::array_t<int> paths);
 
+    std::vector<bool> check_registered_links_in_registered_paths_driving();
+    std::vector<bool> check_registered_links_in_registered_paths_bus();
+    std::vector<bool> check_registered_links_in_registered_paths_walking();
+
+    int generate_paths_to_cover_registered_links_driving();
+    int generate_paths_to_cover_registered_links_bus_walking();
+
     int save_passenger_path_table(const std::string &file_folder);
     int save_mode_path_table(const std::string &file_folder);
 
@@ -199,6 +216,7 @@ public:
     py::array_t<int> node_seq_to_link_seq_driving(py::array_t<int>node_IDs);
     py::array_t<int> node_seq_to_link_seq_bustransit(py::array_t<int>node_IDs);
 
+    // with m_mmdue -> m_link_cost_map and m_mmdue -> m_transitlink_cost_map
     py::array_t<double> get_passenger_path_cost_driving(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
     py::array_t<double> get_passenger_path_cost_bus(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
     py::array_t<double> get_passenger_path_cost_pnr(py::array_t<int>link_IDs_driving, py::array_t<int>link_IDs_bustransit,
@@ -207,6 +225,8 @@ public:
     py::array_t<double> get_path_tt_car(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
     py::array_t<double> get_path_tt_truck(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_tt_truck(py::array_t<double>start_intervals);
+    
+    // with m_mmdue -> m_link_cost_map and m_mmdue -> m_transitlink_cost_map
     py::array_t<double> get_registered_path_tt_driving(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_tt_bustransit(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_tt_pnr(py::array_t<double>start_intervals);
@@ -215,6 +235,7 @@ public:
     py::array_t<double> get_registered_path_distance_bustransit();
     py::array_t<double> get_registered_path_distance_pnr();
 
+    // with m_mmdue -> m_link_cost_map and m_mmdue -> m_transitlink_cost_map
     py::array_t<double> get_registered_path_cost_driving(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_cost_bustransit(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_cost_pnr(py::array_t<double>start_intervals);
@@ -228,6 +249,8 @@ public:
     py::array_t<int> get_lowest_cost_path_snapshot(int start_interval, int o_node_ID, int d_node_ID);
 
     py::array_t<double> get_waiting_time_at_intersections();
+    py::array_t<double> get_waiting_time_at_intersections_car();
+    py::array_t<double> get_waiting_time_at_intersections_truck();
     py::array_t<int> get_link_spillback();
 
     py::array_t<double> get_car_dar_matrix_driving(py::array_t<int>start_intervals, py::array_t<int>end_intervals);

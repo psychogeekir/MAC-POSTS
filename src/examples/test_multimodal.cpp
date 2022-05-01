@@ -67,7 +67,7 @@ int main()
     bool output_busroute_tt = false; // if true output busroute tt every vis_frequency
     TInt bustt_frequency = 60; // 5 minutes
 
-    TInt _count_car, _count_truck, _count_bus, _count_passenger;
+    TInt _count_car, _count_car_pnr, _count_truck, _count_bus, _count_passenger, _count_passenger_pnr;
     TFlt _tot_tt_car, _tot_tt_truck, _tot_tt_bus, _tot_tt_passenger;
 
     MNM_Routing_Multimodal_Hybrid* _routing;
@@ -109,31 +109,26 @@ int main()
         }
         _current_inter += 1;
         
-        _count_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_finished_car;
-        _count_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_finished_truck;
-        _count_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_finished_bus;
-        _tot_tt_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_total_time_car * test_dta -> m_unit_time / 3600.0;
-        _tot_tt_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_total_time_truck * test_dta -> m_unit_time / 3600.0;
-        _tot_tt_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_total_time_bus * test_dta -> m_unit_time / 3600.0;
-        printf("\nTotal car: %d, Total truck: %d, Total bus: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours\n", int(_count_car), int(_count_truck), int(_count_bus), float(_tot_tt_car), float(_tot_tt_truck), float(_tot_tt_bus));
-        _count_passenger = test_dta -> m_passenger_factory -> m_finished_passenger;
-        _tot_tt_passenger = test_dta -> m_passenger_factory -> m_total_time_passenger * test_dta -> m_unit_time / 3600.0;
-        printf("Total passenger: %d, Total tt: %.2f hours\n", int(_count_passenger), float(_tot_tt_passenger));
+        print_vehicle_statistics(dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory));
+        print_passenger_statistics(test_dta -> m_passenger_factory);
     }
 
     test_dta -> m_emission -> output();
 
     // Output vehicles' total count and travel time, before divided by flow_scalar
     _count_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_finished_car;
+    _count_car_pnr = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_finished_car_pnr;
     _count_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_finished_truck;
     _count_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_finished_bus;
     _tot_tt_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_total_time_car * test_dta -> m_unit_time / 3600.0;
     _tot_tt_truck = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_total_time_truck * test_dta -> m_unit_time / 3600.0;
     _tot_tt_bus = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_total_time_bus * test_dta -> m_unit_time / 3600.0;
-    printf("\n\n\nTotal car: %d, Total truck: %d, Total bus: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours\n", int(_count_car), int(_count_truck), int(_count_bus), float(_tot_tt_car), float(_tot_tt_truck), float(_tot_tt_bus));
+    printf("\nTotal driving car: %d, Total pnr car:, %d, Total truck: %d, Total bus: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours\n", 
+            int(_count_car), int(_count_car_pnr), int(_count_truck), int(_count_bus), float(_tot_tt_car), float(_tot_tt_truck), float(_tot_tt_bus));
 
     if ((int)test_dta -> m_veh_factory -> m_veh_map.size() == test_dta -> m_veh_factory -> m_num_veh) {
         _count_car = 0;
+        _count_car_pnr = 0;
         _count_truck = 0;
         _count_bus = 0;
         _tot_tt_car = 0.0;
@@ -143,7 +138,12 @@ int main()
             if (_map_it.second -> m_finish_time > 0) {
                 _veh = dynamic_cast<MNM_Veh_Multimodal *>(_map_it.second);
                 if (_veh -> m_class == 0){
-                    _count_car += 1;
+                    if (_veh -> m_pnr) {
+                        _count_car_pnr += 1;
+                    }
+                    else {
+                        _count_car += 1;
+                    }
                     _tot_tt_car += (_veh -> m_finish_time - _veh -> m_start_time) * test_dta -> m_unit_time / 3600.0;
                 }
                 else {
@@ -158,24 +158,33 @@ int main()
                 }
             }
         }
-        printf("Total car: %d, Total truck: %d, Total bus: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours\n", int(_count_car), int(_count_truck), int(_count_bus), float(_tot_tt_car), float(_tot_tt_truck), float(_tot_tt_bus));
+        printf("\nTotal driving car: %d, Total pnr car:, %d, Total truck: %d, Total bus: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours\n", 
+               int(_count_car), int(_count_car_pnr), int(_count_truck), int(_count_bus), float(_tot_tt_car), float(_tot_tt_truck), float(_tot_tt_bus));
     }
 
     // Output passengers' total count and travel time
     _count_passenger = test_dta -> m_passenger_factory -> m_finished_passenger;
+    _count_passenger_pnr = test_dta -> m_passenger_factory -> m_finished_passenger_pnr;
     _tot_tt_passenger = test_dta -> m_passenger_factory -> m_total_time_passenger * test_dta -> m_unit_time / 3600.0;
-    printf("Total passenger: %d, Total tt: %.2f hours\n", int(_count_passenger), float(_tot_tt_passenger));
+    printf("Total passenger: %d, Total pnr passenger: %d, Total Total tt: %.2f hours\n", 
+           int(_count_passenger), int(_count_passenger_pnr), float(_tot_tt_passenger));
+
     if ((int)test_dta -> m_passenger_factory -> m_passenger_map.size() == test_dta -> m_passenger_factory -> m_num_passenger) {
         _count_passenger = 0;
+        _count_passenger_pnr = 0;
         _tot_tt_passenger = 0.0;
         for (auto _map_it : test_dta -> m_passenger_factory -> m_passenger_map){
             if (_map_it.second -> m_finish_time > 0) {
                 _passenger = _map_it.second;
                 _count_passenger += 1;
+                if (_passenger -> m_pnr) {
+                    _count_passenger_pnr += 1;
+                }
                 _tot_tt_passenger += (_passenger -> m_finish_time - _passenger -> m_start_time) * test_dta -> m_unit_time / 3600.0;
             }
         }
-        printf("Total passenger: %d, Total tt: %.2f hours\n\n\n", int(_count_passenger), float(_tot_tt_passenger));
+        printf("Total passenger: %d, Total pnr passenger: %d, Total Total tt: %.2f hours\n", 
+               int(_count_passenger), int(_count_passenger_pnr), float(_tot_tt_passenger));
     }
     
 

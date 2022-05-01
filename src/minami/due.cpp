@@ -184,16 +184,11 @@ TFlt MNM_Due::get_disutility(TFlt depart_time, TFlt tt) {
 
 TFlt MNM_Due::get_tt(TFlt depart_time, MNM_Path *path) {
     // true path tt
-    TFlt _cur_time = depart_time;
-    TInt _query_time;
+    int _cur_time = int(round(depart_time));
     for (TInt _link_ID : path->m_link_vec) {
-        // rounding up, consistent with MNM_TDSP_Tree::update_tree() in shortest_path.cpp
-        // _query_time = MNM_Ults::min(int(_cur_time)+1, TInt(m_total_loading_inter - 1));
-        // original rounding down
-        _query_time = MNM_Ults::min(TInt(_cur_time), TInt(m_total_loading_inter - 1));
-        _cur_time += m_cost_map[_link_ID][_query_time];
+        _cur_time += MNM_Ults::round_up_time(m_cost_map[_link_ID][_cur_time < (int)m_total_loading_inter ? _cur_time : (int)m_total_loading_inter - 1]);
     }
-    return _cur_time - depart_time;
+    return TFlt(_cur_time - depart_time);
 }
 
 
@@ -296,7 +291,7 @@ std::pair<MNM_Path *, TInt> MNM_Due_Msa::get_best_route(TInt o_node_ID,
     TInt _cur_best_time = -1;
     TFlt _tmp_tt, _tmp_cost;
     for (int i = 0; i < tdsp_tree->m_max_interval; ++i) {  //tdsp_tree -> m_max_interval = total_loading_interval
-        _tmp_tt = tdsp_tree->get_distance_to_destination(o_node_ID, TFlt(i));
+        _tmp_tt = tdsp_tree->m_dist[o_node_ID][i < (int)tdsp_tree -> m_max_interval ? i :  (int)tdsp_tree -> m_max_interval - 1];
         std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt <<"\n";
         _tmp_cost = get_disutility(TFlt(i), _tmp_tt);
         if (_tmp_cost < _cur_best_cost) {
@@ -321,7 +316,7 @@ std::pair<MNM_Path *, TInt> MNM_Due_Msa::get_best_route_for_single_interval(
     TFlt _tmp_tt, _tmp_cost;
     for (int i = interval; i < interval + 1; ++i) {
     // for (int i = interval; i < interval + m_base_dta -> m_assign_freq; ++i) {  // tdsp_tree -> m_max_interval = total_loading_interval
-        _tmp_tt = tdsp_tree->get_distance_to_destination(o_node_ID, TFlt(i));
+        _tmp_tt = tdsp_tree -> m_dist[o_node_ID][i < (int)tdsp_tree -> m_max_interval ? i : (int)tdsp_tree -> m_max_interval - 1];
         std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt <<"\n";
         _tmp_cost = get_disutility(TFlt(i), _tmp_tt);
         if (_tmp_cost < _cur_best_cost) {

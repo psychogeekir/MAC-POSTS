@@ -309,8 +309,8 @@ MNM_Routing_Fixed::~MNM_Routing_Fixed()
 int MNM_Routing_Fixed::init_routing(Path_Table *path_table)
 {
   if (path_table == nullptr && m_path_table == nullptr){
-    printf("Path table need to be set in Fixed routing.\n");
-    exit(-1);
+    printf("Path table not set, probably it needs to be set in Fixed routing.\n");
+    // exit(-1);
   }
   if (path_table != nullptr){
     set_path_table(path_table);

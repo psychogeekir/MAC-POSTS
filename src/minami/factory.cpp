@@ -235,3 +235,28 @@ MNM_Origin *MNM_OD_Factory::get_origin(TInt ID)
   }
   return _o_it -> second;
 }
+
+std::pair<MNM_Origin*, MNM_Destination*> MNM_OD_Factory::get_random_od_pair()
+{
+  MNM_Origin *_origin;
+  MNM_Destination *_dest;
+  
+  auto _origin_it = m_origin_map.begin();
+  int random_index = rand() % m_origin_map.size();
+  std::advance(_origin_it, random_index);
+
+  _origin = _origin_it -> second;
+  while (_origin -> m_demand.empty()) {
+    _origin_it = m_origin_map.begin();
+    random_index = rand() % m_origin_map.size();
+    std::advance(_origin_it, random_index);
+    _origin = _origin_it -> second;
+  }
+
+  auto _dest_it = _origin->m_demand.begin();
+  random_index = rand() % _origin->m_demand.size();
+  std::advance(_dest_it, random_index);
+  _dest = _dest_it -> first;
+
+  return std::pair<MNM_Origin*, MNM_Destination*>(_origin, _dest);
+}

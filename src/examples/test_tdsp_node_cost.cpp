@@ -52,7 +52,7 @@ int main()
     std::string _str;
     for (int i=0; i<max_interval; ++i){
         printf("get distance to dest\n");
-        tmp_tt = tdsp_tree -> get_distance_to_destination(ori_node_ID, TFlt(i));
+        tmp_tt = tdsp_tree -> m_dist[ori_node_ID][i];
         printf("At time %d, minimum tt is %f\n", i, tmp_tt());
         _path = new MNM_Path();
         tdsp_tree -> get_tdsp(ori_node_ID, i, td_link_cost, td_node_cost, _path);

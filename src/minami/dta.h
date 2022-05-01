@@ -69,6 +69,7 @@ namespace MNM
   int print_vehicle_statistics(MNM_Veh_Factory *veh_factory);
   int print_vehicle_info(MNM_Veh_Factory *veh_factory);
   bool has_running_vehicle(MNM_Veh_Factory *veh_factory);
+  // int round_time(int start_time_stamp, TFlt travel_time, TInt max_interval);
 }
 
 #endif

@@ -262,6 +262,10 @@ public:
     TInt m_enroute_passenger;
     TInt m_finished_passenger;
     TFlt m_total_time_passenger;
+
+    TInt m_num_passenger_pnr;
+    TInt m_enroute_passenger_pnr;
+    TInt m_finished_passenger_pnr;
 };
 
 
@@ -330,6 +334,10 @@ public:
     TInt m_finished_bus;
 
     TFlt m_total_time_bus;
+
+    TInt m_num_car_pnr;
+    TInt m_enroute_car_pnr;
+    TInt m_finished_car_pnr;
 };
 
 /******************************************************************************************************************
@@ -415,7 +423,9 @@ public:
                                                TInt max_interval,
                                                TFlt flow_scalar,
                                                TInt frequency) override;
-
+    virtual std::pair<MNM_Origin*, MNM_Destination*> get_random_od_pair() override;
+    std::pair<MNM_Origin*, MNM_Destination*> get_random_od_pair_bustransit();
+    std::pair<MNM_Origin*, MNM_Destination*> get_random_od_pair_pnr();
 };
 
 /******************************************************************************************************************
@@ -710,6 +720,7 @@ public:
     MNM_PnR_Path(TInt path_ID, TInt mid_parking_lot_ID, TInt mid_dest_node_ID, MNM_Path* driving_path, MNM_Path* transit_path);
     virtual ~MNM_PnR_Path() override;
     bool is_equal(MNM_Path* path);
+    virtual bool is_link_in(TInt link_ID) override;
 
     TInt m_mid_parking_lot_ID;
     TInt m_mid_dest_node_ID;
@@ -1028,7 +1039,7 @@ public:
 //    MNM_Veh_Factory_Multimodal *m_veh_factory;
 //    MNM_Node_Factory_Multimodal *m_node_factory;
 //    MNM_Link_Factory_Multimodal *m_link_factory;
-//    MNM_OD_Factory_Multimodal *m_od_factory;
+    // MNM_OD_Factory_Multimodal *m_od_factory;
     MNM_Passenger_Factory *m_passenger_factory;
     MNM_Busstop_Factory *m_busstop_factory;
     MNM_Parking_Lot_Factory *m_parkinglot_factory;
@@ -1302,7 +1313,6 @@ public:
 typedef std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<TInt, MNM_Passenger_Pathset*>*>*> Passenger_Path_Table;
 
 namespace MNM {
-    int round_time(TFlt interval, TInt max_interval);
 
     std::unordered_map<int, TFlt> logit_fn(std::unordered_map<int, TFlt> &cost, std::unordered_map<int, TFlt> &alpha_map, 
                                            TFlt beta);
@@ -1315,7 +1325,11 @@ namespace MNM {
 
     int print_passenger_statistics(MNM_Passenger_Factory *passenger_factory);
 
-    TFlt get_path_tt_snapshot(MNM_Path* path, std::unordered_map<TInt, TFlt> &link_cost_map);
+    int print_vehicle_statistics(MNM_Veh_Factory_Multimodal *veh_factory);
+
+    TFlt get_path_tt_snapshot(MNM_Path* path, const std::unordered_map<TInt, TFlt> &link_cost_map);
+
+    TFlt get_path_tt(TFlt start_time, MNM_Path* path, const std::unordered_map<TInt, TFlt*> &link_cost_map, TInt max_interval);
 
     Passenger_Path_Table *build_shortest_passenger_pathset(std::vector<MMDue_mode> &mode_vec,
                                                            std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &passenger_demand,

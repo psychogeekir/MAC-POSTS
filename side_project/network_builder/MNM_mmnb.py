@@ -1637,7 +1637,7 @@ class MNM_network_builder():
             f.close()
 
             a = MNMAPI.mmdta_api()
-            a.initialize(folder_path)  # generate at least one path
+            a.initialize(folder_path)  # generate at least one path for each mode for each OD pair, if connected
             
             a.save_mode_path_table(folder_path)
             assert((os.path.isfile(os.path.join(folder_path, driving_pathtable_file_name))) and \
@@ -1647,7 +1647,7 @@ class MNM_network_builder():
                    (os.path.isfile(os.path.join(folder_path, pnr_pathtable_file_name))) and \
                    (os.path.isfile(os.path.join(folder_path, pnr_path_p_file_name))))
 
-            a.generate_init_mode_demand_file(folder_path)
+            a.generate_init_mode_demand_file(folder_path)  # total passenger demand file -> demand files for each mode
             assert((os.path.isfile(os.path.join(folder_path, driving_demand_file_name))) and \
                    (os.path.isfile(os.path.join(folder_path, bustransit_demand_file_name))) and \
                    (os.path.isfile(os.path.join(folder_path, pnr_demand_file_name))))
@@ -2288,24 +2288,24 @@ class MNM_network_builder():
                            shape=(num_one_OD_pnr * num_intervals, num_one_OD * num_intervals)).tocsr()
         return P_driving, P_bustransit, P_pnr
 
-    def update_path_table(self, dta, start_intervals, use_tdsp=False):
+    def update_path_table(self, dta, start_intervals, use_tdsp=True):
         # start_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
 
-        if use_tdsp:
-            # TDSP
-            dta.update_tdsp_tree()
-        else:
-            # static
-            # too expensive, use build_link_cost_map_snapshot()
-            # dta.build_link_cost_map()
-            pass
+        dta.update_tdsp_tree()
+
+        # if use_tdsp:
+        #     # TDSP
+        #     dta.update_tdsp_tree()
+        # else:
+        #     # static
+        #     # too expensive, use build_link_cost_map_snapshot()
+        #     # dta.build_link_cost_map()
+        #     pass
            
         _path_result_rec_dict = dict()
         for interval in start_intervals:
                 
-            if ~use_tdsp:
-                if interval == 0 and len(start_intervals) > 1:  # empty network
-                    continue
+            if not use_tdsp:
                 dta.build_link_cost_map_snapshot(interval)
                 dta.update_snapshot_route_table(interval)
 

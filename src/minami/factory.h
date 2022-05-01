@@ -75,6 +75,7 @@ public:
   virtual MNM_Origin* make_origin(TInt ID, TInt max_interval, TFlt flow_scalar, TInt frequency);
   virtual MNM_Destination* get_destination(TInt ID);
   virtual MNM_Origin* get_origin(TInt ID);
+  virtual std::pair<MNM_Origin*, MNM_Destination*> get_random_od_pair();
   std::unordered_map<TInt, MNM_Origin*> m_origin_map;
   std::unordered_map<TInt, MNM_Destination*> m_destination_map;
 };

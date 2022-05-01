@@ -113,13 +113,14 @@ public:
   int update_tree(const std::unordered_map<TInt, TFlt*>& link_cost_map, 
                   const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_cost_map);
   TFlt get_distance_to_destination(TInt node_ID, TFlt time_stamp);
+  TFlt get_distance_to_destination(TInt node_ID, int start_time_stamp, TFlt travel_time, float p = 1e-4);
   int get_tdsp(TInt src_node_ID, TInt time, const std::unordered_map<TInt, TFlt*>& cost_map, MNM_Path* path);
   int get_tdsp(TInt src_node_ID, TInt time, 
                const std::unordered_map<TInt, TFlt*>& link_cost_map, 
                const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_cost_map,
                MNM_Path* path);
   int round_time(TFlt time_stamp);
-  // int round_time(TFlt start_time_stamp, TFlt travel_time);
+  int round_time(int start_time_stamp, TFlt travel_time, float p = 1e-4);
   std::unordered_map<TInt, TFlt*> m_dist;
   std::unordered_map<TInt, TInt*> m_tree;
   TInt m_dest_node_ID;

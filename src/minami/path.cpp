@@ -10,6 +10,7 @@ MNM_Path::MNM_Path() {
     m_p = 0;
     m_buffer = NULL;
     m_path_ID = -1;
+    m_link_set = std::set<TInt>();
 }
 
 
@@ -17,8 +18,22 @@ MNM_Path::~MNM_Path() {
     m_link_vec.clear();
     m_node_vec.clear();
     if (m_buffer != nullptr) free(m_buffer);
+    m_link_set.clear();
 }
 
+bool MNM_Path::is_link_in(TInt link_ID)
+{
+    if (m_link_set.empty()) {
+        m_link_set = std::set<TInt>(m_link_vec.begin(), m_link_vec.end());
+    }
+    IAssert(!m_link_set.empty());
+    if (m_link_set.find(link_ID) != m_link_set.end()) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
 
 TFlt MNM_Path::get_path_tt(MNM_Link_Factory *link_factory) {
     // only used in DNL

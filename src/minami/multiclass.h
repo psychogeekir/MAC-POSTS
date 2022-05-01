@@ -47,6 +47,8 @@ public:
 	TFlt m_ffs_truck;
 
 	TFlt m_tot_wait_time_at_intersection; // seconds
+	TFlt m_tot_wait_time_at_intersection_car; // seconds
+	TFlt m_tot_wait_time_at_intersection_truck; // seconds
 	bool m_spill_back;
 
 	// Two seperate N-curves for private cars and trucks
@@ -501,6 +503,7 @@ public:
                                                TInt max_interval,
                                                TFlt flow_scalar,
 											   TInt frequency) override;
+	virtual std::pair<MNM_Origin*, MNM_Destination*> get_random_od_pair() override;
 };
 
 
@@ -572,6 +575,8 @@ TFlt get_link_inflow_truck(MNM_Dlink_Multiclass* link,
                     	TInt start_time, TInt end_time);
 
 TFlt get_average_waiting_time_at_intersection(MNM_Dlink_Multiclass* link);
+TFlt get_average_waiting_time_at_intersection_car(MNM_Dlink_Multiclass* link);
+TFlt get_average_waiting_time_at_intersection_truck(MNM_Dlink_Multiclass* link);
 TInt get_is_spillback(MNM_Dlink_Multiclass* link); // 0 - no spillback, 1 - spillback
 
 TFlt get_travel_time_from_FD_car(MNM_Dlink_Multiclass *link, TFlt start_time, TFlt unit_interval);
@@ -591,8 +596,10 @@ int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass
                     std::set<TInt> pathID_set, TFlt start_time, TFlt end_time);
 };
 
-
-
+namespace MNM
+{
+int print_vehicle_statistics(MNM_Veh_Factory_Multiclass *veh_factory);
+}
 
 /******************************************************************************************************************
 *******************************************************************************************************************

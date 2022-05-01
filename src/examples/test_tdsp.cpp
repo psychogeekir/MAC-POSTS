@@ -50,11 +50,10 @@ int main()
   MNM_Path *_path;
   for (int i=0; i<max_interval; ++i){
     printf("get distance to dest\n");
-    tmp_tt = tdst_tree -> get_distance_to_destination(ori_node_ID, TFlt(i));
+    tmp_tt = tdst_tree -> m_dist[ori_node_ID][i];
     printf("At time %d, minimum tt is %f\n", i, tmp_tt());
     _path = new MNM_Path();
-    tdst_tree -> get_tdsp(ori_node_ID, i, cost_map, 
-                            _path);
+    tdst_tree -> get_tdsp(ori_node_ID, i, cost_map, _path);
     printf("Path length %d\n", int(_path -> m_node_vec.size()));
     delete _path;
   }

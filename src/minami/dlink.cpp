@@ -44,6 +44,10 @@ MNM_Dlink::~MNM_Dlink() {
     if (m_N_out_tree != nullptr) delete m_N_out_tree;
 }
 
+TFlt MNM_Dlink::get_link_freeflow_tt() {
+    return m_length / m_ffs;  // seconds
+}
+
 int MNM_Dlink::hook_up_node(MNM_Dnode *from, MNM_Dnode *to) {
     m_from_node = from;
     m_to_node = to;

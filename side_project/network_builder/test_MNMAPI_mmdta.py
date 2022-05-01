@@ -60,7 +60,15 @@ a.register_links_walking(link_walking_array)
 
 # %%
 path_array = np.array(list(nb.ID2path.keys()), dtype=int)
+path_array_driving = np.array([ID for ID in nb.path_table_driving.ID2path.keys()], dtype=int)
+path_array_bustransit = np.array([ID for ID in nb.path_table_bustransit.ID2path.keys()], dtype=int)
+path_array_pnr = np.array([ID for ID in nb.path_table_pnr.ID2path.keys()], dtype=int)
+path_array_busroute = np.array([ID for ID in nb.path_table_bus.ID2path.keys()], dtype=int)
 a.register_paths(path_array)
+a.register_paths_driving(path_array_driving)
+a.register_paths_bustransit(path_array_bustransit)
+a.register_paths_pnr(path_array_pnr)
+a.register_paths_bus(path_array_busroute)
 
 
 # %%
@@ -72,7 +80,7 @@ a.install_cc_tree()
 
 
 # %%
-a.run_whole()
+a.run_whole(False)
 
 
 # %%
@@ -89,13 +97,14 @@ assert(assign_intervals[-1] < end_interval)
 travel_stats = a.get_travel_stats()
 print("\n************ travel stats ************\n")
 print("car count: {}\n".format(travel_stats[0]))
-print("truck count: {}\n".format(travel_stats[1]))
-print("bus count: {}\n".format(travel_stats[2]))
-print("passenger count: {}\n".format(travel_stats[3]))
-print("car total travel time (hours): {}\n".format(travel_stats[4]))
-print("truck total travel time (hours): {}\n".format(travel_stats[5]))
-print("bus total travel time (hours): {}\n".format(travel_stats[6]))
-print("passenger total travel time (hours): {}\n".format(travel_stats[7]))
+print("PnR car count: {}\n".format(travel_stats[1]))
+print("truck count: {}\n".format(travel_stats[2]))
+print("bus count: {}\n".format(travel_stats[3]))
+print("passenger count: {}\n".format(travel_stats[4]))
+print("car total travel time (hours): {}\n".format(travel_stats[5]))
+print("truck total travel time (hours): {}\n".format(travel_stats[6]))
+print("bus total travel time (hours): {}\n".format(travel_stats[7]))
+print("passenger total travel time (hours): {}\n".format(travel_stats[8]))
 print("\n************ travel stats ************\n")
 
 # %%
@@ -131,6 +140,9 @@ walking_link_tt = a.get_passenger_walking_link_tt(start_intervals)
 assert(walking_link_tt.shape[0] == len(link_walking_array))
 print(walking_link_tt)  # seconds
 
+
+# %%
+a.build_link_cost_map()
 
 # %%
 truck_path_tt = a.get_registered_path_tt_truck(start_intervals)
@@ -246,7 +258,7 @@ print(np.unique(car_dar_pnr_df['path_ID']))
 
 
 # %%
-bus_dar_matrix = a.get_bus_dar_matrix(start_intervals, end_intervals)
+bus_dar_matrix = a.get_bus_dar_matrix_bustransit_link(start_intervals, end_intervals)
 bus_dar_df = get_dar_df(bus_dar_matrix)
 print(bus_dar_df)
 print(bus_dar_df.shape)

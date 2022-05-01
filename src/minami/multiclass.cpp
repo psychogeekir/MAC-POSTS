@@ -35,6 +35,10 @@ MNM_Dlink_Multiclass::MNM_Dlink_Multiclass(TInt ID,
 
 	// average waiting time per vehicle = tot_wait_time/(tot_num_car + tot_num_truck)
 	m_tot_wait_time_at_intersection = 0; // seconds
+	// average waiting time per car = tot_car_wait_time/tot_num_car
+	m_tot_wait_time_at_intersection_car = 0; // seconds
+	// average waiting time per truck = tot_truck_wait_time/tot_num_truck
+	m_tot_wait_time_at_intersection_truck = 0; // seconds
 
 	// flag of spill back on this link
 	m_spill_back = false; // if spill back happens during simulation, then set to true
@@ -439,6 +443,9 @@ int MNM_Dlink_Ctm_Multiclass::evolve(TInt timestamp)
 	m_cell_array[m_num_cells - 1] -> m_volume_truck = 
 		m_cell_array[m_num_cells - 1] -> m_veh_queue_truck.size() + _count_truck;	
 	m_cell_array[m_num_cells - 1] -> update_perceived_density();
+
+	m_tot_wait_time_at_intersection_car += TFlt(_count_car)/m_flow_scalar * m_unit_time;
+	m_tot_wait_time_at_intersection_truck += TFlt(_count_truck)/m_flow_scalar * m_unit_time;
 
 	// if (m_link_ID == _output_link){
 	// 	printf("(%d, %d; %d, %d)\n", int(m_cell_array[m_num_cells - 1] -> m_veh_queue_car.size()), 
@@ -1067,6 +1074,8 @@ int MNM_Dlink_Lq_Multiclass::evolve(TInt timestamp)
 	// Empty buffers, nothing to move to finished array
 	if ((m_veh_out_buffer_car.size() == 0) && (m_veh_out_buffer_car.size() == 0)){
 		m_tot_wait_time_at_intersection += m_finished_array.size()/m_flow_scalar * m_unit_time;
+		m_tot_wait_time_at_intersection_car += TFlt(_count_car)/m_flow_scalar * m_unit_time;
+		m_tot_wait_time_at_intersection_truck += TFlt(_count_truck)/m_flow_scalar * m_unit_time;
 		return 0;
 	}
 
@@ -1143,6 +1152,15 @@ int MNM_Dlink_Lq_Multiclass::evolve(TInt timestamp)
 		exit(-1);
 	}
 	m_tot_wait_time_at_intersection += m_finished_array.size()/m_flow_scalar * m_unit_time;
+	_count_car = 0;
+	_count_truck = 0;
+	for (auto* _v : m_finished_array){
+		MNM_Veh_Multiclass *_veh = dynamic_cast<MNM_Veh_Multiclass *>(_v);
+		if (_veh -> m_class == 0) _count_car += 1;
+		if (_veh -> m_class == 1) _count_truck += 1;
+	}
+	m_tot_wait_time_at_intersection_car += TFlt(_count_car)/m_flow_scalar * m_unit_time;
+	m_tot_wait_time_at_intersection_truck += TFlt(_count_truck)/m_flow_scalar * m_unit_time;
 	return 0;
 }
 
@@ -1397,6 +1415,15 @@ int MNM_Dlink_Pq_Multiclass::evolve(TInt timestamp)
 	}
 	// printf("car: %d, truck: %d\n", _num_car, _num_truck);
 	m_tot_wait_time_at_intersection += m_finished_array.size()/m_flow_scalar * m_unit_time;
+	TInt _count_car = 0;
+	TInt _count_truck = 0;
+	for (auto* _v : m_finished_array){
+		MNM_Veh_Multiclass *_veh = dynamic_cast<MNM_Veh_Multiclass *>(_v);
+		if (_veh -> m_class == 0) _count_car += 1;
+		if (_veh -> m_class == 1) _count_truck += 1;
+	}
+	m_tot_wait_time_at_intersection_car += TFlt(_count_car)/m_flow_scalar * m_unit_time;
+	m_tot_wait_time_at_intersection_truck += TFlt(_count_truck)/m_flow_scalar * m_unit_time;
 	return 0;
 }
 
@@ -2498,7 +2525,30 @@ MNM_Origin_Multiclass *MNM_OD_Factory_Multiclass::make_origin(TInt ID,
 	return _origin;
 }
 
+std::pair<MNM_Origin*, MNM_Destination*> MNM_OD_Factory_Multiclass::get_random_od_pair()
+{
+	MNM_Origin_Multiclass *_origin;
+    MNM_Destination_Multiclass *_dest;
+    
+    auto _origin_it = m_origin_map.begin();
+    int random_index = rand() % m_origin_map.size();
+    std::advance(_origin_it, random_index);
 
+    _origin = dynamic_cast<MNM_Origin_Multiclass*>(_origin_it -> second);
+    while (_origin -> m_demand_car.empty()) {
+        _origin_it = m_origin_map.begin();
+        random_index = rand() % m_origin_map.size();
+        std::advance(_origin_it, random_index);
+        _origin = dynamic_cast<MNM_Origin_Multiclass*>(_origin_it -> second);
+    }
+
+    auto _dest_it = _origin->m_demand_car.begin();
+    random_index = rand() % _origin->m_demand_car.size();
+    std::advance(_dest_it, random_index);
+    _dest = _dest_it -> first;
+
+    return std::pair<MNM_Origin*, MNM_Destination*>(_origin, _dest);
+}
 
 
 /******************************************************************************************************************
@@ -2976,7 +3026,35 @@ TFlt get_average_waiting_time_at_intersection(MNM_Dlink_Multiclass* link)
 	TFlt _tot_vehs = 0;
 	_tot_vehs = link -> m_N_in_car -> m_recorder.back().second + link -> m_N_in_truck -> m_recorder.back().second;
 
-	return link -> m_tot_wait_time_at_intersection / _tot_vehs;
+	return link -> m_tot_wait_time_at_intersection / _tot_vehs;  // seconds
+}
+
+TFlt get_average_waiting_time_at_intersection_car(MNM_Dlink_Multiclass* link)
+{
+	if (link == nullptr){
+		throw std::runtime_error("Error, get_average_waiting_time_at_intersection_car link is null");
+	}
+	if (link -> m_N_in_car == nullptr){
+		throw std::runtime_error("Error, get_average_waiting_time_at_intersection_car link car in cumulative curve is not installed");
+	}
+	TFlt _tot_vehs = 0;
+	_tot_vehs = link -> m_N_in_car -> m_recorder.back().second;
+
+	return link -> m_tot_wait_time_at_intersection_car / _tot_vehs;  // seconds
+}
+
+TFlt get_average_waiting_time_at_intersection_truck(MNM_Dlink_Multiclass* link)
+{
+	if (link == nullptr){
+		throw std::runtime_error("Error, get_average_waiting_time_at_intersection_truck link is null");
+	}
+	if (link -> m_N_in_truck == nullptr){
+		throw std::runtime_error("Error, get_average_waiting_time_at_intersection_truck link truck in cumulative curve is not installed");
+	}
+	TFlt _tot_vehs = 0;
+	_tot_vehs = link -> m_N_in_truck -> m_recorder.back().second;
+
+	return link -> m_tot_wait_time_at_intersection_truck / _tot_vehs;
 }
 
 TInt get_is_spillback(MNM_Dlink_Multiclass* link) // 0 - no spillback, 1 - spillback
@@ -3200,7 +3278,27 @@ int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass
 }//end namespace MNM_DTA_GRADIENT
 
 
+namespace MNM
+{
 
+int print_vehicle_statistics(MNM_Veh_Factory_Multiclass *veh_factory)
+{
+	printf("############################################### Vehicle Statistics ###############################################\n \
+	Released Vehicle total %d, Enroute Vehicle Total %d, Finished Vehicle Total %d,\n \
+	Total Travel Time: %.2f intervals,\n \
+	Released Car Driving %d, Enroute Car Driving %d, Finished Car Driving %d,\n \
+	Released Truck %d, Enroute Truck %d, Finished Truck %d,\n \
+	Total Travel Time Car: %.2f intervals, Total Travel Time Truck: %.2f intervals\n \
+	############################################### Vehicle Statistics ###############################################\n", 
+	veh_factory -> m_num_veh(), veh_factory -> m_enroute(), veh_factory -> m_finished(),
+	veh_factory -> m_total_time(),
+	veh_factory -> m_num_car(), veh_factory -> m_enroute_car(), veh_factory -> m_finished_car(),
+	veh_factory -> m_num_truck(), veh_factory -> m_enroute_truck(), veh_factory -> m_finished_truck(),
+	veh_factory -> m_total_time_car(), veh_factory -> m_total_time_truck());
+	return 0;
+}
+
+} // end namespace MNM
 
 /******************************************************************************************************************
 *******************************************************************************************************************

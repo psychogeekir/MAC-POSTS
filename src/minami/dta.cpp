@@ -650,7 +650,12 @@ int print_vehicle_statistics(MNM_Veh_Factory *veh_factory)
   // _enroute_veh = _total_veh - _finished_veh;
   // printf("Released vehicle %d, Enroute vehicle %d, Finished vehicle %d\n", _total_veh(), _enroute_veh(), _finished_veh());
 
-  printf("Released vehicle %d, Enroute vehicle %d, Finished vehicle %d\n", veh_factory -> m_num_veh(), veh_factory -> m_enroute(), veh_factory -> m_finished());
+  printf("############################################### Vehicle Statistics ###############################################\n \
+  Released Vehicle total %d, Enroute Vehicle Total %d, Finished Vehicle Total %d\n \
+  Total Travel Time: %.2f intervals\n \
+  ############################################### Vehicle Statistics ###############################################\n", 
+  veh_factory -> m_num_veh(), veh_factory -> m_enroute(), veh_factory -> m_finished(),
+  veh_factory -> m_total_time());
   return 0;
 }
 
@@ -679,5 +684,15 @@ bool has_running_vehicle(MNM_Veh_Factory *veh_factory)
 
   return veh_factory -> m_num_veh != veh_factory -> m_finished;
 }
+
+// int round_time(int start_time_stamp, TFlt travel_time, TInt max_interval) {
+//     int _end_time_stamp = start_time_stamp + MNM_Ults::round_up_time(travel_time);
+//     if (_end_time_stamp >= max_interval - 1) {
+//         return int(max_interval - 1);
+//     }
+//     else {
+//         return _end_time_stamp;
+//     }
+// }
 
 }

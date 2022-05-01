@@ -77,7 +77,7 @@ float MNM_Ults::roundoff(float value, unsigned char prec)
 bool MNM_Ults::approximate_equal(TFlt a, TFlt b, float p) 
 {
   // approximately equal, https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
-  if (abs(a - b) <= p * max(abs(a), abs(b))) {
+  if (fabs(a - b) <= p * max(fabs(a), fabs(b))) {
     return true;
   }
   else {
@@ -88,6 +88,40 @@ bool MNM_Ults::approximate_equal(TFlt a, TFlt b, float p)
 bool MNM_Ults::approximate_less_than(TFlt a, TFlt b, float p) 
 {
   return a + p * max(abs(a), abs(b)) < b;
+}
+
+int MNM_Ults::round_up_time(TFlt time, float p)
+{
+  if (time < 1) {
+    return 1;
+  }
+  else {
+    IAssert(int(time) >= 1);
+    if (approximate_equal(time, TFlt(int(time)), p)) {
+      return int(time);
+    }
+    else {
+      IAssert(int(time) + 1 > time);
+      return int(time) + 1;
+    }
+  }
+}
+
+PNEGraph MNM_Ults::reverse_graph(const PNEGraph &graph)
+{
+  PNEGraph reversed_graph = PNEGraph::TObj::New();
+  if (graph -> GetEdges() > 0) {
+    int _link_ID, _from_node_ID, _to_node_ID;
+    for (auto _edge_it = graph->BegEI(); _edge_it < graph->EndEI(); _edge_it++) {
+      _link_ID = _edge_it.GetId();
+      _from_node_ID = _edge_it.GetSrcNId();
+      _to_node_ID = _edge_it.GetDstNId();
+      if (! reversed_graph -> IsNode(_from_node_ID)) { reversed_graph -> AddNode(_from_node_ID); }
+      if (! reversed_graph -> IsNode(_to_node_ID)) { reversed_graph -> AddNode(_to_node_ID); }
+      reversed_graph -> AddEdge(_to_node_ID, _from_node_ID, _link_ID);
+    }
+  }
+  return reversed_graph;
 }
 
 
