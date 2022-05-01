@@ -29,6 +29,12 @@ MAC-POSTS can be used in many dynamic transportation network modeling tasks, suc
 - Traffic and emission metrics
     - Based on the high-granularity simulation, MAC-POSTS can produce many useful metrics related to traffic, fuel consumptions, and emissions.
 
+#### Installation
+
+1. Download the source code and compile it on Ubuntu 16.04 LTS. 
+2. Install it as a python 3 package with `pip install -e _path_to_MAC_POSTS/src/`.
+3. Run `import MNMAPI`.
+4. Check out `MAC-POSTS/src/pybinder/src/dta_api.cpp` for more python APIs.
 
 #### Contributors
 
