@@ -3137,6 +3137,16 @@ TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt uni
 	return get_travel_time_from_cc(start_time, link -> m_N_in_truck, link -> m_N_out_truck, link -> m_last_valid_time_truck, fftt);
 }
 
+TFlt get_travel_time_truck_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials)
+{
+	TFlt _delta = (end_time - start_time) / TFlt(num_trials);
+	TFlt _ave_tt = TFlt(0);
+	for (int i=0; i < num_trials(); ++i){
+		_ave_tt += get_travel_time_truck(link, start_time + TFlt(i) * _delta, unit_interval);
+	}
+	return _ave_tt / TFlt(num_trials);
+}
+
 int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
                         std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time)
 {

@@ -585,6 +585,7 @@ TFlt get_travel_time_from_FD_truck(MNM_Dlink_Multiclass *link, TFlt start_time, 
 TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval);
 TFlt get_travel_time_car_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials = TInt(10));
 TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval);
+TFlt get_travel_time_truck_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials = TInt(10));
 
 int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
                     std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time);

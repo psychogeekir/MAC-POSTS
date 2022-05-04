@@ -31,6 +31,7 @@ TFlt get_travel_time_from_cc(TFlt start_time, MNM_Cumulative_Curve *N_in, MNM_Cu
 
 TFlt get_travel_time_from_FD(MNM_Dlink* link, TFlt start_time, TFlt unit_interval);
 TFlt get_travel_time(MNM_Dlink* link, TFlt start_time, TFlt unit_interval);
+TFlt get_travel_time_robust(MNM_Dlink* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials=TInt(10));
 TFlt get_path_travel_time(MNM_Path* path, TFlt start_time, MNM_Link_Factory* link_factory, TFlt unit_interval);
 
 int add_dar_records(std::vector<dar_record*> &record, MNM_Dlink* link, 

@@ -93,6 +93,14 @@ namespace MNM_DTA_GRADIENT {
         return get_travel_time_from_cc(start_time, link -> m_N_in, link -> m_N_out, link -> m_last_valid_time, fftt);
     }
 
+    TFlt get_travel_time_robust(MNM_Dlink* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials) {
+        TFlt _delta = (end_time - start_time) / TFlt(num_trials);
+        TFlt _ave_tt = TFlt(0);
+        for (int i=0; i < num_trials(); ++i){
+            _ave_tt += get_travel_time(link, start_time + TFlt(i) * _delta, unit_interval);
+        }
+        return _ave_tt / TFlt(num_trials);
+    }
 
     TFlt get_path_travel_time(MNM_Path *path, TFlt start_time, MNM_Link_Factory *link_factory, TFlt unit_interval) {
         if (path == nullptr) {

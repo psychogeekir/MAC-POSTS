@@ -1062,7 +1062,11 @@ namespace MNM_DTA_GRADIENT
 
 TFlt get_travel_time_walking(MNM_Walking_Link *link, TFlt start_time, TFlt unit_interval);
 
+TFlt get_travel_time_walking_robust(MNM_Walking_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials=TInt(10));
+
 TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval);
+
+TFlt get_travel_time_bus_robust(MNM_Bus_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials=TInt(10));
 
 TFlt get_link_inflow_bus(MNM_Bus_Link *link, TFlt start_time, TFlt end_time);
 

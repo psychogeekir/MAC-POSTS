@@ -599,6 +599,36 @@ py::array_t<double> Dta_Api::get_link_tt(py::array_t<int>start_intervals)
   return result;
 }
 
+py::array_t<double> Dta_Api::get_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+    throw std::runtime_error("Error, Dta_Api::get_link_tt_robust, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+    throw std::runtime_error("Error, Dta_Api::get_link_tt_robust, input length mismatch");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec.size(), l}; 
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    double *start_prt = (double *) start_buf.ptr;
+    double *end_prt = (double *) end_buf.ptr;
+    for (int t = 0; t < l; ++t){
+    if (start_prt[t] > get_cur_loading_interval()){
+        throw std::runtime_error("Error, Dta_Api::get_link_tt_robust, loaded data not enough");
+    }
+    for (size_t i = 0; i < m_link_vec.size(); ++i){
+        double _tmp = MNM_DTA_GRADIENT::get_travel_time_robust(m_link_vec[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_dta -> m_unit_time, num_trials)();
+        result_prt[i * l + t] = _tmp * m_dta -> m_unit_time;  // second
+    }
+    }
+    return result;
+}
+
 py::array_t<double> Dta_Api::get_path_tt(py::array_t<int>start_intervals)
 {
   auto start_buf = start_intervals.request();
@@ -1175,7 +1205,7 @@ py::array_t<double> Mcdta_Api::get_car_link_tt(py::array_t<double>start_interval
   return result;
 }
 
-py::array_t<double> Mcdta_Api::get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals)
+py::array_t<double> Mcdta_Api::get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
 {
   auto start_buf = start_intervals.request();
   auto end_buf = end_intervals.request();
@@ -1198,7 +1228,7 @@ py::array_t<double> Mcdta_Api::get_car_link_tt_robust(py::array_t<double>start_i
       throw std::runtime_error("Error, Mcdta_Api::get_car_link_tt_robust, loaded data not enough");
     }
     for (size_t i = 0; i < m_link_vec.size(); ++i){
-      double _tmp = MNM_DTA_GRADIENT::get_travel_time_car_robust(m_link_vec[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_mcdta -> m_unit_time)();
+      double _tmp = MNM_DTA_GRADIENT::get_travel_time_car_robust(m_link_vec[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_mcdta -> m_unit_time, num_trials)();
       // if (_tmp * m_mcdta -> m_unit_time > 20 * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car)){
       //     _tmp = 20 * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car / m_mcdta -> m_unit_time;
       // }
@@ -1230,6 +1260,36 @@ py::array_t<double> Mcdta_Api::get_truck_link_tt(py::array_t<double>start_interv
       // if (_tmp * 5 > 20 * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_truck)){
       //     _tmp = 20 * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_truck / m_mcdta -> m_unit_time;
       // }
+      result_prt[i * l + t] = _tmp * m_mcdta -> m_unit_time;  // second
+    }
+  }
+  return result;
+}
+
+py::array_t<double> Mcdta_Api::get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+{
+  auto start_buf = start_intervals.request();
+  auto end_buf = end_intervals.request();
+  if (start_buf.ndim != 1 || end_buf.ndim != 1){
+    throw std::runtime_error("Error, Mcdta_Api::get_truck_link_tt_robust, input dimension mismatch");
+  }
+  if (start_buf.shape[0] != end_buf.shape[0]){
+    throw std::runtime_error("Error, Mcdta_Api::get_truck_link_tt_robust, input length mismatch");
+  }
+  int l = start_buf.shape[0];
+  int new_shape [2] = { (int) m_link_vec.size(), l}; 
+
+  auto result = py::array_t<double>(new_shape);
+  auto result_buf = result.request();
+  double *result_prt = (double *) result_buf.ptr;
+  double *start_prt = (double *) start_buf.ptr;
+  double *end_prt = (double *) end_buf.ptr;
+  for (int t = 0; t < l; ++t){
+    if (start_prt[t] > get_cur_loading_interval()){
+      throw std::runtime_error("Error, Mcdta_Api::get_truck_link_tt_robust, loaded data not enough");
+    }
+    for (size_t i = 0; i < m_link_vec.size(); ++i){
+      double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck_robust(m_link_vec[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_mcdta -> m_unit_time, num_trials)();
       result_prt[i * l + t] = _tmp * m_mcdta -> m_unit_time;  // second
     }
   }
@@ -1573,7 +1633,7 @@ int Mcdta_Api::save_path_table(const std::string &folder)
 py::array_t<double> Mcdta_Api::get_car_link_out_cc(int link_ID)
 {
   MNM_Dlink_Multiclass *_link = (MNM_Dlink_Multiclass *) m_mcdta -> m_link_factory -> get_link(TInt(link_ID));
-  printf("link: %d\n", _link -> m_link_ID());
+  // printf("link: %d\n", _link -> m_link_ID());
   if (_link -> m_N_out_car == nullptr){
     throw std::runtime_error("Error, Mcdta_Api::get_car_link_out_cc, cc not installed");
   }
@@ -1592,7 +1652,7 @@ py::array_t<double> Mcdta_Api::get_car_link_out_cc(int link_ID)
 py::array_t<double> Mcdta_Api::get_car_link_in_cc(int link_ID)
 {
   MNM_Dlink_Multiclass *_link = (MNM_Dlink_Multiclass *) m_mcdta -> m_link_factory -> get_link(TInt(link_ID));
-  printf("link: %d\n", _link -> m_link_ID());
+  // printf("link: %d\n", _link -> m_link_ID());
   if (_link -> m_N_out_car == nullptr){
     throw std::runtime_error("Error, Mcdta_Api::get_car_link_in_cc, cc not installed");
   }
@@ -1611,7 +1671,7 @@ py::array_t<double> Mcdta_Api::get_car_link_in_cc(int link_ID)
 py::array_t<double> Mcdta_Api::get_truck_link_out_cc(int link_ID)
 {
   MNM_Dlink_Multiclass *_link = (MNM_Dlink_Multiclass *) m_mcdta -> m_link_factory -> get_link(TInt(link_ID));
-  printf("link: %d\n", _link -> m_link_ID());
+  // printf("link: %d\n", _link -> m_link_ID());
   if (_link -> m_N_out_car == nullptr){
     throw std::runtime_error("Error, Mcdta_Api::get_truck_link_out_cc, cc not installed");
   }
@@ -1630,7 +1690,7 @@ py::array_t<double> Mcdta_Api::get_truck_link_out_cc(int link_ID)
 py::array_t<double> Mcdta_Api::get_truck_link_in_cc(int link_ID)
 {
   MNM_Dlink_Multiclass *_link = (MNM_Dlink_Multiclass *) m_mcdta -> m_link_factory -> get_link(TInt(link_ID));
-  printf("link: %d\n", _link -> m_link_ID());
+  // printf("link: %d\n", _link -> m_link_ID());
   if (_link -> m_N_out_car == nullptr){
     throw std::runtime_error("Error, Mcdta_Api::get_truck_link_in_cc, cc not installed");
   }
@@ -2360,12 +2420,16 @@ int Mmdta_Api::print_simulation_results(const std::string &folder, int cong_freq
                     _str1 += std::to_string(_link -> m_link_ID()) + " ";
                     _str1 += std::to_string(MNM_DTA_GRADIENT::get_link_inflow_car(_link_m, _iter, _iter+cong_frequency)) + " ";
                     _str1 += std::to_string(MNM_DTA_GRADIENT::get_link_inflow_truck(_link_m, _iter, _iter+cong_frequency)) + " ";
-                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
-                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
+                    // _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
+                    // _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
+                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_car_robust(_link_m, TFlt(_iter), TFlt(_iter+cong_frequency), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
+                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck_robust(_link_m, TFlt(_iter), TFlt(_iter+cong_frequency), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
                     _str1 += std::to_string(_link_m -> get_link_freeflow_tt_car()) + " ";
                     _str1 += std::to_string(_link_m -> get_link_freeflow_tt_truck()) + " ";
-                    _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) * 3600 / 1600) + " ";
-                    _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) * 3600 / 1600) + "\n";
+                    // _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) * 3600 / 1600) + " ";
+                    // _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) * 3600 / 1600) + "\n";
+                    _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car_robust(_link_m, TFlt(_iter), TFlt(_iter+cong_frequency), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) * 3600 / 1600) + " ";
+                    _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck_robust(_link_m, TFlt(_iter), TFlt(_iter+cong_frequency), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) * 3600 / 1600) + "\n";
                     _vis_file2 << _str1;
                 }
                 for (auto _link_it : m_mmdta -> m_transitlink_factory -> m_transit_link_map){
@@ -2375,11 +2439,13 @@ int Mmdta_Api::print_simulation_results(const std::string &folder, int cong_freq
                     _str2 += std::to_string(_transit_link -> m_link_type) + " ";
                     _str2 += std::to_string(MNM_DTA_GRADIENT::get_link_inflow_passenger(_transit_link, TFlt(_iter), TFlt(_iter+cong_frequency))) + " ";
                     if (_transit_link -> m_link_type == MNM_TYPE_WALKING_MULTIMODAL) {
-                        _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transit_link), TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
+                        // _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transit_link), TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
+                        _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_walking_robust(dynamic_cast<MNM_Walking_Link*>(_transit_link), TFlt(_iter), TFlt(_iter+cong_frequency), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
                         _str2 += std::to_string(dynamic_cast<MNM_Walking_Link*>(_transit_link) -> m_fftt) + "\n";
                     }
                     else {
-                        _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
+                        // _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
+                        _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus_robust(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter), TFlt(_iter+cong_frequency), m_mmdta -> m_unit_time) * m_mmdta -> m_unit_time) + " ";
                         _str2 += std::to_string(dynamic_cast<MNM_Bus_Link*>(_transit_link) -> m_fftt) + "\n";
                     }
                     _vis_file3 << _str2;
@@ -2768,6 +2834,7 @@ int Mmdta_Api::register_paths_bus(py::array_t<int> paths) {
 
 std::vector<bool> Mmdta_Api::check_registered_links_in_registered_paths_driving()
 {
+    // only check for m_path_vec_driving because truck exists
     std::vector<bool> _link_existing = std::vector<bool> ();
     if (m_link_vec_driving.empty()){
         printf("Warning, Mmdta_Api::check_registered_links_in_registered_paths_driving, no link registered\n");
@@ -2776,7 +2843,8 @@ std::vector<bool> Mmdta_Api::check_registered_links_in_registered_paths_driving(
     for (size_t k=0; k < m_link_vec_driving.size(); ++k) {
         _link_existing.push_back(false);
     }
-    if (m_path_vec_driving.empty() && m_path_vec_pnr.empty()){
+    // if (m_path_vec_driving.empty() && m_path_vec_pnr.empty()){
+    if (m_path_vec_driving.empty()){
         printf("Warning, Mmdta_Api::check_registered_links_in_registered_paths_driving, no path registered\n");
         return _link_existing;
     }
@@ -2790,20 +2858,21 @@ std::vector<bool> Mmdta_Api::check_registered_links_in_registered_paths_driving(
             break;
         }
     }
+    // if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
+    //     for (auto* _path : m_path_vec_pnr) {
+    //         for (size_t i = 0; i < m_link_vec_driving.size(); ++i) {
+    //             if (!_link_existing[i]) {
+    //                 _link_existing[i] = _path -> is_link_in(m_link_vec_driving[i] -> m_link_ID);
+    //             }
+    //         }
+    //         if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
+    //             break;
+    //         }
+    //     }
+    // }
     if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
-        for (auto* _path : m_path_vec_pnr) {
-            for (size_t i = 0; i < m_link_vec_driving.size(); ++i) {
-                if (!_link_existing[i]) {
-                    _link_existing[i] = _path -> is_link_in(m_link_vec_driving[i] -> m_link_ID);
-                }
-            }
-            if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
-                break;
-            }
-        }
-    }
-    if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
-        printf("Warning: some observed driving links in m_link_vec_driving are not covered by generated paths in m_path_vec_driving and m_path_vec_pnr!\n");
+        // printf("Warning: some observed driving links in m_link_vec_driving are not covered by generated paths in m_path_vec_driving and m_path_vec_pnr!\n");
+        printf("Warning: some observed driving links in m_link_vec_driving are not covered by generated paths in m_path_vec_driving!\n");
     }
     return _link_existing;
 }
@@ -4202,6 +4271,7 @@ py::array_t<double> Mmdta_Api::get_path_tt_truck(py::array_t<int>link_IDs, py::a
 
 int Mmdta_Api::update_tdsp_tree()
 {
+    // m_mmdue -> build_link_cost_map(m_mmdta); should be called first before this function
     if (!m_tdsp_tree_map_driving.empty()) {
         for (auto _it : m_tdsp_tree_map_driving) {
             delete _it.second;
@@ -4219,7 +4289,6 @@ int Mmdta_Api::update_tdsp_tree()
     TInt _dest_node_ID;
     MNM_TDSP_Tree *_tdsp_tree;
 
-    m_mmdue -> build_link_cost_map(m_mmdta);
     for (auto _d_it : m_mmdta->m_od_factory->m_destination_map) {
         _dest = _d_it.second;
         _dest_node_ID = _dest->m_dest_node->m_node_ID;
@@ -4283,7 +4352,6 @@ py::array_t<int> Mmdta_Api::get_lowest_cost_path(int start_interval, int o_node_
                                                                 m_tdsp_tree_map_driving,
                                                                 m_tdsp_tree_map_bus,
                                                                 m_mmdta);
-
     _p_path = std::get<0>(_path_result.first);
     _cost = std::get<2>(_path_result.first);
     _mode = _path_result.second;
@@ -4516,7 +4584,7 @@ py::array_t<double> Mmdta_Api::get_car_link_tt(py::array_t<double>start_interval
     return result;
 }
 
-py::array_t<double> Mmdta_Api::get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals)
+py::array_t<double> Mmdta_Api::get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
 {
     auto start_buf = start_intervals.request();
     auto end_buf = end_intervals.request();
@@ -4539,7 +4607,7 @@ py::array_t<double> Mmdta_Api::get_car_link_tt_robust(py::array_t<double>start_i
             throw std::runtime_error("Error, Mmdta_Api::get_car_link_tt_robust, loaded data not enough");
         }
         for (size_t i = 0; i < m_link_vec_driving.size(); ++i){
-            double _tmp = MNM_DTA_GRADIENT::get_travel_time_car_robust(m_link_vec_driving[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_mmdta -> m_unit_time)();
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_car_robust(m_link_vec_driving[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_mmdta -> m_unit_time, num_trials)();
             // if (_tmp * m_mmdta -> m_unit_time > 20 * (m_link_vec[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car)){
             //     _tmp = 20 * m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car / m_mmdta -> m_unit_time;
             // }
@@ -4577,6 +4645,36 @@ py::array_t<double> Mmdta_Api::get_truck_link_tt(py::array_t<double>start_interv
     return result;
 }
 
+py::array_t<double> Mmdta_Api::get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_truck_link_tt_robust, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_truck_link_tt_robust, input length mismatch");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec_driving.size(), l};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    double *start_prt = (double *) start_buf.ptr;
+    double *end_prt = (double *) end_buf.ptr;
+    for (int t = 0; t < l; ++t){
+        if (start_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_truck_link_tt_robust, loaded data not enough");
+        }
+        for (size_t i = 0; i < m_link_vec_driving.size(); ++i){
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck_robust(m_link_vec_driving[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_mmdta -> m_unit_time, num_trials)();
+            result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
+        }
+    }
+    return result;
+}
+
 py::array_t<double> Mmdta_Api::get_bus_link_tt(py::array_t<double>start_intervals)
 {
     auto start_buf = start_intervals.request();
@@ -4602,6 +4700,36 @@ py::array_t<double> Mmdta_Api::get_bus_link_tt(py::array_t<double>start_interval
     return result;
 }
 
+py::array_t<double> Mmdta_Api::get_bus_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_link_tt_robust, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_link_tt_robust, input length mismatch");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec_bus.size(), l};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    double *start_prt = (double *) start_buf.ptr;
+    double *end_prt = (double *) end_buf.ptr;
+    for (int t = 0; t < l; ++t){
+        if (start_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_link_tt_robust, loaded data not enough");
+        }
+        for (size_t i = 0; i < m_link_vec_bus.size(); ++i){
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_bus_robust(m_link_vec_bus[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_mmdta -> m_unit_time, num_trials)();
+            result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
+        }
+    }
+    return result;
+}
+
 py::array_t<double> Mmdta_Api::get_passenger_walking_link_tt(py::array_t<double>start_intervals)
 {
     auto start_buf = start_intervals.request();
@@ -4621,6 +4749,36 @@ py::array_t<double> Mmdta_Api::get_passenger_walking_link_tt(py::array_t<double>
         }
         for (size_t i = 0; i < m_link_vec_walking.size(); ++i){
             double _tmp = MNM_DTA_GRADIENT::get_travel_time_walking(m_link_vec_walking[i], TFlt(start_prt[t]), m_mmdta -> m_unit_time)();
+            result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
+        }
+    }
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_passenger_walking_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_passenger_walking_link_tt_robust, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_passenger_walking_link_tt_robust, input length mismatch");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec_walking.size(), l};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    double *start_prt = (double *) start_buf.ptr;
+    double *end_prt = (double *) end_buf.ptr;
+    for (int t = 0; t < l; ++t){
+        if (start_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_passenger_walking_link_tt_robust, loaded data not enough");
+        }
+        for (size_t i = 0; i < m_link_vec_walking.size(); ++i){
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_walking_robust(m_link_vec_walking[i], TFlt(start_prt[t]), TFlt(end_prt[t]), m_mmdta -> m_unit_time, num_trials)();
             result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
         }
     }
@@ -4897,7 +5055,7 @@ py::array_t<double> Mmdta_Api::get_link_walking_passenger_inflow(py::array_t<int
 py::array_t<double> Mmdta_Api::get_car_link_out_cc(int link_ID)
 {
     MNM_Dlink_Multiclass *_link = (MNM_Dlink_Multiclass *) m_mmdta -> m_link_factory -> get_link(TInt(link_ID));
-    printf("driving link: %d\n", _link -> m_link_ID());
+    // printf("driving link: %d\n", _link -> m_link_ID());
     if (_link -> m_N_out_car == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_car_link_out_cc, cc not installed");
     }
@@ -4916,7 +5074,7 @@ py::array_t<double> Mmdta_Api::get_car_link_out_cc(int link_ID)
 py::array_t<double> Mmdta_Api::get_car_link_in_cc(int link_ID)
 {
     MNM_Dlink_Multiclass *_link = (MNM_Dlink_Multiclass *) m_mmdta -> m_link_factory -> get_link(TInt(link_ID));
-    printf("driving link: %d\n", _link -> m_link_ID());
+    // printf("driving link: %d\n", _link -> m_link_ID());
     if (_link -> m_N_in_car == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_car_link_in_cc, cc not installed");
     }
@@ -4935,7 +5093,7 @@ py::array_t<double> Mmdta_Api::get_car_link_in_cc(int link_ID)
 py::array_t<double> Mmdta_Api::get_truck_link_out_cc(int link_ID)
 {
     MNM_Dlink_Multiclass *_link = (MNM_Dlink_Multiclass *) m_mmdta -> m_link_factory -> get_link(TInt(link_ID));
-    printf("driving link: %d\n", _link -> m_link_ID());
+    // printf("driving link: %d\n", _link -> m_link_ID());
     if (_link -> m_N_out_truck == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_truck_link_out_cc, cc not installed");
     }
@@ -4954,7 +5112,7 @@ py::array_t<double> Mmdta_Api::get_truck_link_out_cc(int link_ID)
 py::array_t<double> Mmdta_Api::get_truck_link_in_cc(int link_ID)
 {
     MNM_Dlink_Multiclass *_link = (MNM_Dlink_Multiclass *) m_mmdta -> m_link_factory -> get_link(TInt(link_ID));
-    printf("driving link: %d\n", _link -> m_link_ID());
+    // printf("driving link: %d\n", _link -> m_link_ID());
     if (_link -> m_N_in_truck == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_truck_link_in_cc, cc not installed");
     }
@@ -4973,7 +5131,7 @@ py::array_t<double> Mmdta_Api::get_truck_link_in_cc(int link_ID)
 py::array_t<double> Mmdta_Api::get_bus_link_out_passenger_cc(int link_ID)
 {
     MNM_Bus_Link *_link = (MNM_Bus_Link *) m_mmdta -> m_transitlink_factory -> get_transit_link(TInt(link_ID));
-    printf("bus link: %d\n", _link -> m_link_ID());
+    // printf("bus link: %d\n", _link -> m_link_ID());
     if (_link -> m_N_out == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_out_passenger_cc, cc not installed");
     }
@@ -4992,7 +5150,7 @@ py::array_t<double> Mmdta_Api::get_bus_link_out_passenger_cc(int link_ID)
 py::array_t<double> Mmdta_Api::get_bus_link_in_passenger_cc(int link_ID)
 {
     MNM_Bus_Link *_link = (MNM_Bus_Link *) m_mmdta -> m_transitlink_factory -> get_transit_link(TInt(link_ID));
-    printf("bus link: %d\n", _link -> m_link_ID());
+    // printf("bus link: %d\n", _link -> m_link_ID());
     if (_link -> m_N_in == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_in_passenger_cc, cc not installed");
     }
@@ -5014,7 +5172,7 @@ py::array_t<double> Mmdta_Api::get_bus_link_to_busstop_in_cc(int link_ID)
     if (_link -> m_to_busstop == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_to_busstop_in_cc, busstop does not exist");
     }
-    printf("bus link: %d, busstop: %d\n", _link -> m_link_ID(), _link -> m_to_busstop -> m_busstop_ID());
+    // printf("bus link: %d, busstop: %d\n", _link -> m_link_ID(), _link -> m_to_busstop -> m_busstop_ID());
     if (_link -> m_to_busstop -> m_N_in_bus == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_to_busstop_in_cc, cc not installed");
     }
@@ -5036,7 +5194,7 @@ py::array_t<double> Mmdta_Api::get_bus_link_to_busstop_out_cc(int link_ID)
     if (_link -> m_to_busstop == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_to_busstop_out_cc, busstop does not exist");
     }
-    printf("bus link: %d, busstop: %d\n", _link -> m_link_ID(), _link -> m_to_busstop -> m_busstop_ID());
+    // printf("bus link: %d, busstop: %d\n", _link -> m_link_ID(), _link -> m_to_busstop -> m_busstop_ID());
     if (_link -> m_to_busstop -> m_N_out_bus == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_to_busstop_out_cc, cc not installed");
     }
@@ -5058,7 +5216,7 @@ py::array_t<double> Mmdta_Api::get_bus_link_from_busstop_in_cc(int link_ID)
     if (_link -> m_from_busstop == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_from_busstop_in_cc, busstop does not exist");
     }
-    printf("bus link: %d, busstop: %d\n", _link -> m_link_ID(), _link -> m_from_busstop -> m_busstop_ID());
+    // printf("bus link: %d, busstop: %d\n", _link -> m_link_ID(), _link -> m_from_busstop -> m_busstop_ID());
     if (_link -> m_from_busstop -> m_N_in_bus == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_from_busstop_in_cc, cc not installed");
     }
@@ -5080,7 +5238,7 @@ py::array_t<double> Mmdta_Api::get_bus_link_from_busstop_out_cc(int link_ID)
     if (_link -> m_from_busstop == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_from_busstop_out_cc, busstop does not exist");
     }
-    printf("bus link: %d, busstop: %d\n", _link -> m_link_ID(), _link -> m_from_busstop -> m_busstop_ID());
+    // printf("bus link: %d, busstop: %d\n", _link -> m_link_ID(), _link -> m_from_busstop -> m_busstop_ID());
     if (_link -> m_from_busstop -> m_N_out_bus == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_bus_link_from_busstop_out_cc, cc not installed");
     }
@@ -5099,7 +5257,7 @@ py::array_t<double> Mmdta_Api::get_bus_link_from_busstop_out_cc(int link_ID)
 py::array_t<double> Mmdta_Api::get_walking_link_out_cc(int link_ID)
 {
     MNM_Walking_Link *_link = (MNM_Walking_Link *) m_mmdta -> m_transitlink_factory -> get_transit_link(TInt(link_ID));
-    printf("walking link: %d\n", _link -> m_link_ID());
+    // printf("walking link: %d\n", _link -> m_link_ID());
     if (_link -> m_N_out == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_walking_link_out_cc, cc not installed");
     }
@@ -5118,7 +5276,7 @@ py::array_t<double> Mmdta_Api::get_walking_link_out_cc(int link_ID)
 py::array_t<double> Mmdta_Api::get_walking_link_in_cc(int link_ID)
 {
     MNM_Walking_Link *_link = (MNM_Walking_Link *) m_mmdta -> m_transitlink_factory -> get_transit_link(TInt(link_ID));
-    printf("walking link: %d\n", _link -> m_link_ID());
+    // printf("walking link: %d\n", _link -> m_link_ID());
     if (_link -> m_N_in == nullptr){
         throw std::runtime_error("Error, Mmdta_Api::get_walking_link_in_cc, cc not installed");
     }
@@ -5804,6 +5962,7 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("register_paths", &Dta_Api::register_paths)
             .def("generate_paths_to_cover_registered_links", &Dta_Api::generate_paths_to_cover_registered_links)
             .def("get_link_tt", &Dta_Api::get_link_tt)
+            .def("get_link_tt_robust", &Dta_Api::get_link_tt_robust)
             .def("get_path_tt", &Dta_Api::get_path_tt)
             .def("get_link_inflow", &Dta_Api::get_link_inflow)
             .def("get_link_in_cc", &Dta_Api::get_link_in_cc)
@@ -5828,6 +5987,7 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_car_link_tt", &Mcdta_Api::get_car_link_tt)
             .def("get_car_link_tt_robust", &Mcdta_Api::get_car_link_tt_robust)
             .def("get_truck_link_tt", &Mcdta_Api::get_truck_link_tt)
+            .def("get_truck_link_tt_robust", &Mcdta_Api::get_truck_link_tt_robust)
             .def("get_car_link_out_num", &Mcdta_Api::get_car_link_out_num)
             .def("get_truck_link_out_num", &Mcdta_Api::get_truck_link_out_num)
             // .def("get_car_link_out_cc", &Mcdta_Api::get_car_link_out_cc);
@@ -5882,8 +6042,11 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_car_link_tt", &Mmdta_Api::get_car_link_tt)
             .def("get_car_link_tt_robust", &Mmdta_Api::get_car_link_tt_robust)
             .def("get_truck_link_tt", &Mmdta_Api::get_truck_link_tt)
+            .def("get_truck_link_tt_robust", &Mmdta_Api::get_truck_link_tt_robust)
             .def("get_bus_link_tt", &Mmdta_Api::get_bus_link_tt)
+            .def("get_bus_link_tt_robust", &Mmdta_Api::get_bus_link_tt_robust)
             .def("get_passenger_walking_link_tt", &Mmdta_Api::get_passenger_walking_link_tt)
+            .def("get_passenger_walking_link_tt_robust", &Mmdta_Api::get_passenger_walking_link_tt_robust)
 
             .def("get_link_car_inflow", &Mmdta_Api::get_link_car_inflow)
             .def("get_link_truck_inflow", &Mmdta_Api::get_link_truck_inflow)

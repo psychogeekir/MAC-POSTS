@@ -2291,7 +2291,7 @@ class MNM_network_builder():
     def update_path_table(self, dta, start_intervals, use_tdsp=True):
         # start_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
 
-        dta.update_tdsp_tree()
+        dta.update_tdsp_tree()  # dta.build_link_cost_map() should be called before this method
 
         # if use_tdsp:
         #     # TDSP
@@ -2499,3 +2499,22 @@ class MNM_network_builder():
         self.path_table_bus.ID2path = new_ID2path
 
         print("update_path_table")
+
+    # def update_mode_demand(self, folder):
+    #     if ~os.path.isfile(folder + '/od_demand_split.txt'):
+    #         raise("od_demand_split.txt does not exist")
+
+    #     od_demand_split = pd.read_csv(folder + '/od_demand_split.txt', header=None, skiprows=1)
+    #     od_demand_split.columns = ['origin_node_ID', 'dest_node_ID', 'mode'] + [i for i in range(self.num_assign_interval)]
+
+        
+    #     for O in self.demand_driving.demand_dict.keys():
+    #         for D in self.demand_driving.demand_dict[O].keys():
+    #             self.demand_driving.add_demand(O, D, car_demand, truck_demand, overwriting=True)
+    #             self.nb.demand_driving.demand_dict[O][D] = [np.ones(self.num_assign_interval), np.ones(self.num_assign_interval)] 
+    #     for O in self.nb.demand_bustransit.demand_dict.keys():
+    #         for D in self.nb.demand_bustransit.demand_dict[O].keys():
+    #             self.nb.demand_bustransit.demand_dict[O][D] = np.ones(self.num_assign_interval)
+    #     for O in self.nb.demand_pnr.demand_dict.keys():
+    #         for D in self.nb.demand_pnr.demand_dict[O].keys():
+    #             self.nb.demand_pnr.demand_dict[O][D] = np.ones(self.num_assign_interval) 

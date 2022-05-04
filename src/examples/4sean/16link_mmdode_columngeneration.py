@@ -61,29 +61,6 @@ nb.load_from_folder(data_folder_observed)
 print(nb)
 
 # %%
-
-def r2(predictions, targets):
-    y_bar = np.mean(targets)
-    # diff = np.minimum(np.abs(predictions - targets), targets)
-    diff = predictions - targets
-    ss_e = np.sum(diff ** 2)
-    ss_t = np.sum((targets) ** 2)
-    return 1 - ss_e / ss_t
-
-
-def rsquared(x, y):
-    slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
-    return r_value**2
-
-
-def rmse(predictions, targets):
-    return np.sqrt(((predictions - targets) ** 2).mean())
-
-
-def rmsn(predictions, targets):
-    return np.sqrt(np.sum((predictions - targets) ** 2) * len(predictions)) / np.sum(targets)
-
-# %%
 # prepare artifical observed data
 num_interval = nb.config.config_dict['DTA']['max_interval']
 
@@ -153,10 +130,10 @@ else:
     config['use_bus_link_flow'] = True
     config['use_passenger_link_flow'] = True
 
-    config['use_car_link_tt'] = True
-    config['use_truck_link_tt'] = True
-    config['use_bus_link_tt'] = True
-    config['use_passenger_link_tt'] = True
+    config['use_car_link_tt'] = False
+    config['use_truck_link_tt'] = False
+    config['use_bus_link_tt'] = False
+    config['use_passenger_link_tt'] = False
 
     config['car_count_agg'] = True
     config['truck_count_agg'] = True
@@ -203,13 +180,13 @@ else:
     # %%
     dode = MMDODE(nb, config)
     dta = dode._run_simulation(true_f_car_driving, true_f_truck_driving,
-                            true_f_passenger_bustransit, true_f_car_pnr)
+                               true_f_passenger_bustransit, true_f_car_pnr, counter=0, run_mmdta_adaptive=False)
     dta.print_simulation_results(os.path.join(data_folder, 'record'), 12)
 
-    true_car_dar_matrix_driving, true_truck_dar_matrix_driving, true_car_dar_matrix_pnr, true_bus_dar_matrix_bustransit_link, true_bus_dar_matrix_driving_link, \
-        true_passenger_dar_matrix_bustransit, true_passenger_dar_matrix_pnr = \
-        dode.get_dar(dta, true_f_car_driving, true_f_truck_driving,
-                    true_f_bus, true_f_passenger_bustransit, true_f_car_pnr)
+    # true_car_dar_matrix_driving, true_truck_dar_matrix_driving, true_car_dar_matrix_pnr, true_bus_dar_matrix_bustransit_link, true_bus_dar_matrix_driving_link, \
+    #     true_passenger_dar_matrix_bustransit, true_passenger_dar_matrix_pnr = \
+    #     dode.get_dar(dta, true_f_car_driving, true_f_truck_driving,
+    #                 true_f_bus, true_f_passenger_bustransit, true_f_car_pnr)
 
     noise_level = 0.1
 
@@ -293,6 +270,23 @@ config['paths_list'] = np.concatenate((config['paths_list_driving'], config['pat
 
 
 dode = MMDODE(nb, config)
+is_updated = dode.check_registered_links_covered_by_registered_paths(data_folder + '/corrected_input_files')
+if is_updated > 0:
+    nb = MNM_network_builder()  # from MNM_mmnb, for python analysis
+    nb.load_from_folder(data_folder + '/corrected_input_files')
+
+    config['paths_list_driving'] = np.array(
+        [ID for ID in nb.path_table_driving.ID2path.keys()], dtype=int)
+    config['paths_list_bustransit'] = np.array(
+        [ID for ID in nb.path_table_bustransit.ID2path.keys()], dtype=int)
+    config['paths_list_pnr'] = np.array(
+        [ID for ID in nb.path_table_pnr.ID2path.keys()], dtype=int)
+    config['paths_list_busroute'] = np.array(
+        [ID for ID in nb.path_table_bus.ID2path.keys()], dtype=int)
+    config['paths_list'] = np.concatenate((config['paths_list_driving'], config['paths_list_bustransit'],
+                                           config['paths_list_pnr'], config['paths_list_busroute']))
+    dode.reinitialize(nb, config)
+
 dode.add_data(data_dict)
 
 # %%
@@ -326,14 +320,17 @@ dode.add_data(data_dict)
 #                                 alpha_mode=(1., 1.5, 2.), beta_mode=1, alpha_path=1, beta_path=1, 
 #                                 use_file_as_init=None, save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
 
-max_epoch = 50
+max_epoch = 100
 column_generation = np.zeros(max_epoch, dtype=bool)
 # column_generation[:5] = 1
+# for i in range(max_epoch):
+#     if i % 5 == 0:
+#         column_generation[i] = 1
 
 # f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
 #     dode.estimate_path_flow(car_driving_scale=100, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
-#                             car_driving_step_size=1.8, truck_driving_step_size=1, passenger_bustransit_step_size=1, car_pnr_step_size=1,
-#                             max_epoch=max_epoch, adagrad=True, column_generation=column_generation, use_tdsp=False,
+#                             car_driving_step_size=1.8, truck_driving_step_size=1, passenger_bustransit_step_size=2, car_pnr_step_size=1,
+#                             max_epoch=max_epoch, adagrad=True, column_generation=column_generation, use_tdsp=True,
 #                             use_file_as_init=None, save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
 
 # f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
@@ -342,57 +339,57 @@ column_generation = np.zeros(max_epoch, dtype=bool)
 #                             max_epoch=max_epoch, adagrad=True, column_generation=column_generation, use_tdsp=False,
 #                             use_file_as_init=None, save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
 
-car_driving_step_size = np.ones(max_epoch) * 5
-# car_driving_step_size[50:] = 0 
-truck_driving_step_size = np.ones(max_epoch) * 1
-# truck_driving_step_size[50:] = 0 
-passenger_bustransit_step_size = np.ones(max_epoch) * 3
-# passenger_bustransit_step_size[30:] = 1
-car_pnr_step_size = np.ones(max_epoch) * 1
-f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
-    dode.estimate_path_flow(car_driving_scale=10, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
-                            car_driving_step_size=car_driving_step_size, truck_driving_step_size=truck_driving_step_size, 
-                            passenger_bustransit_step_size=passenger_bustransit_step_size, car_pnr_step_size=car_pnr_step_size,
-                            max_epoch=max_epoch, adagrad=True, column_generation=column_generation, use_tdsp=False,
-                            use_file_as_init=None, 
-                            save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
+# car_driving_step_size = np.ones(max_epoch) * 5
+# # car_driving_step_size[50:] = 0 
+# truck_driving_step_size = np.ones(max_epoch) * 1
+# # truck_driving_step_size[50:] = 0 
+# passenger_bustransit_step_size = np.ones(max_epoch) * 1
+# # passenger_bustransit_step_size[30:] = 1
+# car_pnr_step_size = np.ones(max_epoch) * 1
+# f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
+#     dode.estimate_path_flow(car_driving_scale=10, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
+#                             car_driving_step_size=car_driving_step_size, truck_driving_step_size=truck_driving_step_size, 
+#                             passenger_bustransit_step_size=passenger_bustransit_step_size, car_pnr_step_size=car_pnr_step_size,
+#                             max_epoch=max_epoch, adagrad=True, column_generation=column_generation, use_tdsp=True,
+#                             use_file_as_init=None, 
+#                             save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
 # # os.path.join(data_folder, 'record', str(24) + '_iteration_estimate_path_flow.pickle')
 
-# car_driving_step_size_modifier = np.ones(max_epoch, dtype=bool)
-# # car_driving_step_size_modifier[:30] = 0 
-# truck_driving_step_size_modifier = np.ones(max_epoch, dtype=bool)
-# # truck_driving_step_size_modifier[:30] = 0 
-# passenger_bustransit_step_size_modifier = np.ones(max_epoch, dtype=bool)
+car_driving_step_size_modifier = np.ones(max_epoch, dtype=bool)
+# car_driving_step_size_modifier[:30] = 0 
+truck_driving_step_size_modifier = np.ones(max_epoch, dtype=bool)
+# truck_driving_step_size_modifier[:30] = 0 
+passenger_bustransit_step_size_modifier = np.ones(max_epoch, dtype=bool)
 
-# car_pnr_step_size_modifier = np.ones(max_epoch, dtype=bool)
-# # car_pnr_step_size_modifier[:30] = 0
+car_pnr_step_size_modifier = np.ones(max_epoch, dtype=bool)
+# car_pnr_step_size_modifier[:30] = 0
 
-# f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
-#     dode.estimate_path_flow_pytorch(car_driving_scale=10, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
-#                                     car_driving_step_size=0.9, truck_driving_step_size=0.5, passenger_bustransit_step_size=0.9, car_pnr_step_size=0.5,
-#                                     car_driving_step_size_modifier=car_driving_step_size_modifier, 
-#                                     truck_driving_step_size_modifier=truck_driving_step_size_modifier, 
-#                                     passenger_bustransit_step_size_modifier=passenger_bustransit_step_size_modifier, 
-#                                     car_pnr_step_size_modifier=car_pnr_step_size_modifier,
-#                                     max_epoch=max_epoch, column_generation=column_generation, use_tdsp=False,
-#                                     use_file_as_init=None, 
-#                                     save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
+f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
+    dode.estimate_path_flow_pytorch(car_driving_scale=10, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=2,
+                                    car_driving_step_size=0.9, truck_driving_step_size=0.2, passenger_bustransit_step_size=0.8, car_pnr_step_size=0.2,
+                                    car_driving_step_size_modifier=car_driving_step_size_modifier, 
+                                    truck_driving_step_size_modifier=truck_driving_step_size_modifier, 
+                                    passenger_bustransit_step_size_modifier=passenger_bustransit_step_size_modifier, 
+                                    car_pnr_step_size_modifier=car_pnr_step_size_modifier,
+                                    max_epoch=max_epoch, column_generation=column_generation, use_tdsp=True,
+                                    use_file_as_init=None, 
+                                    save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
 
 # f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
 #     dode.estimate_path_flow_pytorch(car_driving_scale=50, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
-#                                     car_driving_step_size=0, truck_driving_step_size=0, passenger_bustransit_step_size=0.5, car_pnr_step_size=0,
+#                                     car_driving_step_size=0, truck_driving_step_size=0, passenger_bustransit_step_size=0.2, car_pnr_step_size=0,
 #                                     car_driving_step_size_modifier=car_driving_step_size_modifier, 
 #                                     truck_driving_step_size_modifier=truck_driving_step_size_modifier, 
 #                                     passenger_bustransit_step_size_modifier=passenger_bustransit_step_size_modifier, 
 #                                     car_pnr_step_size_modifier=car_pnr_step_size_modifier,
 #                                     max_epoch=max_epoch, column_generation=column_generation, use_tdsp=False,
-#                                     use_file_as_init=os.path.join(data_folder, 'record', str(49) + '_iteration_estimate_path_flow.pickle'), 
-#                                     save_folder=os.path.join(data_folder, 'record'), starting_epoch=50)                                   
+#                                     use_file_as_init=os.path.join(data_folder, 'record', str(99) + '_iteration_estimate_path_flow.pickle'), 
+#                                     save_folder=os.path.join(data_folder, 'record'), starting_epoch=100)                                   
 
 # print("r2 --- f_car_driving: {}, f_truck_driving: {}, f_passenger_bustransit: {}, f_car_pnr: {}"
-#       .format(r2_score(f_car_driving, true_f_car_driving), r2_score(f_truck_driving, true_f_truck_driving),
-#               r2_score(f_passenger_bustransit, true_f_passenger_bustransit),
-#               r2_score(f_car_pnr, true_f_car_pnr)))
+#       .format(r2_score(true_f_car_driving, f_car_driving), r2_score(true_f_truck_driving, f_truck_driving),
+#               r2_score(true_f_passenger_bustransit, f_passenger_bustransit),
+#               r2_score(true_f_car_pnr, f_car_pnr)))
 
 # %% 
 result_folder = os.path.join(data_folder, 'record')
@@ -474,7 +471,7 @@ plt.savefig(os.path.join(result_folder, 'breakdown_loss_pathflow.png'))
 plt.show()
 
 # %%
-dta = dode._run_simulation(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr)
+dta = dode._run_simulation(f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, counter=0, run_mmdta_adaptive=False)
 
 start_intervals = np.arange(0, dode.num_loading_interval, dode.ass_freq)
 end_intervals = np.arange(0, dode.num_loading_interval, dode.ass_freq) + dode.ass_freq
@@ -499,10 +496,13 @@ m_truck_estimated = L_truck.dot(estimated_truck_x)
 m_bus_estimated = L_bus.dot(estimated_bus_x)
 m_passenger_estimated = L_passenger.dot(estimated_passenger_x)
 
-r2_car_count = r2_score(m_car_estimated, m_car)
-r2_truck_count = r2_score(m_truck_estimated, m_truck)
-r2_passenger_count = r2_score(m_passenger_estimated, m_passenger)
-r2_bus_count = r2_score(m_bus_estimated, m_bus)
+print(m_passenger.reshape(len(start_intervals), -1).T)
+print(m_passenger_estimated.reshape(len(start_intervals), -1).T)
+
+r2_car_count = r2_score(m_car, m_car_estimated)
+r2_truck_count = r2_score(m_truck, m_truck_estimated)
+r2_passenger_count = r2_score(m_passenger, m_passenger_estimated)
+r2_bus_count = r2_score(m_bus, m_bus_estimated)
 print("r2 count --- r2_car_count: {}, r2_truck_count: {}, r2_passenger_count: {}, r2_bus_count: {}"
       .format(r2_car_count, r2_truck_count, r2_passenger_count, r2_bus_count))
 

@@ -308,21 +308,14 @@ namespace MNM {
 
 
     Path_Table *
-    build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path) {
-        /* setting */
-        size_t MaxIter = 10;
-        TFlt Mid_Scale = 3;
-        TFlt Heavy_Scale = 6;
+    build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale) {
         // printf("11\n");
         /* initialize data structure */
         Path_Table *_path_table = new Path_Table();
         for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
             std::unordered_map<TInt, MNM_Pathset *> *_new_map = new std::unordered_map<TInt, MNM_Pathset *>();
-            _path_table->insert(
-                    std::pair<TInt, std::unordered_map<TInt, MNM_Pathset *> *>(_o_it->second->m_origin_node->m_node_ID,
-                                                                               _new_map));
-            for (auto _d_it = od_factory->m_destination_map.begin();
-                 _d_it != od_factory->m_destination_map.end(); _d_it++) {
+            _path_table->insert(std::pair<TInt, std::unordered_map<TInt, MNM_Pathset *> *>(_o_it->second->m_origin_node->m_node_ID, _new_map));
+            for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
                 MNM_Pathset *_pathset = new MNM_Pathset();
                 _new_map->insert(std::pair<TInt, MNM_Pathset *>(_d_it->second->m_dest_node->m_node_ID, _pathset));
             }
@@ -350,9 +343,8 @@ namespace MNM {
                 _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
                 _path = MNM::extract_path(_origin_node_ID, _dest_node_ID, _free_shortest_path_tree, graph);
                 if (_path != nullptr) {
-                    if (_path->get_path_length(link_factory) > min_path) {
-                        _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(
-                                _path);
+                    if (_path->get_path_length(link_factory) > min_path_length) {
+                        _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path);
                     }
                 }
             }
@@ -365,14 +357,12 @@ namespace MNM {
         size_t _CurIter = 0;
         while (_CurIter < MaxIter) {
             printf("Current interval %d\n", (int) _CurIter);
-            for (auto _d_it = od_factory->m_destination_map.begin();
-                 _d_it != od_factory->m_destination_map.end(); _d_it++) {
+            for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
                 _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
                 MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _free_cost_map, _free_shortest_path_tree);
                 for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
                     _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
-                    for (auto &_path : _path_table->find(_origin_node_ID)->second->find(
-                            _dest_node_ID)->second->m_path_vec) {
+                    for (auto &_path : _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec) {
                         for (auto &_link_ID : _path->m_link_vec) {
                             _link = link_factory->get_link(_link_ID);
                             _mid_cost_map.find(_link->m_link_ID)->second = _link->get_link_tt() * Mid_Scale;
@@ -382,8 +372,7 @@ namespace MNM {
                 }
             }
             MNM_Path *_path_mid, *_path_heavy;
-            for (auto _d_it = od_factory->m_destination_map.begin();
-                 _d_it != od_factory->m_destination_map.end(); _d_it++) {
+            for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
                 _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
                 MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _mid_cost_map, _mid_shortest_path_tree);
                 MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _heavy_cost_map, _heavy_shortest_path_tree);
@@ -392,21 +381,23 @@ namespace MNM {
                     _path_mid = MNM::extract_path(_origin_node_ID, _dest_node_ID, _mid_shortest_path_tree, graph);
                     _path_heavy = MNM::extract_path(_origin_node_ID, _dest_node_ID, _heavy_shortest_path_tree, graph);
                     if (_path_mid != nullptr) {
-                        if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(
-                                _path_mid)) {
-                            if (_path_mid->get_path_length(link_factory) > min_path) {
-                                _path_table->find(_origin_node_ID)->second->find(
-                                        _dest_node_ID)->second->m_path_vec.push_back(_path_mid);
+                        if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(_path_mid)) {
+                            if (_path_mid->get_path_length(link_factory) > min_path_length) {
+                                _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path_mid);
                             }
+                        }
+                        else {
+                            delete _path_mid;
                         }
                     }
                     if (_path_heavy != nullptr) {
-                        if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(
-                                _path_heavy)) {
-                            if (_path_heavy->get_path_length(link_factory) > min_path) {
-                                _path_table->find(_origin_node_ID)->second->find(
-                                        _dest_node_ID)->second->m_path_vec.push_back(_path_heavy);
+                        if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(_path_heavy)) {
+                            if (_path_heavy->get_path_length(link_factory) > min_path_length) {
+                                _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path_heavy);
                             }
+                        }
+                        else {
+                            delete _path_heavy;
                         }
                     }
                 }

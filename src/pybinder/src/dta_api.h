@@ -55,6 +55,7 @@ public:
   py::array_t<double> get_link_inflow(py::array_t<int>start_intervals, 
                                         py::array_t<int>end_intervals);
   py::array_t<double> get_link_tt(py::array_t<int>start_intervals);
+  py::array_t<double> get_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
   py::array_t<double> get_path_tt(py::array_t<int>start_intervals);
   py::array_t<double> get_link_in_cc(int link_ID);
   py::array_t<double> get_link_out_cc(int link_ID);
@@ -86,8 +87,9 @@ public:
   int print_simulation_results(const std::string &folder, int cong_frequency = 180);
   
   py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals);
-  py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals);
+  py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
   py::array_t<double> get_truck_link_tt(py::array_t<double>start_intervals);
+  py::array_t<double> get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
   
   py::array_t<double> get_car_link_speed(py::array_t<double>start_intervals);
   py::array_t<double> get_truck_link_speed(py::array_t<double>start_intervals);
@@ -154,11 +156,14 @@ public:
     int generate_init_mode_demand_file(const std::string &file_folder);
 
     py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals);
-    py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals);
+    py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
     py::array_t<double> get_truck_link_tt(py::array_t<double>start_intervals);
+    py::array_t<double> get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
     py::array_t<double> get_bus_link_tt(py::array_t<double>start_intervals);
+    py::array_t<double> get_bus_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
     // on boarding links, this is bus waiting time
     py::array_t<double> get_passenger_walking_link_tt(py::array_t<double>start_intervals);
+    py::array_t<double> get_passenger_walking_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
 
     py::array_t<double> get_car_link_speed(py::array_t<double>start_intervals);
     py::array_t<double> get_truck_link_speed(py::array_t<double>start_intervals);

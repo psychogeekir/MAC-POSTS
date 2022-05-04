@@ -5791,6 +5791,9 @@ int MNM_IO_Multimodal::build_bustransit_demand(const std::string& file_folder,
 
     TInt _init_demand_split = conf_reader -> get_int("init_demand_split");
 
+    // force the passengers to be released as a lump sum
+    _init_demand_split = 0;
+
     /* build passenger demand for assignment */
     TInt _origin_ID, _dest_ID;
     TFlt _demand;
@@ -6826,6 +6829,16 @@ TFlt get_travel_time_walking(MNM_Walking_Link *link, TFlt start_time, TFlt unit_
     return get_travel_time_from_cc(start_time, link -> m_N_in, link -> m_N_out, link -> m_last_valid_time, fftt);
 }
 
+TFlt get_travel_time_walking_robust(MNM_Walking_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials)
+{
+    TFlt _delta = (end_time - start_time) / TFlt(num_trials);
+	TFlt _ave_tt = TFlt(0);
+	for (int i=0; i < num_trials(); ++i){
+		_ave_tt += get_travel_time_walking(link, start_time + TFlt(i) * _delta, unit_interval);
+	}
+	return _ave_tt / TFlt(num_trials);
+}
+
 TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval) {
     if (link == nullptr){
         throw std::runtime_error("Error, get_travel_time_bus link is null");
@@ -6861,6 +6874,16 @@ TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval
     }
 
     return get_travel_time_from_cc(start_time, link -> m_N_in, link -> m_N_out, link -> m_last_valid_time, fftt);
+}
+
+TFlt get_travel_time_bus_robust(MNM_Bus_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials)
+{
+    TFlt _delta = (end_time - start_time) / TFlt(num_trials);
+	TFlt _ave_tt = TFlt(0);
+	for (int i=0; i < num_trials(); ++i){
+		_ave_tt += get_travel_time_bus(link, start_time + TFlt(i) * _delta, unit_interval);
+	}
+	return _ave_tt / TFlt(num_trials);
 }
 
 TFlt get_link_inflow_bus(MNM_Bus_Link *link, TFlt start_time, TFlt end_time)
@@ -9349,29 +9372,32 @@ int MNM_MM_Due::update_origin_demand_from_passenger_path_table(MNM_Dta_Multimoda
                             _demand += _path_bus->m_buffer[_col];
                         }
 
-                        if (mmdta -> m_init_demand_split == 0) {
-                            _demand_vector[_col * _num_of_minute] = _demand;
-                        }
-                        else if (mmdta -> m_init_demand_split == 1) {
-                            // uniform
-                            _max_num_of_minute = _num_of_minute;
-                            for (int k = 0; k < _num_of_minute; ++k){
-                                if (floor(_demand / TFlt(_num_of_minute - k)) >= 1){
-                                    _max_num_of_minute = _num_of_minute - k;
-                                    break;
-                                }
-                            }
-                            IAssert(_max_num_of_minute > 0 && _max_num_of_minute <= _num_of_minute);
-                            _demand = _demand / TFlt(_max_num_of_minute);
-                            for (int k = 0; k < _max_num_of_minute; ++k){
-                                // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
-                                _demand_vector[_col * _num_of_minute + k] = _demand;
-                            }
-                        }
-                        else {
-                            printf("Wrong init_demand_split\n");
-                            exit(-1);
-                        }
+                        // force the passengers to be released as a lump sum
+                        _demand_vector[_col * _num_of_minute] = _demand;
+
+                        // if (mmdta -> m_init_demand_split == 0) {
+                        //     _demand_vector[_col * _num_of_minute] = _demand;
+                        // }
+                        // else if (mmdta -> m_init_demand_split == 1) {
+                        //     // uniform
+                        //     _max_num_of_minute = _num_of_minute;
+                        //     for (int k = 0; k < _num_of_minute; ++k){
+                        //         if (floor(_demand / TFlt(_num_of_minute - k)) >= 1){
+                        //             _max_num_of_minute = _num_of_minute - k;
+                        //             break;
+                        //         }
+                        //     }
+                        //     IAssert(_max_num_of_minute > 0 && _max_num_of_minute <= _num_of_minute);
+                        //     _demand = _demand / TFlt(_max_num_of_minute);
+                        //     for (int k = 0; k < _max_num_of_minute; ++k){
+                        //         // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
+                        //         _demand_vector[_col * _num_of_minute + k] = _demand;
+                        //     }
+                        // }
+                        // else {
+                        //     printf("Wrong init_demand_split\n");
+                        //     exit(-1);
+                        // }
 
                     }
                 }
@@ -9541,38 +9567,45 @@ int MNM_MM_Due::update_origin_demand_logit_model(MNM_Dta_Multimodal *mmdta, int 
                 _demand = _mode_split.find(transit) -> second * _tot_passenger_demand;
                 m_mode_share.find(transit) -> second += _demand;
 
-                if (mmdta -> m_init_demand_split == 0) {
-                    _demand_vector[assign_inter * _num_of_minute] = _demand;
-                    for (int k = 1; k < _num_of_minute; ++k){
-                        // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
-                        _demand_vector[assign_inter * _num_of_minute + k] = 0;
-                    }
+                // force the passengers to be released as a lump sum
+                _demand_vector[assign_inter * _num_of_minute] = _demand;
+                for (int k = 1; k < _num_of_minute; ++k){
+                    // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
+                    _demand_vector[assign_inter * _num_of_minute + k] = 0;
                 }
-                else if (mmdta -> m_init_demand_split == 1) {
-                    // uniform
-                    _max_num_of_minute = _num_of_minute;
-                    for (int k = 0; k < _num_of_minute; ++k){
-                        if (floor(_demand / TFlt(_num_of_minute - k)) >= 1){
-                            _max_num_of_minute = _num_of_minute - k;
-                            break;
-                        }
-                    }
-                    IAssert(_max_num_of_minute > 0 && _max_num_of_minute <= _num_of_minute);
-                    _demand = _demand / TFlt(_max_num_of_minute);
-                    for (int k = 0; k < _num_of_minute; ++k){
-                        // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
-                        if (k < _max_num_of_minute) {
-                            _demand_vector[assign_inter * _num_of_minute + k] = _demand;
-                        }
-                        else {
-                            _demand_vector[assign_inter * _num_of_minute + k] = 0;
-                        }
-                    }  
-                }
-                else {
-                    printf("Wrong init_demand_split\n");
-                    exit(-1);
-                }
+
+                // if (mmdta -> m_init_demand_split == 0) {
+                //     _demand_vector[assign_inter * _num_of_minute] = _demand;
+                //     for (int k = 1; k < _num_of_minute; ++k){
+                //         // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
+                //         _demand_vector[assign_inter * _num_of_minute + k] = 0;
+                //     }
+                // }
+                // else if (mmdta -> m_init_demand_split == 1) {
+                //     // uniform
+                //     _max_num_of_minute = _num_of_minute;
+                //     for (int k = 0; k < _num_of_minute; ++k){
+                //         if (floor(_demand / TFlt(_num_of_minute - k)) >= 1){
+                //             _max_num_of_minute = _num_of_minute - k;
+                //             break;
+                //         }
+                //     }
+                //     IAssert(_max_num_of_minute > 0 && _max_num_of_minute <= _num_of_minute);
+                //     _demand = _demand / TFlt(_max_num_of_minute);
+                //     for (int k = 0; k < _num_of_minute; ++k){
+                //         // printf("original demand value is %f\n", (float)_demand_vector[_col * _num_of_minute + k]);
+                //         if (k < _max_num_of_minute) {
+                //             _demand_vector[assign_inter * _num_of_minute + k] = _demand;
+                //         }
+                //         else {
+                //             _demand_vector[assign_inter * _num_of_minute + k] = 0;
+                //         }
+                //     }  
+                // }
+                // else {
+                //     printf("Wrong init_demand_split\n");
+                //     exit(-1);
+                // }
 
             }
             else {
@@ -11272,6 +11305,8 @@ MNM_MM_Due::get_best_pnr_path_for_single_interval(TInt interval, TInt o_node_ID,
 
             _tmp_tt_bustransit = tdsp_tree_bus-> m_dist[_mid_dest_node_ID][i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) < (int)tdsp_tree_bus -> m_max_interval ? i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) : (int)tdsp_tree_bus -> m_max_interval - 1];
             std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt_driving + _tmp_tt_parking + _tmp_tt_bustransit <<"\n";
+            // std::cout << _mid_dest_node_ID << "\n";
+            // std::cout << "max interval: " << tdsp_tree_bus -> m_max_interval << " cur time: " << TInt(i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking))) << "\n";
             _bustransit_path = new MNM_Path();
             tdsp_tree_bus->get_tdsp(_mid_dest_node_ID, TInt(i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking))), m_transitlink_cost_map, _bustransit_path);
             _bustransit_path -> eliminate_cycles();

@@ -819,7 +819,7 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_ma
     TInt _cur_node_ID = src_node_ID;
     TInt _cur_link_ID;
     // TFlt _cur_time = TFlt(time);
-    int _cur_time = int(time);
+    int _cur_time = int(time) < (int)m_max_interval ? int(time) : (int)m_max_interval - 1;
     while (_cur_node_ID != m_dest_node_ID) {
         path->m_node_vec.push_back(_cur_node_ID);
         // _cur_link_ID = m_tree[_cur_node_ID][round_time(_cur_time)];
@@ -844,7 +844,7 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time,
     TInt _cur_node_ID = src_node_ID;
     TInt _cur_link_ID;
     // TFlt _cur_time = TFlt(time);
-    int _cur_time = int(time);
+    int _cur_time = int(time) < (int)m_max_interval ? int(time) : (int)m_max_interval - 1;
     while (_cur_node_ID != m_dest_node_ID) {
         path->m_node_vec.push_back(_cur_node_ID);
         // _cur_link_ID = m_tree[_cur_node_ID][round_time(_cur_time)];
