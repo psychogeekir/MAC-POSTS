@@ -73,6 +73,7 @@ public:
   virtual TFlt get_link_tt() {return TFlt(0);};
   virtual TFlt get_link_tt_from_flow(TFlt flow) {return TFlt(0);};
   virtual TFlt get_link_freeflow_tt();  // seconds
+  virtual TInt get_link_freeflow_tt_loading() {return TInt(-1);};  // intervals
 
   int install_cumulative_curve();
   int install_cumulative_curve_tree();
@@ -117,6 +118,7 @@ public:
   virtual TFlt get_link_flow() override;
   virtual TFlt get_link_tt() override;
   virtual TFlt get_link_tt_from_flow(TFlt flow) override;
+  virtual TInt get_link_freeflow_tt_loading() override;  // intervals
 
 // private:
   class Ctm_Cell;
@@ -172,6 +174,7 @@ public:
   virtual TFlt get_link_flow() override;
   virtual TFlt get_link_tt() override;
   virtual TFlt get_link_tt_from_flow(TFlt flow) override;
+  virtual TInt get_link_freeflow_tt_loading() override;  // intervals
 
 // private:
   std::unordered_map<MNM_Veh*, TInt> m_veh_queue;
@@ -208,6 +211,7 @@ public:
   virtual TFlt get_link_flow() override;
   virtual TFlt get_link_tt() override;
   virtual TFlt get_link_tt_from_flow(TFlt flow) override;
+  virtual TInt get_link_freeflow_tt_loading() override;  // intervals
 
 // private:
   std::deque<MNM_Veh*> m_veh_queue;
@@ -249,7 +253,8 @@ public:
   virtual TFlt get_link_flow() override;
   virtual TFlt get_link_tt() override;
   virtual TFlt get_link_tt_from_flow(TFlt flow) override;
-
+  virtual TInt get_link_freeflow_tt_loading() override;  // intervals
+  
 // private:
   std::deque<MNM_Veh*> m_veh_queue;
   MNM_Cumulative_Curve m_N_in2;

@@ -29,7 +29,7 @@ namespace MNM_DTA_GRADIENT {
         return link->m_N_in->get_result(TFlt(end_time)) - link->m_N_in->get_result(TFlt(start_time));
     }
 
-    TFlt get_last_valid_time(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, const std::string& s) {
+    TFlt get_last_valid_time(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TInt end_loading_timestamp, const std::string& s) {
         if (MNM_Ults::approximate_less_than(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second)) {
             printf("max in cc flow: %lf, max out cc flow: %lf\n", N_in -> m_recorder.back().second(), N_out -> m_recorder.back().second());
             printf("diff: %lf\n", N_in -> m_recorder.back().second - N_out -> m_recorder.back().second);
@@ -37,16 +37,37 @@ namespace MNM_DTA_GRADIENT {
             std::cout << s << std::endl;
             exit(-1);
         }
+        IAssert(end_loading_timestamp >= int(N_in -> m_recorder.back().first));
+        IAssert(end_loading_timestamp >= int(N_out -> m_recorder.back().first));
         TFlt _cc_flow = N_out -> m_recorder.back().second;
+        
+        // link is empty after end_loading_timestamp
+        if (MNM_Ults::approximate_equal(_cc_flow, N_in -> m_recorder.back().second)) {
+            return TFlt(end_loading_timestamp);
+        }
+
+        // link is not empty after end_loading_timestamp
+        // first time reaching _cc_flow
         TFlt _last_valid_time = N_in -> get_time(_cc_flow);
-        if (_last_valid_time < 0) _last_valid_time = 0;
-        return _last_valid_time;
+        IAssert(int(_last_valid_time) < int(end_loading_timestamp));
+        if (_last_valid_time < 0) return TFlt(0);
+        if (int(_last_valid_time) + 1 <= int(end_loading_timestamp)) {
+            for (int i = 1; i <= int(end_loading_timestamp) - int(_last_valid_time); ++i) {
+                if (MNM_Ults::approximate_less_than(_cc_flow, N_in -> get_result(TFlt(_last_valid_time + i)))) {
+                    return TFlt(_last_valid_time + i - 1);
+                }
+            }
+        }
+        throw std::runtime_error("Error, MNM_DTA_GRADIENT::get_last_valid_time, cannot find last valid time in N_in");
+        return TFlt(-1);
     }
 
     TFlt get_travel_time_from_cc(TFlt start_time, MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TFlt last_valid_time, TFlt fftt)
     {
         if (last_valid_time <= 0) return fftt;
-        if (start_time > last_valid_time) start_time = last_valid_time;
+        if (start_time > last_valid_time) {
+            start_time = last_valid_time;
+        }
 
         TFlt _cc_flow = N_in -> get_result(start_time);
         if (_cc_flow <= DBL_EPSILON){
@@ -54,17 +75,17 @@ namespace MNM_DTA_GRADIENT {
         }
 
         // get the earliest time point in N_in that reaches the inflow == _cc_flow as the true start_time
-        TFlt _true_start_time = N_in -> get_time(_cc_flow);
-        IAssert(_true_start_time <= last_valid_time);
+        // TFlt _true_start_time = N_in -> get_time(_cc_flow);
+        // IAssert(_true_start_time <= last_valid_time);
 
         // get the earliest time point in N_out that reaches the outflow == _cc_flow as the end_time
         TFlt _end_time = N_out -> get_time(_cc_flow);
 
-        if (_end_time() < 0 || (_end_time - _true_start_time < 0) || (_end_time - _true_start_time < fftt)){
+        if (_end_time() < 0 || (_end_time - start_time < 0) || (_end_time - start_time < fftt)){
             return fftt; // in intervals
         }
         else{
-            return (_end_time - _true_start_time); // each interval is 5s
+            return (_end_time - start_time); // each interval is 5s
         }
     }
 
@@ -75,49 +96,69 @@ namespace MNM_DTA_GRADIENT {
         return _tt / unit_interval;
     }
 
-    TFlt get_travel_time(MNM_Dlink *link, TFlt start_time, TFlt unit_interval) {
+    TFlt get_travel_time(MNM_Dlink *link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp) {
 
+        // start_time actually means the timestamp used in CC to compute the link travel time
         if (link == nullptr) {
             throw std::runtime_error("Error, get_travel_time link is null");
         }
         if (link->m_N_in == nullptr) {
             throw std::runtime_error("Error, get_travel_time link cumulative curve is not installed");
         }
-        TFlt fftt = link->m_length/link->m_ffs/unit_interval;
+
+        // TFlt fftt = link->m_length/link->m_ffs/unit_interval;
+        TFlt fftt = TFlt(int(link -> get_link_freeflow_tt_loading()));  // actual intervals in loading
 
         if (link -> m_last_valid_time < 0) {
-            link -> m_last_valid_time = get_last_valid_time(link -> m_N_in, link -> m_N_out);
+            link -> m_last_valid_time = get_last_valid_time(link -> m_N_in, link -> m_N_out, end_loading_timestamp);
         }
         IAssert(link -> m_last_valid_time >= 0);
 
         return get_travel_time_from_cc(start_time, link -> m_N_in, link -> m_N_out, link -> m_last_valid_time, fftt);
     }
 
-    TFlt get_travel_time_robust(MNM_Dlink* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials) {
+    TFlt get_travel_time_robust(MNM_Dlink* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials) {
+        // start_time actually means the timestamp used in CC to compute the link travel time
+        num_trials = num_trials > TInt(end_time - start_time) ? TInt(end_time - start_time) : num_trials;
         TFlt _delta = (end_time - start_time) / TFlt(num_trials);
         TFlt _ave_tt = TFlt(0);
+        // will not use end_time 
         for (int i=0; i < num_trials(); ++i){
-            _ave_tt += get_travel_time(link, start_time + TFlt(i) * _delta, unit_interval);
+            _ave_tt += get_travel_time(link, start_time + TFlt(i) * _delta, unit_interval, end_loading_timestamp);
         }
         return _ave_tt / TFlt(num_trials);
     }
 
-    TFlt get_path_travel_time(MNM_Path *path, TFlt start_time, MNM_Link_Factory *link_factory, TFlt unit_interval) {
+    TFlt get_path_travel_time(MNM_Path *path, TFlt start_time, MNM_Link_Factory *link_factory, TFlt unit_interval, TInt end_loading_timestamp) {
+        // start_time means the actual departure time
         if (path == nullptr) {
             throw std::runtime_error("Error, get_path_travel_time path is null");
         }
         if (link_factory == nullptr) {
             throw std::runtime_error("Error, get_path_travel_time link link_factory is null");
         }
-        TFlt _end_time = start_time;
+        int _end_time = int(round(start_time));
         MNM_Dlink *_link;
         for (auto _link_ID : path->m_link_vec) {
             _link = link_factory->get_link(_link_ID);
-            _end_time = _end_time + get_travel_time(_link, _end_time, unit_interval);
+            // assume each link's travel time >= unit interval
+            // use _end_time + 1 as start_time in cc to compute the link travel time for vehicles arriving at the beginning of interval _end_time
+            _end_time = _end_time + MNM_Ults::round_up_time(get_travel_time(_link, _end_time + 1, unit_interval, end_loading_timestamp));
         }
-        return _end_time - start_time;  // # of unit intervals
+        return TFlt(_end_time - start_time);  // # of unit intervals
     }
 
+    TFlt get_path_travel_time(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map, TInt end_loading_timestamp){
+        // start_time means the actual departure time
+        if (path == nullptr) {
+            throw std::runtime_error("Error, get_path_travel_time path is null");
+        }
+        int _cur_time = int(round(start_time));
+        for (TInt _link_ID : path->m_link_vec) {
+            _cur_time += MNM_Ults::round_up_time(link_cost_map[_link_ID][_cur_time < (int)end_loading_timestamp ? _cur_time : (int)end_loading_timestamp - 1]);
+        }
+        return TFlt(_cur_time - start_time);
+    }
 
     int add_dar_records(std::vector<dar_record *> &record, MNM_Dlink *link,
                         std::unordered_map<MNM_Path *, int> path_map, TFlt start_time, TFlt end_time) {

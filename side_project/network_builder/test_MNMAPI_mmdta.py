@@ -142,7 +142,7 @@ print(walking_link_tt)  # seconds
 
 
 # %%
-a.build_link_cost_map()
+a.build_link_cost_map(False)
 
 # %%
 truck_path_tt = a.get_registered_path_tt_truck(start_intervals)

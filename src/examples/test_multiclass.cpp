@@ -20,12 +20,9 @@ int main()
 
 	// On ubuntu (PC)
 	// std::string folder = "/home/alanpi/Desktop/MAC-POSTS/data/input_files_SPC_separate_Routing";
-	// std::string folder = "/home/lemma/Documents/MAC-POSTS/src/examples/mcDODE/a6e7b31067d2ead8d3725fc0ed587d06c958f63c";
-	std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multiclass";
+	// std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multiclass";
+	std::string folder = "/srv/data/qiling/Projects/Pittsburgh/pgh/baseline";
 
-	// on macOS (Mac air)
-	// std::string folder = "/Users/alan-air/Dropbox/MAC-POSTS/data/input_files_MckeesRocks_SPC";
-	// std::string folder = "/media/lemma/WD/nhd/experiments/src/temp_input";
 
     MNM_ConfReader *config = new MNM_ConfReader(folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
@@ -49,10 +46,10 @@ int main()
 	printf("========================== Finished pre_loading! ==========================\n");
 
 	printf("\n\n\n====================================== Start loading! =======================================\n");
-	bool _verbose = false;
-	bool output_link_cong = true; // if true output link congestion level every cong_frequency
+	bool _verbose = true;
+	bool output_link_cong = false; // if true output link congestion level every cong_frequency
 	TInt cong_frequency = 180; // 15 minutes
-	bool output_veh_locs = true; // if true output veh location every vis_frequency
+	bool output_veh_locs = false; // if true output veh location every vis_frequency
 	TInt vis_frequency = 60; // 5 minutes
 	MNM_Veh_Multiclass* _veh;
 	std::ofstream _vis_file;
@@ -147,12 +144,12 @@ int main()
                     _str += "link_ID: " + std::to_string(_link -> m_link_ID()) + " ";
                     _str += "car_inflow: " + std::to_string(MNM_DTA_GRADIENT::get_link_inflow_car(_link_m, _iter, _iter + 1)) + " ";
                     _str += "truck_inflow: " + std::to_string(MNM_DTA_GRADIENT::get_link_inflow_truck(_link_m, _iter, _iter + 1)) + " ";
-                    _str += "car_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time) * test_dta -> m_unit_time) + " ";
-                    _str += "truck_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time) * test_dta -> m_unit_time) + " ";
+                    _str += "car_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
+                    _str += "truck_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
                     _str += "car_fftt (s): " + std::to_string(_link_m -> get_link_freeflow_tt_car()) + " ";
                     _str += "truck_fftt (s): " + std::to_string(_link_m -> get_link_freeflow_tt_truck()) + " ";
-                    _str += "car_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time) * test_dta -> m_unit_time) * 3600 / 1600) + " ";
-                    _str += "truck_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time) * test_dta -> m_unit_time) * 3600 / 1600) + "\n";
+                    _str += "car_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) * 3600 / 1600) + " ";
+                    _str += "truck_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) * 3600 / 1600) + "\n";
                     _vis_file2 << _str;
                 }
             }
@@ -170,8 +167,8 @@ int main()
 	// 				// if (_iter == 984){
 	// 					_link_m = dynamic_cast<MNM_Dlink_Multiclass*>(_link);
 	// 					printf("%d,%.2f,%.2f\n", int(_iter),
-	// 						double(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time)),
-	// 						double(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time)));
+	// 						double(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval)),
+	// 						double(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval)));
 	// 				// }
 	// 				_iter += 1;
 	// 			}

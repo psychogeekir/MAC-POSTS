@@ -184,11 +184,7 @@ TFlt MNM_Due::get_disutility(TFlt depart_time, TFlt tt) {
 
 TFlt MNM_Due::get_tt(TFlt depart_time, MNM_Path *path) {
     // true path tt
-    int _cur_time = int(round(depart_time));
-    for (TInt _link_ID : path->m_link_vec) {
-        _cur_time += MNM_Ults::round_up_time(m_cost_map[_link_ID][_cur_time < (int)m_total_loading_inter ? _cur_time : (int)m_total_loading_inter - 1]);
-    }
-    return TFlt(_cur_time - depart_time);
+    return MNM_DTA_GRADIENT::get_path_travel_time(path, depart_time, m_cost_map, m_total_loading_inter);
 }
 
 
@@ -198,7 +194,8 @@ int MNM_Due::build_cost_map(MNM_Dta *dta) {
         // std::cout << "********************** interval " << i << " **********************\n";
         for (auto _link_it : dta->m_link_factory->m_link_map) {
             _link = _link_it.second;
-            m_cost_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i), m_unit_time) ;
+            // use i+1 as start_time in cc to compute link travel time for vehicles arriving at the beginning of interval i, i+1 is the end of the interval i, the beginning of interval i + 1
+            m_cost_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_unit_time, dta -> m_current_loading_interval) ;
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_cost_map[_link_it.first][i] << "\n";
         }
     }

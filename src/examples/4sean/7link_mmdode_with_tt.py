@@ -71,9 +71,9 @@ num_interval = nb.config.config_dict['DTA']['max_interval']
 true_f_car_driving = np.random.rand(
     num_interval * nb.config.config_dict['FIXED']['num_driving_path']) * 800
 true_f_truck_driving = np.random.rand(
-    num_interval * nb.config.config_dict['FIXED']['num_driving_path']) * 30
+    num_interval * nb.config.config_dict['FIXED']['num_driving_path']) * 30 * 0
 true_f_passenger_bustransit = np.random.rand(
-    num_interval * nb.config.config_dict['FIXED']['num_bustransit_path']) * 100
+    num_interval * nb.config.config_dict['FIXED']['num_bustransit_path']) * 100 * 0
 true_f_car_pnr = np.random.rand(
     num_interval * nb.config.config_dict['FIXED']['num_pnr_path']) * 50 * 0
 true_f_bus = nb.demand_bus.path_flow_matrix.flatten(order='F')
@@ -139,11 +139,11 @@ L_passenger = csr_matrix(scipy.linalg.block_diag(
 config = dict()
 
 config['use_car_link_flow'] = True
-config['use_truck_link_flow'] = True
-config['use_bus_link_flow'] = True
-config['use_passenger_link_flow'] = True
+config['use_truck_link_flow'] = False
+config['use_bus_link_flow'] = False
+config['use_passenger_link_flow'] = False
 
-config['use_car_link_tt'] = False
+config['use_car_link_tt'] = True
 config['use_truck_link_tt'] = False
 config['use_bus_link_tt'] = False
 config['use_passenger_link_tt'] = False
@@ -158,7 +158,7 @@ config['link_truck_flow_weight'] = 1
 config['link_bus_flow_weight'] = 1
 config['link_passenger_flow_weight'] = 1
 
-config['link_car_tt_weight'] = 0.0
+config['link_car_tt_weight'] = 1
 config['link_truck_tt_weight'] = 0.0
 config['link_bus_tt_weight'] = 0.0
 config['link_passenger_tt_weight'] = 0.0
@@ -185,10 +185,10 @@ config['compute_truck_link_flow_loss'] = True
 config['compute_bus_link_flow_loss'] = True
 config['compute_passenger_link_flow_loss'] = True
 
-config['compute_car_link_tt_loss'] = False
-config['compute_truck_link_tt_loss'] = False
-config['compute_bus_link_tt_loss'] = False
-config['compute_passenger_link_tt_loss'] = False
+config['compute_car_link_tt_loss'] = True
+config['compute_truck_link_tt_loss'] = True
+config['compute_bus_link_tt_loss'] = True
+config['compute_passenger_link_tt_loss'] = True
 
 # %%
 dode = MMDODE(nb, config)
@@ -200,9 +200,7 @@ true_car_dar_matrix_driving, true_truck_dar_matrix_driving, true_car_dar_matrix_
     dode.get_dar(dta, true_f_car_driving, true_f_truck_driving,
                  true_f_bus, true_f_passenger_bustransit, true_f_car_pnr)
 
-true_passenger_dar_matrix_bustransit.dot(true_f_passenger_bustransit) + true_passenger_dar_matrix_pnr.dot(true_f_car_pnr)
-
-noise_level = 0.0
+noise_level = 0.1
 
 data_dict = dict()
 
@@ -316,34 +314,23 @@ dode.add_data(data_dict)
 #                                 alpha_mode=(1., 1.5, 2.), beta_mode=1, alpha_path=1, beta_path=1, 
 #                                 use_file_as_init=None, save_folder=None)
 
-max_epoch = 100
+max_epoch = 120
 
-link_car_flow_weight = np.ones(max_epoch, dtype=float)
-# link_car_flow_weight[:30] = 0
-link_truck_flow_weight = np.ones(max_epoch, dtype=float)
-# link_truck_flow_weight[:70] = 0
-link_passenger_flow_weight = np.ones(max_epoch, dtype=float)
-# link_passenger_flow_weight[:40] = 0
-link_bus_flow_weight = np.ones(max_epoch, dtype=float)
-
-link_car_tt_weight = np.zeros(max_epoch, dtype=float)
-link_truck_tt_weight = np.zeros(max_epoch, dtype=float)
-link_passenger_tt_weight = np.zeros(max_epoch, dtype=float)
-link_bus_tt_weight = np.zeros(max_epoch, dtype=float)
+link_car_flow_weight = np.ones(max_epoch)
+link_car_flow_weight[50:] = 0
+link_car_tt_weight = np.ones(max_epoch)
 
 # f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
-#     dode.estimate_path_flow(car_driving_scale=100, truck_driving_scale=5, passenger_bustransit_scale=10, car_pnr_scale=5,
-#                             car_driving_step_size=5, truck_driving_step_size=1, passenger_bustransit_step_size=1.5, car_pnr_step_size=1,
-#                             link_car_flow_weight=link_car_flow_weight, link_truck_flow_weight=link_truck_flow_weight, link_passenger_flow_weight=link_passenger_flow_weight, link_bus_flow_weight=link_bus_flow_weight,
-#                             link_car_tt_weight=link_car_tt_weight, link_truck_tt_weight=link_truck_tt_weight, link_passenger_tt_weight=link_passenger_tt_weight, link_bus_tt_weight=link_bus_tt_weight,
+#     dode.estimate_path_flow(car_driving_scale=100, truck_driving_scale=5, passenger_bustransit_scale=5, car_pnr_scale=5,
+#                             car_driving_step_size=2, truck_driving_step_size=1, passenger_bustransit_step_size=1, car_pnr_step_size=1,
 #                             max_epoch=max_epoch, adagrad=True, column_generation=False,
 #                             use_file_as_init=None, save_folder=None)
 
 f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, loss_list = \
-    dode.estimate_path_flow_pytorch(car_driving_scale=10, truck_driving_scale=1, passenger_bustransit_scale=4, car_pnr_scale=1,
-                                    car_driving_step_size=1.8, truck_driving_step_size=1, passenger_bustransit_step_size=1, car_pnr_step_size=1,
-                                    link_car_flow_weight=link_car_flow_weight, link_truck_flow_weight=link_truck_flow_weight, link_passenger_flow_weight=link_passenger_flow_weight, link_bus_flow_weight=link_bus_flow_weight,
-                                    link_car_tt_weight=link_car_tt_weight, link_truck_tt_weight=link_truck_tt_weight, link_passenger_tt_weight=link_passenger_tt_weight, link_bus_tt_weight=link_bus_tt_weight,
+    dode.estimate_path_flow_pytorch(car_driving_scale=10, truck_driving_scale=1*0, passenger_bustransit_scale=5*0, car_pnr_scale=5*0,
+                                    car_driving_step_size=1.8, truck_driving_step_size=1*0, passenger_bustransit_step_size=1*0, car_pnr_step_size=1*0,
+                                    link_car_flow_weight=link_car_flow_weight, link_truck_flow_weight=1*0, link_passenger_flow_weight=1*0, link_bus_flow_weight=1*0,
+                                    link_car_tt_weight=link_car_tt_weight, link_truck_tt_weight=1*0, link_passenger_tt_weight=1*0, link_bus_tt_weight=1*0,
                                     max_epoch=max_epoch, column_generation=False,
                                     use_file_as_init=None, save_folder=os.path.join(data_folder, 'record'), starting_epoch=0)
 
@@ -467,19 +454,11 @@ end_intervals = np.arange(0, dode.num_loading_interval, dode.ass_freq) + dode.as
 if config['use_car_link_flow']:
     estimated_car_x = dta.get_link_car_inflow(start_intervals, end_intervals).flatten(order='F')
     m_car_estimated = L_car.dot(estimated_car_x)
-    print('----- car -----')
-    print(m_car)
-    print(m_car_estimated)
-    print('----- car -----')
     r2_car_count = r2_score(m_car, m_car_estimated)
 
 if config['use_truck_link_flow']:
     estimated_truck_x = dta.get_link_truck_inflow(start_intervals, end_intervals).flatten(order='F')
     m_truck_estimated = L_truck.dot(estimated_truck_x)
-    print('----- truck -----')
-    print(m_truck)
-    print(m_truck_estimated)
-    print('----- truck -----')
     r2_truck_count = r2_score(m_truck, m_truck_estimated)
 
 if config['use_passenger_link_flow']:
@@ -487,20 +466,12 @@ if config['use_passenger_link_flow']:
     estimated_passenger_x_walking = dta.get_link_walking_passenger_inflow(start_intervals, end_intervals)
     estimated_passenger_x = np.concatenate((estimated_passenger_x_bus, estimated_passenger_x_walking), axis=0).flatten(order='F')
     m_passenger_estimated = L_passenger.dot(estimated_passenger_x)
-    print('----- passenger -----')
-    print(m_passenger)
-    print(m_passenger_estimated)
-    print('----- passenger -----')
     r2_passenger_count = r2_score(m_passenger, m_passenger_estimated)
 
 if config['use_bus_link_flow']:
     estimated_bus_x = dta.get_link_bus_inflow(start_intervals, end_intervals).flatten(order='F')
     m_bus_estimated = L_bus.dot(estimated_bus_x)
-    print('----- bus -----')
-    print(m_bus)
-    print(m_bus_estimated)
-    print('----- bus -----')
-    r2_bus_count = r2_score(np.round(m_bus, decimals=3), np.round(m_bus_estimated, decimals=3))
+    r2_bus_count = r2_score(m_bus, m_bus_estimated)
 
 print("r2 count --- r2_car_count: {}, r2_truck_count: {}, r2_passenger_count: {}, r2_bus_count: {}"
       .format(

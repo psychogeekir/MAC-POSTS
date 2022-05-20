@@ -1286,6 +1286,8 @@ class MNM_config():
                 continue
             words = tmp_str.split('=')
             name = words[0].strip()
+            if name not in self.type_dict:
+                raise ("Error, MNM_config, setting not in type_dict", name)
             self.config_dict[new_item][name] = self.type_dict[name](words[1].strip())
 
     def __str__(self):
@@ -2301,12 +2303,13 @@ class MNM_network_builder():
         #     # too expensive, use build_link_cost_map_snapshot()
         #     # dta.build_link_cost_map()
         #     pass
-           
+        
+        _reorder_flg = False
         _path_result_rec_dict = dict()
         for interval in start_intervals:
                 
             if not use_tdsp:
-                dta.build_link_cost_map_snapshot(interval)
+                dta.build_link_cost_map_snapshot(interval, False)
                 dta.update_snapshot_route_table(interval)
 
             for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
@@ -2324,6 +2327,7 @@ class MNM_network_builder():
                 assert(_path_result.shape[0] == 4)
                 _exist = _path_result[0, 0]
                 if not _exist:
+                    _reorder_flg = True
                     _add_flag = True
                     if len(_path_result_rec) > 0:
                         for _path_result_old in _path_result_rec:
@@ -2334,171 +2338,172 @@ class MNM_network_builder():
                     if _add_flag:
                         _path_result_rec.append(_path_result)
                 assert(len(_path_result_rec_dict[(O_ID, D_ID)]) == len(_path_result_rec))
-
-        for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
-            O_node_ID = self.od.O_dict[O_ID]
-            D_node_ID = self.od.D_dict[D_ID]
-            _path_result_rec = _path_result_rec_dict[(O_ID, D_ID)]
-
-            if len(_path_result_rec) > 0:
-                for _path_result in _path_result_rec:
-                    _mode = _path_result[1, 0]
-                    if _mode == 0: # driving
-                        _node_vec_driving = _path_result[2, :]
-                        assert(np.min(_node_vec_driving) >= 0)
-                        _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
-                        path_tt_cost = dta.get_passenger_path_cost_driving(_link_vec_driving, start_intervals)
-                        assert(path_tt_cost.shape[0] == 3 and path_tt_cost.shape[1] == len(start_intervals))
-
-                        id_max = np.max(np.array([i for i in self.path_table_driving.ID2path.keys()], dtype=int))
-                        tmp_path = MNM_path(_node_vec_driving, id_max+1)
-                        tmp_path.create_route_choice_portions(len(start_intervals))
-                        tmp_path.path_cost_car = path_tt_cost[2, :]
-                        tmp_path.path_cost_truck = path_tt_cost[1, :]
-                        self.path_table_driving.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
-                        self.path_table_driving.ID2path[id_max+1] = tmp_path
-                    elif _mode == 1: # bustransit
-                        _link_vec_bustransit = _path_result[3, :]
-                        assert(np.min(_link_vec_bustransit) >= 0)
-                        path_tt_cost = dta.get_passenger_path_cost_bus(_link_vec_bustransit, start_intervals)
-                        assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
-
-                        id_max = np.max(np.array([i for i in self.path_table_bustransit.ID2path.keys()], dtype=int))
-                        tmp_path = MNM_path_bustransit(id_max+1, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
-                        tmp_path.create_route_choice_portions_bustransit(len(start_intervals))
-                        tmp_path.path_cost = path_tt_cost[1, :]
-                        self.path_table_bustransit.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
-                        self.path_table_bustransit.ID2path[id_max+1] = tmp_path
-                    elif _mode == 2: # pnr
-                        _node_vec_driving = _path_result[2, :]
-                        _node_vec_driving = _node_vec_driving[_node_vec_driving >= 0]
-                        _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
-                        _link_vec_bustransit = _path_result[3, :]
-                        _link_vec_bustransit = _link_vec_bustransit[_link_vec_bustransit >= 0]
-                        path_tt_cost = dta.get_passenger_path_cost_pnr(_link_vec_driving, _link_vec_bustransit, start_intervals)
-                        assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
-
-                        id_max = np.max(np.array([i for i in self.path_table_pnr.ID2path.keys()], dtype=int))
-                        mid_parkinglot_ID = self.dest_node_to_parking_lot_dict[_node_vec_driving[-1]]
-                        tmp_path = MNM_path_pnr(id_max+1, mid_parkinglot_ID, _node_vec_driving, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
-                        tmp_path.create_route_choice_portions_pnr(len(start_intervals))
-                        tmp_path.path_cost = path_tt_cost[1, :]
-                        self.path_table_pnr.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
-                        self.path_table_pnr.ID2path[id_max+1] = tmp_path
-                    else:
-                        raise("Error, undefined mode")
-
-
-        # for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
-        #     O_node_ID = self.od.O_dict[O_ID]
-        #     D_node_ID = self.od.D_dict[D_ID]
-        #     _path_result_rec = []
-        #     for interval in start_intervals:
-        #         if use_tdsp:
-        #             _path_result = dta.get_lowest_cost_path(interval, O_node_ID, D_node_ID)
-        #         else:
-        #             dta.build_link_cost_map_snapshot(interval)
-        #             dta.update_snapshot_route_table(interval)
-        #             _path_result = dta.get_lowest_cost_path_snapshot(interval, O_node_ID, D_node_ID)
-        #         assert(_path_result.shape[0] == 4)
-        #         _exist = _path_result[0, 0]
-        #         if not _exist:
-        #             _add_flag = True
-        #             if len(_path_result_rec) > 0:
-        #                 for _path_result_old in _path_result_rec:
-        #                     if len(_path_result_old.flatten()) == len(_path_result.flatten()):
-        #                         if np.sum(np.abs(_path_result_old - _path_result)) == 0:
-        #                             _add_flag = False
-        #                             break
-        #             if _add_flag:
-        #                 _path_result_rec.append(_path_result)
-
-        #     if len(_path_result_rec) > 0:
-        #         for _path_result in _path_result_rec:
-        #             _mode = _path_result[1, 0]
-        #             if _mode == 0: # driving
-        #                 _node_vec_driving = _path_result[2, :]
-        #                 assert(np.min(_node_vec_driving) >= 0)
-        #                 _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
-        #                 path_tt_cost = dta.get_passenger_path_cost_driving(_link_vec_driving, start_intervals)
-        #                 assert(path_tt_cost.shape[0] == 3 and path_tt_cost.shape[1] == len(start_intervals))
-
-        #                 id_max = np.max(np.array([i for i in self.path_table_driving.ID2path.keys()], dtype=int))
-        #                 tmp_path = MNM_path(_node_vec_driving, id_max+1)
-        #                 tmp_path.create_route_choice_portions(len(start_intervals))
-        #                 tmp_path.path_cost_car = path_tt_cost[2, :]
-        #                 tmp_path.path_cost_truck = path_tt_cost[1, :]
-        #                 self.path_table_driving.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
-        #                 self.path_table_driving.ID2path[id_max+1] = tmp_path
-        #             elif _mode == 1: # bustransit
-        #                 _link_vec_bustransit = _path_result[3, :]
-        #                 assert(np.min(_link_vec_bustransit) >= 0)
-        #                 path_tt_cost = dta.get_passenger_path_cost_bus(_link_vec_bustransit, start_intervals)
-        #                 assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
-
-        #                 id_max = np.max(np.array([i for i in self.path_table_bustransit.ID2path.keys()], dtype=int))
-        #                 tmp_path = MNM_path_bustransit(id_max+1, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
-        #                 tmp_path.create_route_choice_portions_bustransit(len(start_intervals))
-        #                 tmp_path.path_cost = path_tt_cost[1, :]
-        #                 self.path_table_bustransit.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
-        #                 self.path_table_bustransit.ID2path[id_max+1] = tmp_path
-        #             elif _mode == 2: # pnr
-        #                 _node_vec_driving = _path_result[2, :]
-        #                 _node_vec_driving = _node_vec_driving[_node_vec_driving >= 0]
-        #                 _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
-        #                 _link_vec_bustransit = _path_result[3, :]
-        #                 _link_vec_bustransit = _link_vec_bustransit[_link_vec_bustransit >= 0]
-        #                 path_tt_cost = dta.get_passenger_path_cost_pnr(_link_vec_driving, _link_vec_bustransit, start_intervals)
-        #                 assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
-
-        #                 id_max = np.max(np.array([i for i in self.path_table_pnr.ID2path.keys()], dtype=int))
-        #                 mid_parkinglot_ID = self.dest_node_to_parking_lot_dict[_node_vec_driving[-1]]
-        #                 tmp_path = MNM_path_pnr(id_max+1, mid_parkinglot_ID, _node_vec_driving, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
-        #                 tmp_path.create_route_choice_portions_pnr(len(start_intervals))
-        #                 tmp_path.path_cost = path_tt_cost[1, :]
-        #                 self.path_table_pnr.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
-        #                 self.path_table_pnr.ID2path[id_max+1] = tmp_path
-        #             else:
-        #                 raise("Error, undefined mode")
-
-        # reorder
-        self.config.config_dict['FIXED']['num_driving_path'] = len(self.path_table_driving.ID2path)
-        self.config.config_dict['FIXED']['num_bustransit_path'] = len(self.path_table_bustransit.ID2path)
-        self.config.config_dict['FIXED']['num_pnr_path'] = len(self.path_table_pnr.ID2path)
-
-        # driving
-        path_count = 0
-        new_ID2path = OrderedDict()
-        for k, v in enumerate(self.path_table_driving.ID2path.values()):
-            new_ID2path[k + path_count] = v
-            v.path_ID = k + path_count
-        self.path_table_driving.ID2path = new_ID2path
         
-        # bustransit
-        path_count += len(self.path_table_driving.ID2path)
-        new_ID2path = OrderedDict()
-        for k, v in enumerate(self.path_table_bustransit.ID2path.values()):
-            new_ID2path[k + path_count] = v
-            v.path_ID = k + path_count
-        self.path_table_bustransit.ID2path = new_ID2path
+        if _reorder_flg:
+            for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
+                O_node_ID = self.od.O_dict[O_ID]
+                D_node_ID = self.od.D_dict[D_ID]
+                _path_result_rec = _path_result_rec_dict[(O_ID, D_ID)]
 
-        # pnr
-        path_count += len(self.path_table_bustransit.ID2path)
-        new_ID2path = OrderedDict()
-        for k, v in enumerate(self.path_table_pnr.ID2path.values()):
-            new_ID2path[k + path_count] = v
-            v.path_ID = k + path_count
-        self.path_table_pnr.ID2path = new_ID2path
+                if len(_path_result_rec) > 0:
+                    for _path_result in _path_result_rec:
+                        _mode = _path_result[1, 0]
+                        if _mode == 0: # driving
+                            _node_vec_driving = _path_result[2, :]
+                            assert(np.min(_node_vec_driving) >= 0)
+                            _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
+                            path_tt_cost = dta.get_passenger_path_cost_driving(_link_vec_driving, start_intervals)
+                            assert(path_tt_cost.shape[0] == 3 and path_tt_cost.shape[1] == len(start_intervals))
 
-        # bus route
-        path_count += len(self.path_table_pnr.ID2path)
-        new_ID2path = OrderedDict()
-        for k, v in enumerate(self.path_table_bus.ID2path.values()):
-            new_ID2path[k + path_count] = v
-            v.path_ID = k + path_count
-        self.path_table_bus.ID2path = new_ID2path
+                            id_max = np.max(np.array([i for i in self.path_table_driving.ID2path.keys()], dtype=int))
+                            tmp_path = MNM_path(_node_vec_driving, id_max+1)
+                            tmp_path.create_route_choice_portions(len(start_intervals))
+                            tmp_path.path_cost_car = path_tt_cost[2, :]
+                            tmp_path.path_cost_truck = path_tt_cost[1, :]
+                            self.path_table_driving.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+                            self.path_table_driving.ID2path[id_max+1] = tmp_path
+                        elif _mode == 1: # bustransit
+                            _link_vec_bustransit = _path_result[3, :]
+                            assert(np.min(_link_vec_bustransit) >= 0)
+                            path_tt_cost = dta.get_passenger_path_cost_bus(_link_vec_bustransit, start_intervals)
+                            assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
 
-        print("update_path_table")
+                            id_max = np.max(np.array([i for i in self.path_table_bustransit.ID2path.keys()], dtype=int))
+                            tmp_path = MNM_path_bustransit(id_max+1, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
+                            tmp_path.create_route_choice_portions_bustransit(len(start_intervals))
+                            tmp_path.path_cost = path_tt_cost[1, :]
+                            self.path_table_bustransit.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+                            self.path_table_bustransit.ID2path[id_max+1] = tmp_path
+                        elif _mode == 2: # pnr
+                            _node_vec_driving = _path_result[2, :]
+                            _node_vec_driving = _node_vec_driving[_node_vec_driving >= 0]
+                            _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
+                            _link_vec_bustransit = _path_result[3, :]
+                            _link_vec_bustransit = _link_vec_bustransit[_link_vec_bustransit >= 0]
+                            path_tt_cost = dta.get_passenger_path_cost_pnr(_link_vec_driving, _link_vec_bustransit, start_intervals)
+                            assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
+
+                            id_max = np.max(np.array([i for i in self.path_table_pnr.ID2path.keys()], dtype=int))
+                            mid_parkinglot_ID = self.dest_node_to_parking_lot_dict[_node_vec_driving[-1]]
+                            tmp_path = MNM_path_pnr(id_max+1, mid_parkinglot_ID, _node_vec_driving, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
+                            tmp_path.create_route_choice_portions_pnr(len(start_intervals))
+                            tmp_path.path_cost = path_tt_cost[1, :]
+                            self.path_table_pnr.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+                            self.path_table_pnr.ID2path[id_max+1] = tmp_path
+                        else:
+                            raise("Error, undefined mode")
+
+
+            # for (O_ID, D_ID) in self.demand_total_passenger.demand_list:
+            #     O_node_ID = self.od.O_dict[O_ID]
+            #     D_node_ID = self.od.D_dict[D_ID]
+            #     _path_result_rec = []
+            #     for interval in start_intervals:
+            #         if use_tdsp:
+            #             _path_result = dta.get_lowest_cost_path(interval, O_node_ID, D_node_ID)
+            #         else:
+            #             dta.build_link_cost_map_snapshot(interval, False)
+            #             dta.update_snapshot_route_table(interval)
+            #             _path_result = dta.get_lowest_cost_path_snapshot(interval, O_node_ID, D_node_ID)
+            #         assert(_path_result.shape[0] == 4)
+            #         _exist = _path_result[0, 0]
+            #         if not _exist:
+            #             _add_flag = True
+            #             if len(_path_result_rec) > 0:
+            #                 for _path_result_old in _path_result_rec:
+            #                     if len(_path_result_old.flatten()) == len(_path_result.flatten()):
+            #                         if np.sum(np.abs(_path_result_old - _path_result)) == 0:
+            #                             _add_flag = False
+            #                             break
+            #             if _add_flag:
+            #                 _path_result_rec.append(_path_result)
+
+            #     if len(_path_result_rec) > 0:
+            #         for _path_result in _path_result_rec:
+            #             _mode = _path_result[1, 0]
+            #             if _mode == 0: # driving
+            #                 _node_vec_driving = _path_result[2, :]
+            #                 assert(np.min(_node_vec_driving) >= 0)
+            #                 _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
+            #                 path_tt_cost = dta.get_passenger_path_cost_driving(_link_vec_driving, start_intervals)
+            #                 assert(path_tt_cost.shape[0] == 3 and path_tt_cost.shape[1] == len(start_intervals))
+
+            #                 id_max = np.max(np.array([i for i in self.path_table_driving.ID2path.keys()], dtype=int))
+            #                 tmp_path = MNM_path(_node_vec_driving, id_max+1)
+            #                 tmp_path.create_route_choice_portions(len(start_intervals))
+            #                 tmp_path.path_cost_car = path_tt_cost[2, :]
+            #                 tmp_path.path_cost_truck = path_tt_cost[1, :]
+            #                 self.path_table_driving.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+            #                 self.path_table_driving.ID2path[id_max+1] = tmp_path
+            #             elif _mode == 1: # bustransit
+            #                 _link_vec_bustransit = _path_result[3, :]
+            #                 assert(np.min(_link_vec_bustransit) >= 0)
+            #                 path_tt_cost = dta.get_passenger_path_cost_bus(_link_vec_bustransit, start_intervals)
+            #                 assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
+
+            #                 id_max = np.max(np.array([i for i in self.path_table_bustransit.ID2path.keys()], dtype=int))
+            #                 tmp_path = MNM_path_bustransit(id_max+1, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
+            #                 tmp_path.create_route_choice_portions_bustransit(len(start_intervals))
+            #                 tmp_path.path_cost = path_tt_cost[1, :]
+            #                 self.path_table_bustransit.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+            #                 self.path_table_bustransit.ID2path[id_max+1] = tmp_path
+            #             elif _mode == 2: # pnr
+            #                 _node_vec_driving = _path_result[2, :]
+            #                 _node_vec_driving = _node_vec_driving[_node_vec_driving >= 0]
+            #                 _link_vec_driving = dta.node_seq_to_link_seq_driving(_node_vec_driving)
+            #                 _link_vec_bustransit = _path_result[3, :]
+            #                 _link_vec_bustransit = _link_vec_bustransit[_link_vec_bustransit >= 0]
+            #                 path_tt_cost = dta.get_passenger_path_cost_pnr(_link_vec_driving, _link_vec_bustransit, start_intervals)
+            #                 assert(path_tt_cost.shape[0] == 2 and path_tt_cost.shape[1] == len(start_intervals))
+
+            #                 id_max = np.max(np.array([i for i in self.path_table_pnr.ID2path.keys()], dtype=int))
+            #                 mid_parkinglot_ID = self.dest_node_to_parking_lot_dict[_node_vec_driving[-1]]
+            #                 tmp_path = MNM_path_pnr(id_max+1, mid_parkinglot_ID, _node_vec_driving, _link_vec_bustransit, self.path_table_bustransit.bustransit_graph)
+            #                 tmp_path.create_route_choice_portions_pnr(len(start_intervals))
+            #                 tmp_path.path_cost = path_tt_cost[1, :]
+            #                 self.path_table_pnr.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+            #                 self.path_table_pnr.ID2path[id_max+1] = tmp_path
+            #             else:
+            #                 raise("Error, undefined mode")
+
+            # reorder
+            self.config.config_dict['FIXED']['num_driving_path'] = len(self.path_table_driving.ID2path)
+            self.config.config_dict['FIXED']['num_bustransit_path'] = len(self.path_table_bustransit.ID2path)
+            self.config.config_dict['FIXED']['num_pnr_path'] = len(self.path_table_pnr.ID2path)
+
+            # driving
+            path_count = 0
+            new_ID2path = OrderedDict()
+            for k, v in enumerate(self.path_table_driving.ID2path.values()):
+                new_ID2path[k + path_count] = v
+                v.path_ID = k + path_count
+            self.path_table_driving.ID2path = new_ID2path
+            
+            # bustransit
+            path_count += len(self.path_table_driving.ID2path)
+            new_ID2path = OrderedDict()
+            for k, v in enumerate(self.path_table_bustransit.ID2path.values()):
+                new_ID2path[k + path_count] = v
+                v.path_ID = k + path_count
+            self.path_table_bustransit.ID2path = new_ID2path
+
+            # pnr
+            path_count += len(self.path_table_bustransit.ID2path)
+            new_ID2path = OrderedDict()
+            for k, v in enumerate(self.path_table_pnr.ID2path.values()):
+                new_ID2path[k + path_count] = v
+                v.path_ID = k + path_count
+            self.path_table_pnr.ID2path = new_ID2path
+
+            # bus route
+            path_count += len(self.path_table_pnr.ID2path)
+            new_ID2path = OrderedDict()
+            for k, v in enumerate(self.path_table_bus.ID2path.values()):
+                new_ID2path[k + path_count] = v
+                v.path_ID = k + path_count
+            self.path_table_bus.ID2path = new_ID2path
+
+            print("update_path_table")
 
     # def update_mode_demand(self, folder):
     #     if ~os.path.isfile(folder + '/od_demand_split.txt'):

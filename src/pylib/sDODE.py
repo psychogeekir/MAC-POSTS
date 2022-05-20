@@ -89,7 +89,7 @@ class SDODE():
     return dar
 
   def get_path_tt_dict(self, dta):
-    path_tt_array = dta.get_path_tt(np.arange(0, self.num_loading_interval, self.ass_freq))
+    path_tt_array = dta.get_registered_path_tt(np.arange(0, self.num_loading_interval, self.ass_freq))
     path_ID2tt = dict()
     for path_ID_idx, path_ID in enumerate(self.paths_list):
       path_ID2tt[path_ID] = path_tt_array[path_ID_idx, :]
@@ -110,36 +110,41 @@ class SDODE():
     return np.random.rand(self.num_assign_interval * len(self.demand_list)) * init_scale
 
   def compute_path_flow_grad_and_loss(self, one_data_dict, f, counter=0):
-    # print "Running simulation"
+    # print("Running simulation")
     # f: path flow time-dependent demand = p*q, num_path * num_assign_interval
     dta = self._run_simulation(f, counter)
-    # print "Getting DAR"
-    # only partial links in partial intervals are observed, dar = L * rou
+    dta.build_link_cost_map(self.config['use_link_tt'])
+    # print("Getting DAR")
+    # only partial links in partial intervals are observed, dar = L * rho
     # (num_assign_interval * num_observed_links, num_assign_interval * num_path)
     dar = self.get_full_dar(dta, f)[self.get_full_observed_link_index(), :]
-    # print "Evaluating grad"
+    # print("Evaluating grad")
     grad = np.zeros(len(self.observed_links) * self.num_assign_interval)
     if self.config['use_link_flow']:
-      grad += self.config['link_flow_weight'] * self._compute_grad_on_link_flow(dta, one_data_dict['link_flow'])
+      grad += self.config['link_flow_weight'] * self._compute_grad_on_link_flow(dta, one_data_dict)
     if self.config['use_link_tt']:
-      grad += self.config['link_tt_weight'] * self._compute_grad_on_link_tt(dta, one_data_dict['link_tt'])
-    # print "Getting Loss"
+      grad += self.config['link_tt_weight'] * self._compute_grad_on_link_tt(dta, one_data_dict)
+    # print("Getting Loss")
     loss = self._get_loss(one_data_dict, dta)
-    new_path_cost_array = dta.get_path_tt(np.arange(0, self.num_loading_interval, self.ass_freq))
+    new_path_cost_array = dta.get_registered_path_tt(np.arange(0, self.num_loading_interval, self.ass_freq))
     return dar.T.dot(grad), loss, new_path_cost_array
 
-  def _compute_grad_on_link_flow(self, dta, link_flow_array):
+  def _compute_grad_on_link_flow(self, dta, one_data_dict):
     x_e = dta.get_link_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
                               np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
-    grad = -np.nan_to_num(link_flow_array - x_e[self.get_full_observed_link_index()])
+    grad = -np.nan_to_num(one_data_dict['link_flow'] - x_e[self.get_full_observed_link_index()])
     return grad
 
-  def _compute_grad_on_link_tt(self, dta, link_flow_array):
-    tt_e = dta.get_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq))
-    tt_free = list(map(lambda x: self.nb.get_link(x).get_fft(), self.observed_links))
-    for i in range(tt_e.shape[0]):
-      pass
-    return 0  
+  def _compute_grad_on_link_tt(self, dta, one_data_dict):
+    tt_e = dta.get_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
+                                  np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq,
+                                  self.ass_freq).flatten(order='F')
+    # tt_e = dta.get_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq))
+    tt_free = np.tile(list(map(lambda x: self.nb.get_link(x).get_fft(), self.observed_links)), (self.num_assign_interval))
+    tt_e = np.maximum(tt_e, tt_free)
+    tt_o = np.maximum(one_data_dict['link_tt'], tt_free) 
+    grad = -np.nan_to_num(tt_o - tt_e)/tt_e
+    return grad
 
   def _get_one_data(self, j):
     assert (self.num_data > j)

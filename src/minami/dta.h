@@ -36,7 +36,7 @@ public:
   int check_origin_destination_connectivity();
   virtual int pre_loading();
   
-  int record_queue_vehicles();
+  virtual int record_queue_vehicles();
   int record_enroute_vehicles();
 
   TInt m_start_assign_interval;

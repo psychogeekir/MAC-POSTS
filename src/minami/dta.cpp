@@ -111,8 +111,9 @@ int MNM_Dta::set_routing()
                       m_graph, _tmp_conf -> get_int("num_path"), false);
     }
     TInt _buffer_len = _tmp_conf -> get_int("buffer_length");
+    IAssert(_buffer_len == m_config -> get_int("max_interval"));
     m_routing = new MNM_Routing_Fixed(m_graph, m_od_factory, m_node_factory, m_link_factory,
-               _tmp_conf -> get_int("route_frq"), _buffer_len);
+                                      _tmp_conf -> get_int("route_frq"), _buffer_len);
     m_routing -> init_routing(_path_table);
     delete _tmp_conf;
   }
@@ -133,16 +134,17 @@ int MNM_Dta::set_routing()
     Path_Table *_path_table;
     if (_tmp_conf -> get_string("choice_portion") == "Buffer"){
       _path_table = MNM_IO::load_path_table(m_file_folder + "/" + _tmp_conf -> get_string("path_file_name"), 
-                      m_graph, _tmp_conf -> get_int("num_path"), true);
+                                            m_graph, _tmp_conf -> get_int("num_path"), true);
     }
     else{
       _path_table = MNM_IO::load_path_table(m_file_folder + "/" + _tmp_conf -> get_string("path_file_name"), 
-                      m_graph, _tmp_conf -> get_int("num_path"), false);
+                                            m_graph, _tmp_conf -> get_int("num_path"), false);
     }
     TInt _route_freq_fixed = _tmp_conf -> get_int("route_frq");
     TInt _buffer_len = _tmp_conf -> get_int("buffer_length");
+    IAssert(_buffer_len == m_config -> get_int("max_interval"));
     m_routing = new MNM_Routing_Hybrid(m_file_folder, m_graph, m_statistics, m_od_factory, m_node_factory, 
-                            m_link_factory, _route_freq_fixed, _buffer_len);
+                                       m_link_factory, _route_freq_fixed, _buffer_len);
     m_routing -> init_routing(_path_table);
     delete _tmp_conf;
   }
@@ -156,11 +158,11 @@ int MNM_Dta::set_routing()
     Path_Table *_path_table;
     if (_tmp_conf -> get_string("choice_portion") == "Buffer"){
       _path_table = MNM_IO::load_path_table(m_file_folder + "/" + _tmp_conf -> get_string("path_file_name"), 
-                      m_graph, _tmp_conf -> get_int("num_path"), true);
+                                            m_graph, _tmp_conf -> get_int("num_path"), true);
     }
     else{
       _path_table = MNM_IO::load_path_table(m_file_folder + "/" + _tmp_conf -> get_string("path_file_name"), 
-                      m_graph, _tmp_conf -> get_int("num_path"), false);
+                                            m_graph, _tmp_conf -> get_int("num_path"), false);
     }
     TInt _buffer_len = _tmp_conf -> get_int("buffer_length");
     // for bi-class problem
@@ -362,6 +364,7 @@ int MNM_Dta::load_once(bool verbose, TInt load_int, TInt assign_int)
   MNM_Dnode *_node;
   MNM_Dlink *_link;
   MNM_Destination *_dest;
+  if (load_int==0) m_statistics -> update_record(load_int);
   if (verbose) printf("-------------------------------    Interval %d   ------------------------------ \n", (int)load_int);
   // step 1: Origin release vehicle
   if (verbose) printf("Releasing!\n");
@@ -467,6 +470,7 @@ int MNM_Dta::loading(bool verbose)
 
   // pre_loading();
   while (!finished_loading(_cur_int)){
+    if (_cur_int==0) m_statistics -> update_record(_cur_int);
     if(verbose) printf("-------------------------------    Interval %d   ------------------------------ \n", (int)_cur_int);
     // step 1: Origin release vehicle (at origin node, generate vehicles for current assignment interval and put them in m_in_veh_queue)
     if(verbose) printf("Releasing!\n");

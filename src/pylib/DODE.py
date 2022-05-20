@@ -91,6 +91,9 @@ class DODE(object):
   def _massage_raw_dar(self, raw_dar, ass_freq, f, num_assign_interval):
     num_e_path = len(self.paths_list)
     num_e_link = len(self.observed_links)
+
+    raw_dar = raw_dar[raw_dar[:, 1] < self.num_assign_interval & raw_dar[:, 3] < self.num_loading_interval, :]
+
     # raw_dar[:, 2]: link no.
     # raw_dar[:, 3]: the count of unit time interval (5s)
     # In Python 3, map() returns an iterable while, in Python 2, it returns a list.

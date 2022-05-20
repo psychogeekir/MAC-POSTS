@@ -41,6 +41,9 @@ public:
 	TFlt get_link_freeflow_tt_car();
 	TFlt get_link_freeflow_tt_truck();
 
+	virtual TInt get_link_freeflow_tt_loading_car() {return -1;};  // intervals
+	virtual TInt get_link_freeflow_tt_loading_truck() {return -1;};  // intervals
+
 	DLink_type_multiclass m_link_type;
 
 	TFlt m_ffs_car;
@@ -99,6 +102,9 @@ public:
     virtual TFlt get_link_tt() override;
     virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
     virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
+
+	virtual TInt get_link_freeflow_tt_loading_car() override;  // intervals
+	virtual TInt get_link_freeflow_tt_loading_truck() override;  // intervals
 
     virtual int move_veh_queue(std::deque<MNM_Veh*> *from_queue,
 						       std::deque<MNM_Veh*> *to_queue,
@@ -209,6 +215,9 @@ public:
     virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
     virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
 
+	virtual TInt get_link_freeflow_tt_loading_car() override;  // intervals
+	virtual TInt get_link_freeflow_tt_loading_truck() override;  // intervals
+
 	int update_perceived_density();
 
 	std::deque<MNM_Veh*> m_veh_queue_car;
@@ -269,6 +278,9 @@ public:
     virtual TFlt get_link_tt() override;
     virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
     virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
+
+	virtual TInt get_link_freeflow_tt_loading_car() override;  // intervals
+	virtual TInt get_link_freeflow_tt_loading_truck() override;  // intervals
 
 	std::unordered_map<MNM_Veh*, TInt> m_veh_pool;
 	TInt m_volume_car; //vehicle number, without the flow scalar
@@ -553,6 +565,10 @@ public:
     virtual int initialize() override;
     virtual int build_from_files() override;
     virtual int pre_loading() override;
+	virtual int record_queue_vehicles() override;
+
+	std::unordered_map<TInt, std::deque<TInt>*> m_queue_veh_map_car;
+	std::unordered_map<TInt, std::deque<TInt>*> m_queue_veh_map_truck;
 }; 
 
 
@@ -582,10 +598,15 @@ TInt get_is_spillback(MNM_Dlink_Multiclass* link); // 0 - no spillback, 1 - spil
 TFlt get_travel_time_from_FD_car(MNM_Dlink_Multiclass *link, TFlt start_time, TFlt unit_interval);
 TFlt get_travel_time_from_FD_truck(MNM_Dlink_Multiclass *link, TFlt start_time, TFlt unit_interval);
 
-TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval);
-TFlt get_travel_time_car_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials = TInt(10));
-TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval);
-TFlt get_travel_time_truck_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials = TInt(10));
+TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp);
+TFlt get_travel_time_car_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials = TInt(10));
+TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp);
+TFlt get_travel_time_truck_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials = TInt(10));
+
+TFlt get_path_travel_time_car(MNM_Path *path, TFlt start_time, MNM_Link_Factory* link_factory, TFlt unit_interval, TInt end_loading_timestamp);
+TFlt get_path_travel_time_car(MNM_Path *path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map_car, TInt end_loading_timestamp);
+TFlt get_path_travel_time_truck(MNM_Path *path, TFlt start_time, MNM_Link_Factory* link_factory, TFlt unit_interval, TInt end_loading_timestamp);
+TFlt get_path_travel_time_truck(MNM_Path *path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map_truck, TInt end_loading_timestamp);
 
 int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
                     std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time);
@@ -595,6 +616,13 @@ int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* 
                     std::set<TInt> pathID_set, TFlt start_time, TFlt end_time);
 int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
                     std::set<TInt> pathID_set, TFlt start_time, TFlt end_time);
+
+TFlt get_departure_cc_slope_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time);
+TFlt get_departure_cc_slope_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time);
+
+int add_ltg_records_veh(std::vector<ltg_record*> &record, MNM_Dlink_Multiclass *link,
+						MNM_Path* path, int depart_time, int start_time, TFlt gradient);
+
 };
 
 namespace MNM

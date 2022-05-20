@@ -193,10 +193,13 @@ MNM_Dlink_Ctm_Multiclass::MNM_Dlink_Ctm_Multiclass(TInt ID,
 	// Note m_ffs_car > m_ffs_truck, use ffs_car to define the standard cell length
 	TFlt _std_cell_length = m_ffs_car * unit_time;
 	m_num_cells = TInt(floor(m_length / _std_cell_length));
+	// this means the least link travel time is at least one cell!
 	if (m_num_cells == 0){
 		m_num_cells = 1;
 		m_length = _std_cell_length;
 	}
+	// this means the link travel time is rounded down!
+	// the last cell can have larger length than the previous ones
 	TFlt _last_cell_length = m_length - TFlt(m_num_cells - 1) * _std_cell_length;
 
 	m_lane_critical_density_car = m_lane_flow_cap_car / m_ffs_car;
@@ -214,7 +217,7 @@ MNM_Dlink_Ctm_Multiclass::MNM_Dlink_Ctm_Multiclass(TInt ID,
 	}
 	m_wave_speed_truck = m_lane_flow_cap_truck / (m_lane_hold_cap_truck - m_lane_critical_density_truck);
 
-	// see the reference paper for definition
+	// see the reference paper for definition, Fig. 6
 	// m_lane_rho_1_N > m_lane_critical_density_car and m_lane_critical_density_truck
 	m_lane_rho_1_N = m_lane_hold_cap_car * (m_wave_speed_car / (m_ffs_truck + m_wave_speed_car));
 
@@ -282,7 +285,7 @@ int MNM_Dlink_Ctm_Multiclass::init_cell_array(TFlt unit_time,
 	// last cell must exist as long as link length > 0, see definition above
 	if (m_length > 0.0) {
 		cell = new Ctm_Cell_Multiclass(m_num_cells - 1,
-		                               last_cell_length, // Note last cell length is longer but < 2X
+		                               last_cell_length, // Note last cell length is longer but < 2 * standard length of previous length
 									   unit_time,
 									   TFlt(m_number_of_lane) * m_lane_hold_cap_car,
 									   TFlt(m_number_of_lane) * m_lane_hold_cap_truck,
@@ -347,6 +350,7 @@ int MNM_Dlink_Ctm_Multiclass::update_out_veh()
 			_demand_truck = m_cell_array[i] -> get_perceived_demand(TInt(1));
 			_supply_truck = m_cell_array[i + 1] -> get_perceived_supply(TInt(1));
 			_temp_out_flux_truck = m_cell_array[i] -> m_space_fraction_truck * MNM_Ults::min(_demand_truck, _supply_truck);
+			// MNM_Ults::round() has random effects, averagely, in the free flow condition, this makes a truck travel to next cell with a probability of ffs_truck / ffs_car
 			m_cell_array[i] -> m_out_veh_truck = MNM_Ults::round(_temp_out_flux_truck * m_flow_scalar);
 
 			// if (m_link_ID == _output_link){
@@ -721,6 +725,17 @@ TFlt MNM_Dlink_Ctm_Multiclass::get_link_tt_from_flow_truck(TFlt flow)
         _cost = m_length / _spd;
     }
     return _cost;
+}
+
+TInt MNM_Dlink_Ctm_Multiclass::get_link_freeflow_tt_loading_car()
+{
+	return m_num_cells;
+}
+
+TInt MNM_Dlink_Ctm_Multiclass::get_link_freeflow_tt_loading_truck()
+{
+	// due the random rounding, this is a random number
+	return m_num_cells * m_ffs_car / m_ffs_truck;
 }
 
 /*							Multiclass CTM Cells
@@ -1299,6 +1314,16 @@ TFlt MNM_Dlink_Lq_Multiclass::get_link_tt_from_flow_truck(TFlt flow)
     return _cost;
 }
 
+TInt MNM_Dlink_Lq_Multiclass::get_link_freeflow_tt_loading_car() {
+    // throw std::runtime_error("Error, MNM_Dlink_Lq_Multiclass::get_link_freeflow_tt_loading_car NOT implemented");
+    return MNM_Ults::round_up_time(m_length / m_ffs_car);
+}
+
+TInt MNM_Dlink_Lq_Multiclass::get_link_freeflow_tt_loading_truck() {
+    // throw std::runtime_error("Error, MNM_Dlink_Lq_Multiclass::get_link_freeflow_tt_loading_truck NOT implemented");
+    return MNM_Ults::round_up_time(m_length / m_ffs_truck);
+}
+
 /**************************************************************************
 							Multiclass Point-Queue Model
 **************************************************************************/
@@ -1323,7 +1348,10 @@ MNM_Dlink_Pq_Multiclass::MNM_Dlink_Pq_Multiclass(TInt ID,
 	m_lane_flow_cap = lane_flow_cap_car;
 	m_flow_scalar = flow_scalar;
 	m_hold_cap = m_lane_hold_cap * TFlt(number_of_lane) * m_length;
-	m_max_stamp = MNM_Ults::round(m_length/(ffs_car * unit_time));
+	// MNM_Ults::round() can randomly round up or down the input
+	// m_max_stamp = MNM_Ults::round(m_length/(ffs_car * unit_time));
+	// round down time, but ensures m_max_stamp >= 1
+	m_max_stamp = MNM_Ults::round_down_time(m_length/(ffs_car * unit_time));
 	// printf("m_max_stamp = %d\n", m_max_stamp);
 	m_veh_pool = std::unordered_map<MNM_Veh*, TInt>();
 	m_volume_car = TInt(0);
@@ -1350,6 +1378,9 @@ int MNM_Dlink_Pq_Multiclass::clear_incoming_array(TInt timestamp) {
 		if ( _to_be_moved > 0){
 			_veh = dynamic_cast<MNM_Veh_Multiclass *>(m_incoming_array.front());
 			m_incoming_array.pop_front();
+			// node -> evolve first, then link -> clear_incoming_array(), then link -> evolve()
+			// this actually leads to vehicle spending m_max_stamp + 1 in this link
+        	// so we use m_max_stamp - 1 in link -> evolve() to ensure vehicle spends m_max_stamp in this link when m_max_stamp > 1 and 1 when m_max_stamp = 0
 			m_veh_pool.insert({_veh, TInt(0)});
 			if (_veh -> m_class == 0) {
 				//printf("car\n");
@@ -1397,7 +1428,8 @@ int MNM_Dlink_Pq_Multiclass::evolve(TInt timestamp)
 	MNM_Veh_Multiclass* _veh;
 	TInt _num_car = 0, _num_truck = 0;
 	while (_que_it != m_veh_pool.end()) {
-		if (_que_it -> second >= m_max_stamp) {
+		// we use m_max_stamp - 1 in link -> evolve() to ensure vehicle spends m_max_stamp in this link when m_max_stamp > 1 and 1 when m_max_stamp = 0
+		if (_que_it -> second >= MNM_Ults::max(0, m_max_stamp-1)) {
 			m_finished_array.push_back(_que_it -> first);
 			_veh = dynamic_cast<MNM_Veh_Multiclass *>(m_finished_array.back());
 			if (_veh -> m_class == 0) {
@@ -1529,6 +1561,16 @@ TFlt MNM_Dlink_Pq_Multiclass::get_link_tt_from_flow_truck(TFlt flow)
 //    return _cost;
 
     return m_length/m_ffs_car;
+}
+
+TInt MNM_Dlink_Pq_Multiclass::get_link_freeflow_tt_loading_car()
+{
+	return m_max_stamp;  // ensure this >= 1 in constructor
+}
+
+TInt MNM_Dlink_Pq_Multiclass::get_link_freeflow_tt_loading_truck()
+{
+	return m_max_stamp;  // ensure this >= 1 in constructor
 }
 
 /******************************************************************************************************************
@@ -2866,11 +2908,24 @@ MNM_Dta_Multiclass::MNM_Dta_Multiclass(const std::string& file_folder)
 {
 	// Re-run the multiclass version of initialize();
 	initialize();
+
+	m_queue_veh_map_car = std::unordered_map<TInt, std::deque<TInt>*>();
+	m_queue_veh_map_truck = std::unordered_map<TInt, std::deque<TInt>*>();
 }
 
 MNM_Dta_Multiclass::~MNM_Dta_Multiclass()
 {
-	;
+	for (auto _it = m_queue_veh_map_car.begin(); _it != m_queue_veh_map_car.end(); _it++){
+		_it -> second -> clear();
+		delete _it -> second;
+	}  
+	m_queue_veh_map_car.clear();
+
+	for (auto _it = m_queue_veh_map_truck.begin(); _it != m_queue_veh_map_truck.end(); _it++){
+		_it -> second -> clear();
+		delete _it -> second;
+	}  
+	m_queue_veh_map_truck.clear();
 }
 
 int MNM_Dta_Multiclass::initialize()
@@ -2944,6 +2999,10 @@ int MNM_Dta_Multiclass::pre_loading()
   	{
     	_rec = new std::deque<TInt>();
     	m_queue_veh_map.insert({_map_it.second -> m_link_ID, _rec});
+		_rec = new std::deque<TInt>();
+		m_queue_veh_map_car.insert({_map_it.second -> m_link_ID, _rec});
+		_rec = new std::deque<TInt>();
+		m_queue_veh_map_truck.insert({_map_it.second -> m_link_ID, _rec});
     	if (_emission_links.find(int(_map_it.second -> m_link_ID)) != _emission_links.end()) 
     		m_emission -> register_link(_map_it.second);
   	}
@@ -2952,7 +3011,28 @@ int MNM_Dta_Multiclass::pre_loading()
 	return 0;
 }
 
-
+int MNM_Dta_Multiclass::record_queue_vehicles()
+{
+	TInt _tot_queue_size = 0, _queue_size = 0, _queue_size_car = 0, _queue_size_truck = 0;
+	MNM_Dlink_Multiclass *_link;
+  	for (auto _map_it : m_link_factory -> m_link_map){
+		_link = dynamic_cast<MNM_Dlink_Multiclass*>(_map_it.second);
+		_queue_size = _link -> m_finished_array.size();
+		if (_link -> m_link_type != MNM_TYPE_PQ_MULTICLASS) {  // PQ not included
+			_tot_queue_size += _queue_size;
+		}
+		m_queue_veh_map[_link -> m_link_ID] -> push_back(_queue_size);
+		_queue_size_car = 0, _queue_size_truck = 0;
+		for (auto* _v : _link -> m_finished_array){
+			if (_v -> get_class() == 0) _queue_size_car += 1;
+			if (_v -> get_class() == 1) _queue_size_truck += 1;  // not divided by flow_scalar
+		}
+		m_queue_veh_map_car[_link -> m_link_ID] -> push_back(_queue_size_car);
+		m_queue_veh_map_truck[_link -> m_link_ID] -> push_back(_queue_size_truck);
+	}
+	m_queue_veh_num.push_back(_tot_queue_size);
+	return 0;
+}
 
 
 /******************************************************************************************************************
@@ -3086,7 +3166,7 @@ TFlt get_travel_time_from_FD_truck(MNM_Dlink_Multiclass *link, TFlt start_time, 
     return _tt / unit_interval;
 }
 
-TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval)
+TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp)
 {
 	if (link == nullptr){
 		throw std::runtime_error("Error, get_travel_time_car link is null");
@@ -3095,10 +3175,11 @@ TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_
 		throw std::runtime_error("Error, get_travel_time_car link cumulative curve is not installed");
 	}
 
-	TFlt fftt = link -> get_link_freeflow_tt_car() / unit_interval;
+	// TFlt fftt = link -> get_link_freeflow_tt_car() / unit_interval;
+	TFlt fftt = TFlt(int(link -> get_link_freeflow_tt_loading_car()));  // actual intervals in loading
 
 	if (link -> m_last_valid_time < 0) {
-		link -> m_last_valid_time = get_last_valid_time(link -> m_N_in_car, link -> m_N_out_car);
+		link -> m_last_valid_time = get_last_valid_time(link -> m_N_in_car, link -> m_N_out_car, end_loading_timestamp);
 	}
 	IAssert(link -> m_last_valid_time >= 0);
 
@@ -3106,18 +3187,20 @@ TFlt get_travel_time_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_
 }
 
 
-TFlt get_travel_time_car_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials)
+TFlt get_travel_time_car_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials)
 {
+	IAssert(end_time > start_time);
+	num_trials = num_trials > TInt(end_time - start_time) ? TInt(end_time - start_time) : num_trials;
 	TFlt _delta = (end_time - start_time) / TFlt(num_trials);
 	TFlt _ave_tt = TFlt(0);
 	for (int i=0; i < num_trials(); ++i){
-		_ave_tt += get_travel_time_car(link, start_time + TFlt(i) * _delta, unit_interval);
+		_ave_tt += get_travel_time_car(link, start_time + TFlt(i) * _delta, unit_interval, end_loading_timestamp);
 	}
 	return _ave_tt / TFlt(num_trials);
 }
 
 
-TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval)
+TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp)
 {
 	if (link == nullptr){
 		throw std::runtime_error("Error, get_travel_time_truck link is null");
@@ -3127,24 +3210,71 @@ TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt uni
 	}
 	// printf("%.2f\n", start_time);
 
-    TFlt fftt = link -> get_link_freeflow_tt_truck() / unit_interval;
+    // TFlt fftt = link -> get_link_freeflow_tt_truck() / unit_interval;
+	TFlt fftt = TFlt(int(link -> get_link_freeflow_tt_loading_truck()));  // actual intervals in loading
 
 	if (link -> m_last_valid_time_truck < 0) {
-		link -> m_last_valid_time_truck = get_last_valid_time(link -> m_N_in_truck, link -> m_N_out_truck);
+		link -> m_last_valid_time_truck = get_last_valid_time(link -> m_N_in_truck, link -> m_N_out_truck, end_loading_timestamp);
 	}
 	IAssert(link -> m_last_valid_time_truck >= 0);
 
 	return get_travel_time_from_cc(start_time, link -> m_N_in_truck, link -> m_N_out_truck, link -> m_last_valid_time_truck, fftt);
 }
 
-TFlt get_travel_time_truck_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials)
+TFlt get_travel_time_truck_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials)
 {
+	IAssert(end_time > start_time);
+	num_trials = num_trials > TInt(end_time - start_time) ? TInt(end_time - start_time) : num_trials;
 	TFlt _delta = (end_time - start_time) / TFlt(num_trials);
 	TFlt _ave_tt = TFlt(0);
 	for (int i=0; i < num_trials(); ++i){
-		_ave_tt += get_travel_time_truck(link, start_time + TFlt(i) * _delta, unit_interval);
+		_ave_tt += get_travel_time_truck(link, start_time + TFlt(i) * _delta, unit_interval, end_loading_timestamp);
 	}
 	return _ave_tt / TFlt(num_trials);
+}
+
+TFlt get_path_travel_time_car(MNM_Path *path, TFlt start_time, MNM_Link_Factory *link_factory, TFlt unit_interval, TInt end_loading_timestamp) {
+	if (path == nullptr) {
+		throw std::runtime_error("Error, get_path_travel_time_car path is null");
+	}
+	if (link_factory == nullptr) {
+		throw std::runtime_error("Error, get_path_travel_time_car link_factory is null");
+	}
+	int _end_time = int(round(start_time));
+	MNM_Dlink_Multiclass *_link;
+	for (auto _link_ID : path->m_link_vec) {
+		_link = dynamic_cast<MNM_Dlink_Multiclass*>(link_factory->get_link(_link_ID));
+		// assume each link's travel time >= unit interval
+		// use _end_time + 1 as start_time in cc to compute the link travel time for vehicles arriving at the beginning of interval _end_time
+		_end_time = _end_time + MNM_Ults::round_up_time(get_travel_time_car(_link, _end_time + 1, unit_interval, end_loading_timestamp));
+	}
+	return TFlt(_end_time - start_time);  // # of unit intervals
+}
+
+TFlt get_path_travel_time_car(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map_car, TInt end_loading_timestamp){
+	return get_path_travel_time(path, start_time, link_cost_map_car, end_loading_timestamp);
+}
+
+TFlt get_path_travel_time_truck(MNM_Path *path, TFlt start_time, MNM_Link_Factory *link_factory, TFlt unit_interval, TInt end_loading_timestamp) {
+	if (path == nullptr) {
+		throw std::runtime_error("Error, get_path_travel_time_truck path is null");
+	}
+	if (link_factory == nullptr) {
+		throw std::runtime_error("Error, get_path_travel_time_truck link_factory is null");
+	}
+	int _end_time = int(round(start_time));
+	MNM_Dlink_Multiclass *_link;
+	for (auto _link_ID : path->m_link_vec) {
+		_link = dynamic_cast<MNM_Dlink_Multiclass*>(link_factory->get_link(_link_ID));
+		// assume each link's travel time >= unit interval
+		// use _end_time + 1 as start_time in cc to compute the link travel time for vehicles arriving at the beginning of interval _end_time
+		_end_time = _end_time + MNM_Ults::round_up_time(get_travel_time_truck(_link, _end_time + 1, unit_interval, end_loading_timestamp));
+	}
+	return TFlt(_end_time - start_time);  // # of unit intervals
+}
+
+TFlt get_path_travel_time_truck(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map_truck, TInt end_loading_timestamp){
+	return get_path_travel_time(path, start_time, link_cost_map_truck, end_loading_timestamp);
 }
 
 int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
@@ -3283,6 +3413,84 @@ int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass
     }
   }
   return 0;
+}
+
+TFlt get_departure_cc_slope_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time)
+{
+	if (link == nullptr){
+		throw std::runtime_error("Error, get_departure_cc_slope_car link is null");
+	}
+	if (link -> m_N_out_car == nullptr){
+		throw std::runtime_error("Error, get_departure_cc_slope_car link cumulative curve is not installed");
+	}
+	if (start_time > link -> m_N_out_car->m_recorder.back().first) {
+		return 0;
+	}
+	int _delta = int(end_time) - int(start_time);
+	IAssert(_delta > 0);
+	TFlt _cc1, _cc2, _slope = 0.;
+	for (int i = 0; i < _delta; i++) {
+		_cc1 = link -> m_N_out_car -> get_result(TFlt(start_time + i));
+		_cc2 = link -> m_N_out_car -> get_result(TFlt(start_time + i + 1));
+		_slope += (_cc2 -_cc1);
+	}
+	// if (_slope <= 0) {
+	// 	std::cout << "car in" << "\n";
+	// 	std::cout << link -> m_N_in_car -> to_string() << "\n";
+	// 	std::cout << "car out" << "\n";
+	// 	std::cout << link -> m_N_out_car -> to_string() << "\n";
+	// 	printf("debug");
+	// }
+	return _slope / _delta;  // flow per unit interval
+}
+
+TFlt get_departure_cc_slope_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time)
+{
+	if (link == nullptr){
+		throw std::runtime_error("Error, get_departure_cc_slope_truck link is null");
+	}
+	if (link -> m_N_out_truck == nullptr){
+		throw std::runtime_error("Error, get_departure_cc_slope_truck link cumulative curve is not installed");
+	}
+	if (start_time > link -> m_N_out_truck->m_recorder.back().first) {
+		return 0;
+	}
+	int _delta = int(end_time) - int(start_time);
+	IAssert(_delta > 0);
+	TFlt _cc1, _cc2, _slope = 0.;
+	for (int i = 0; i < _delta; i++) {
+		_cc1 = link -> m_N_out_truck -> get_result(TFlt(start_time + i));
+		_cc2 = link -> m_N_out_truck -> get_result(TFlt(start_time + i + 1));
+		_slope += (_cc2 -_cc1);
+	}
+	return _slope / _delta;  // flow per unit interval
+}
+
+int add_ltg_records_veh(std::vector<ltg_record*> &record, MNM_Dlink_Multiclass *link,
+						MNM_Path* path, int depart_time, int start_time, TFlt gradient)
+{
+	if (link == nullptr){
+		throw std::runtime_error("Error, add_ltg_records_veh link is null");
+	}
+	if (path == nullptr){
+		throw std::runtime_error("Error, add_ltg_records_veh path is null");
+	}
+	if (!path -> is_link_in(link -> m_link_ID)){
+		throw std::runtime_error("Error, add_ltg_records_veh link is not in path");
+	}
+
+	auto new_record = new ltg_record();
+	new_record -> path_ID = path -> m_path_ID;
+	// the count of 1 min intervals in terms of 5s intervals, the vehicles record this assign_int
+	new_record -> assign_int = depart_time;
+	new_record -> link_ID = link -> m_link_ID;
+	// the count of unit time interval (5s)
+	new_record -> link_start_int = start_time;
+	new_record -> gradient = gradient;
+	// printf("Adding record, %d, %d, %d, %d, %f\n", new_record -> path_ID(), new_record -> assign_int, 
+	//         new_record -> link_ID(), new_record -> link_start_int, (float) new_record -> gradient());
+	record.push_back(new_record);
+	return 0;
 }
 
 }//end namespace MNM_DTA_GRADIENT

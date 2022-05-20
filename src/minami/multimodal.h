@@ -465,6 +465,8 @@ public:
     virtual int evolve(TInt timestamp) {return 0;};
     virtual TFlt get_link_tt() {return TFlt(0);}; // real-time tt in seconds
 
+    virtual TInt get_link_freeflow_tt_loading_passenger() {return -1;};  // intervals
+
     TInt m_link_ID;
     DLink_type_multimodal m_link_type;
     // possible node-node pair: origin -> bus_stop, parking_lot -> bus_stop, bus_stop -> destination, bus_stop -> bus_stop, parking_lot -> destination
@@ -696,9 +698,9 @@ public:
     int get_busstop_index(MNM_Busstop_Virtual *busstop);
     TFlt get_busroute_fftt(MNM_Link_Factory *link_factory, MNM_Busstop_Virtual* start_busstop, MNM_Busstop_Virtual* end_busstop, TFlt unit_interval);
     TFlt get_busroute_tt(TFlt start_time, MNM_Link_Factory *link_factory,
-                         MNM_Busstop_Virtual* start_busstop, MNM_Busstop_Virtual* end_busstop, TFlt unit_interval);
+                         MNM_Busstop_Virtual* start_busstop, MNM_Busstop_Virtual* end_busstop, TFlt unit_interval, TInt end_loading_timestamp);
     TFlt get_whole_busroute_tt(TFlt start_time, MNM_Link_Factory *link_factory,
-                               MNM_Busstop_Factory* busstop_factory, TFlt unit_interval);
+                               MNM_Busstop_Factory* busstop_factory, TFlt unit_interval, TInt end_loading_timestamp);
 };
 
 /******************************************************************************************************************
@@ -1060,13 +1062,13 @@ public:
 namespace MNM_DTA_GRADIENT
 {
 
-TFlt get_travel_time_walking(MNM_Walking_Link *link, TFlt start_time, TFlt unit_interval);
+TFlt get_travel_time_walking(MNM_Walking_Link *link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp);
 
-TFlt get_travel_time_walking_robust(MNM_Walking_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials=TInt(10));
+TFlt get_travel_time_walking_robust(MNM_Walking_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials=TInt(10));
 
-TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval);
+TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp);
 
-TFlt get_travel_time_bus_robust(MNM_Bus_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt num_trials=TInt(10));
+TFlt get_travel_time_bus_robust(MNM_Bus_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials=TInt(10));
 
 TFlt get_link_inflow_bus(MNM_Bus_Link *link, TFlt start_time, TFlt end_time);
 
@@ -1086,6 +1088,11 @@ int add_dar_records_bus(std::vector<dar_record*> &record, MNM_Bus_Link* link,
 int add_dar_records_passenger(std::vector<dar_record*> &record, MNM_Transit_Link* link,
                               std::set<TInt> pathID_set, TFlt start_time, TFlt end_time);
 
+TFlt get_departure_cc_slope_walking_passenger(MNM_Walking_Link *link, TFlt start_time, TFlt end_time);
+TFlt get_departure_cc_slope_bus_passenger(MNM_Bus_Link *link, TFlt start_time, TFlt end_time);
+
+int add_ltg_records_passenger(std::vector<ltg_record*> &record, MNM_Transit_Link *link,
+						      MNM_Path* path, int depart_time, int start_time, TFlt gradient);
 }
 
 /******************************************************************************************************************
@@ -1155,6 +1162,8 @@ public:
 
     virtual TFlt get_length(MNM_Dta_Multimodal *mmdta) override; // meter
     TFlt get_travel_time_truck(TFlt start_time, MNM_Dta_Multimodal *mmdta);
+    TFlt get_travel_time_truck(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
+                               std::unordered_map<TInt, TFlt *> link_cost_map_truck);
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) override;
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta, 
@@ -1416,7 +1425,7 @@ public:
 
     virtual int save_od_demand_split(MNM_Dta_Multimodal *mmdta, const std::string &file_folder, const std::string &file_name="od_demand_split.txt");
 
-    virtual int build_link_cost_map_snapshot(MNM_Dta_Multimodal *mmdta, int start_interval);
+    virtual int build_link_cost_map_snapshot(MNM_Dta_Multimodal *mmdta, int start_interval, bool in_simulation=false);
 
     virtual int update_snapshot_route_table(MNM_Dta_Multimodal *mmdta, int start_interval);
 
@@ -1438,7 +1447,9 @@ public:
 
     virtual int update_path_table_gp_fixed_departure_time_choice(MNM_Dta_Multimodal *mmdta, int iter);
 
-    int build_link_cost_map(MNM_Dta_Multimodal *mmdta);
+    int build_link_cost_map(MNM_Dta_Multimodal *mmdta, bool with_congestion_indicator = false);
+
+    int get_link_queue_dissipated_time(MNM_Dta_Multimodal *mmdta);
 
     std::pair<std::tuple<MNM_Passenger_Path_Base *, TInt, TFlt>, int> get_best_path(TInt o_node_ID, TInt d_node_ID,
                                                                                     std::unordered_map<TInt, MNM_TDSP_Tree*> &tdsp_tree_map_driving,
@@ -1550,7 +1561,18 @@ public:
 
     // time-varying link cost
     std::unordered_map<TInt, TFlt *> m_link_cost_map;
+    std::unordered_map<TInt, TFlt *> m_link_cost_map_truck;
     std::unordered_map<TInt, TFlt *> m_transitlink_cost_map;
+
+    // time-varying indicator
+    std::unordered_map<TInt, bool *> m_link_congested_car;
+    std::unordered_map<TInt, bool *> m_link_congested_truck;
+    std::unordered_map<TInt, bool *> m_transitlink_congested_passenger;
+
+    // time-varying queue dissipated time
+    std::unordered_map<TInt, int *> m_queue_dissipated_time_car;
+    std::unordered_map<TInt, int *> m_queue_dissipated_time_truck;
+    std::unordered_map<TInt, int *> m_queue_dissipated_time_passenger;
 
     std::unordered_map<TInt, TFlt> m_driving_link_cost_map_snapshot;
     std::unordered_map<TInt, TFlt> m_bustransit_link_cost_map_snapshot;

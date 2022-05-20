@@ -363,6 +363,11 @@ TFlt MNM_Dlink_Ctm::get_link_tt_from_flow(TFlt flow)
     return _cost;
 }
 
+TInt MNM_Dlink_Ctm::get_link_freeflow_tt_loading()
+{
+    return m_num_cells;
+}
+
 /**************************************************************************
                           Point Queue
 **************************************************************************/
@@ -380,7 +385,10 @@ MNM_Dlink_Pq::MNM_Dlink_Pq(TInt ID,
     m_lane_flow_cap = lane_flow_cap;
     m_flow_scalar = flow_scalar;
     m_hold_cap = m_lane_hold_cap * TFlt(number_of_lane) * m_length;
-    m_max_stamp = MNM_Ults::round(m_length / (m_ffs * unit_time));
+    // MNM_Ults::round() can randomly round up or down the input
+    // m_max_stamp = MNM_Ults::round(m_length / (m_ffs * unit_time));
+    // round down time, but ensures m_max_stamp >= 1
+    m_max_stamp = MNM_Ults::round_down_time(m_length/(m_ffs * unit_time));
     m_veh_queue = std::unordered_map<MNM_Veh *, TInt>();
     m_volume = TInt(0);
     m_unit_time = unit_time;
@@ -401,6 +409,9 @@ int MNM_Dlink_Pq::clear_incoming_array(TInt timestamp) {
     for (int i = 0; i < _num_veh_tomove; ++i) {
         _veh = m_incoming_array.front();
         m_incoming_array.pop_front();
+        // node -> evolve first, then link -> clear_incoming_array(), then link -> evolve()
+		// this actually leads to vehicle spending m_max_stamp + 1 in this link
+        // so we use m_max_stamp - 1 in link -> evolve() to ensure vehicle spends m_max_stamp in this link when m_max_stamp > 1 and 1 when m_max_stamp = 0
         m_veh_queue.insert(std::pair<MNM_Veh *, TInt>(_veh, TInt(0)));
     }
     m_volume = TInt(m_finished_array.size() + m_veh_queue.size());
@@ -419,7 +430,7 @@ void MNM_Dlink_Pq::print_info() {
 int MNM_Dlink_Pq::evolve(TInt timestamp) {
     std::unordered_map<MNM_Veh *, TInt>::iterator _que_it = m_veh_queue.begin();
     while (_que_it != m_veh_queue.end()) {
-        if (_que_it->second >= m_max_stamp) {
+        if (_que_it->second >= MNM_Ults::max(0, m_max_stamp-1)) {
             m_finished_array.push_back(_que_it->first);
             _que_it = m_veh_queue.erase(_que_it); //c++ 11
         } else {
@@ -476,6 +487,11 @@ TFlt MNM_Dlink_Pq::get_link_tt_from_flow(TFlt flow)
         _cost = m_length / _spd;
     }
     return _cost;
+}
+
+TInt MNM_Dlink_Pq::get_link_freeflow_tt_loading()
+{
+    return m_max_stamp;  // ensure this >= 1 in constructor
 }
 
 /**************************************************************************
@@ -629,12 +645,21 @@ TFlt MNM_Dlink_Lq::get_demand() {
     return _demand * m_unit_time;
 }
 
+TInt MNM_Dlink_Lq::get_link_freeflow_tt_loading() {
+    // throw std::runtime_error("Error, MNM_Dlink_Lq::get_link_freeflow_tt_loading NOT implemented");
+    return MNM_Ults::round_up_time(m_length / m_ffs);
+}
+
 
 /**************************************************************************
                           Cumulative curve
 **************************************************************************/
 
 MNM_Cumulative_Curve::MNM_Cumulative_Curve() {
+    // the implementation of CC here actually means at the beginning of interval m_recorder[i].first, a total of m_recorder[i].second vehicles have passed and counted
+    // the vehicles arriving at the beginning of interval m_recorder[i].first will be counted and reflected at the end of interval m_recorder[i].first, or equivalently, at the beginning of interval m_recorder[i].first + 1
+    // so when using CC to compute the link travel time for vehicles arriving at the beginning of interval m_recorder[i].first, we should use m_recorder[i].first + 1 as the start_time
+    // this also means the maximum allowable m_recorder[i].first == m_total_loading_interval, not m_total_loading_interval - 1
     m_recorder = std::deque<std::pair<TFlt, TFlt>>();
 }
 
@@ -986,6 +1011,11 @@ TFlt MNM_Dlink_Ltm::get_link_tt_from_flow(TFlt flow)
         _cost = m_length / _spd;
     }
     return _cost;
+}
+
+TInt MNM_Dlink_Ltm::get_link_freeflow_tt_loading() {
+    throw std::runtime_error("Error, MNM_Dlink_Ltm::get_link_freeflow_tt_loading NOT implemented");
+    return 0;
 }
 
 void MNM_Dlink_Ltm::print_info() {

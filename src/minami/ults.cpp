@@ -107,6 +107,17 @@ int MNM_Ults::round_up_time(TFlt time, float p)
   }
 }
 
+int MNM_Ults::round_down_time(TFlt time)
+{
+  if (time < 1) {
+    return 1;
+  }
+  else {
+    IAssert(int(time) >= 1);
+    return int(time);
+  }
+}
+
 PNEGraph MNM_Ults::reverse_graph(const PNEGraph &graph)
 {
   PNEGraph reversed_graph = PNEGraph::TObj::New();

@@ -69,7 +69,7 @@ int main()
         mmdta = test_due->run_mmdta(true);
 
         // update time dependent cost and save existing path table
-        test_due -> build_link_cost_map(mmdta);
+        test_due -> build_link_cost_map(mmdta, false);
         test_due -> update_path_table_cost(mmdta);
 
         MNM::save_driving_path_table(folder, test_due -> m_driving_path_table,

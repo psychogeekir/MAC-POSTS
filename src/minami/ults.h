@@ -47,6 +47,7 @@ public:
   bool static approximate_less_than(TFlt a, TFlt b, float p = 1e-4);
 
   int static round_up_time(TFlt time, float p = 1e-4);
+  int static round_down_time(TFlt time);
   PNEGraph static reverse_graph(const PNEGraph &graph);
 };
 
