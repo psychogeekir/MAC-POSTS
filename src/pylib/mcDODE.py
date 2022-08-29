@@ -599,6 +599,7 @@ class MCDODE():
             origin_vehicle_registration_weight = np.ones(max_epoch, dtype=bool) * origin_vehicle_registration_weight
         assert(len(origin_vehicle_registration_weight) == max_epoch)
 
+        loss_list = list()
         best_epoch = starting_epoch
         best_f_car_driving, best_f_truck_driving = 0, 0
         best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck, best_O_demand = 0, 0, 0, 0, 0
@@ -615,9 +616,6 @@ class MCDODE():
                 best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck, best_O_demand = pickle.load(open(use_file_as_init, 'rb'))
             
             f_car, f_truck = best_f_car, best_f_truck
-            
-
-        loss_list = list()
 
         # f_car_tensor = torch.from_numpy(f_car / np.maximum(car_init_scale, 1e-6))
         # f_truck_tensor = torch.from_numpy(f_truck / np.maximum(truck_init_scale, 1e-6))
@@ -735,6 +733,7 @@ class MCDODE():
         assert(len(link_truck_tt_weight) == max_epoch)
     
         # here the basic variables to be estimated are path flows, not OD demand, so no route choice model, unlike in sDODE.py
+        loss_list = list()
         best_epoch = starting_epoch
         best_f_car_driving, best_f_truck_driving = 0, 0
         best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck = 0, 0, 0, 0
@@ -751,8 +750,6 @@ class MCDODE():
                 best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck = pickle.load(open(use_file_as_init, 'rb'))
             
             f_car, f_truck = best_f_car, best_f_truck
-        
-        loss_list = list()
 
         for i in range(max_epoch):
             if adagrad:
@@ -831,6 +828,7 @@ class MCDODE():
         assert(len(link_truck_tt_weight) == max_epoch)
         
         # here the basic variables to be estimated are path flows, not OD demand, so no route choice model, unlike in sDODE.py
+        loss_list = list()
         best_epoch = starting_epoch
         best_f_car_driving, best_f_truck_driving = 0, 0
         best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck = 0, 0, 0, 0
@@ -847,8 +845,6 @@ class MCDODE():
                 best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck = pickle.load(open(use_file_as_init, 'rb'))
             
             f_car, f_truck = best_f_car, best_f_truck
-
-        loss_list = list()
 
         start_time = time.time()
         for i in range(max_epoch):
@@ -936,6 +932,7 @@ class MCDODE():
         assert(len(link_truck_tt_weight) == max_epoch)
 
         # here the basic variables to be estimated are path flows, not OD demand, so no route choice model, unlike in sDODE.py
+        loss_list = list()
         best_epoch = starting_epoch
         best_f_car_driving, best_f_truck_driving = 0, 0
         best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck = 0, 0, 0, 0
@@ -952,8 +949,6 @@ class MCDODE():
                 best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck = pickle.load(open(use_file_as_init, 'rb'))
             
             f_car, f_truck = best_f_car, best_f_truck
-
-        loss_list = list()
  
         # print("Start iteration", time.time())
         start_time = time.time()
