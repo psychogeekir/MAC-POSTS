@@ -42,21 +42,23 @@ public:
   Dta_Api();
   ~Dta_Api();
   int initialize(const std::string &folder);
+  bool check_input_files();
+  int generate_shortest_pathsets(const std::string &folder, int max_iter, double mid_scale, double heavy_scale, double min_path_tt=0.);
   int install_cc();
   int install_cc_tree();
-  int run_once();
   int run_whole(bool verbose=true);
   int register_links(py::array_t<int> links);
   int register_paths(py::array_t<int> paths);
   std::vector<bool> check_registered_links_in_registered_paths();
-  int generate_paths_to_cover_registered_links();
+  py::array_t<bool> are_registered_links_in_registered_paths();
+  py::array_t<int> generate_paths_to_cover_registered_links();
   int save_path_table(const std::string &folder);
   int get_cur_loading_interval();
   int build_link_cost_map(bool with_congestion_indicator=false);
   py::array_t<double> get_link_inflow(py::array_t<int>start_intervals, 
                                         py::array_t<int>end_intervals);
-  py::array_t<double> get_link_tt(py::array_t<int>start_intervals);
-  py::array_t<double> get_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
+  py::array_t<double> get_link_tt(py::array_t<int>start_intervals, bool return_inf = false);
+  py::array_t<double> get_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
   // assume build_link_cost_map() is invoked before
   py::array_t<double> get_registered_path_tt(py::array_t<int>start_intervals);
   py::array_t<double> get_link_in_cc(int link_ID);
@@ -82,6 +84,8 @@ public:
   Mcdta_Api();
   ~Mcdta_Api();
   int initialize(const std::string &folder);
+  bool check_input_files();
+  int generate_shortest_pathsets(const std::string &folder, int max_iter, double mid_scale, double heavy_scale, double min_path_tt=0.);
   int install_cc();
   int install_cc_tree();
   int run_whole(bool verbose=true);
@@ -96,10 +100,10 @@ public:
   py::array_t<double> get_car_link_fftt(py::array_t<int>link_IDs);
   py::array_t<double> get_truck_link_fftt(py::array_t<int>link_IDs);
   
-  py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals);
-  py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
-  py::array_t<double> get_truck_link_tt(py::array_t<double>start_intervals);
-  py::array_t<double> get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
+  py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals, bool return_inf = false);
+  py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
+  py::array_t<double> get_truck_link_tt(py::array_t<double>start_intervals, bool return_inf = false);
+  py::array_t<double> get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
   
   py::array_t<double> get_car_link_speed(py::array_t<double>start_intervals);
   py::array_t<double> get_truck_link_speed(py::array_t<double>start_intervals);
@@ -110,7 +114,8 @@ public:
   int register_paths(py::array_t<int> paths);
 
   std::vector<bool> check_registered_links_in_registered_paths();
-  int generate_paths_to_cover_registered_links();
+  py::array_t<bool> are_registered_links_in_registered_paths();
+  py::array_t<int> generate_paths_to_cover_registered_links();
   int save_path_table(const std::string &folder);
 
   py::array_t<double> get_car_link_out_cc(int link_ID); 
@@ -160,14 +165,22 @@ public:
     ~Mmdta_Api();
     int initialize(const std::string &folder);
     int initialize_mmdue(const std::string &folder);
+    int generate_shortest_pathsets(const std::string &folder, int max_iter, double mid_scale, double heavy_scale, double min_path_tt=0.);
+    bool check_input_files();
+
     int install_cc();
     int install_cc_tree();
+
     int run_whole(bool verbose=true);
     int run_mmdue(const std::string &folder, bool verbose=true);
     int run_mmdta_adaptive(const std::string &folder, int cong_frequency = 180, bool verbose=true);
+
     int register_links_driving(py::array_t<int> links_driving);
     int register_links_walking(py::array_t<int> links_walking);
     int register_links_bus(py::array_t<int> links_bus);
+    py::array_t<double> get_links_overlapped_bus_driving();
+    int register_links_bus_driving(py::array_t<int> links_bus_driving);
+
     int get_cur_loading_interval();
     py::array_t<double> get_travel_stats();
     std::string print_emission_stats();
@@ -181,19 +194,23 @@ public:
     py::array_t<double> get_bus_link_fftt(py::array_t<int>link_IDs);
     py::array_t<double> get_walking_link_fftt(py::array_t<int>link_IDs);
 
-    py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals);
-    py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
-    py::array_t<double> get_truck_link_tt(py::array_t<double>start_intervals);
-    py::array_t<double> get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
-    py::array_t<double> get_bus_link_tt(py::array_t<double>start_intervals);
-    py::array_t<double> get_bus_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
-    // on boarding links, this is bus waiting time
+    py::array_t<double> get_car_link_tt(py::array_t<double>start_intervals, bool return_inf = false);
+    py::array_t<double> get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
+    py::array_t<double> get_truck_link_tt(py::array_t<double>start_intervals, bool return_inf = false);
+    py::array_t<double> get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
+    py::array_t<double> get_bus_link_tt(py::array_t<double>start_intervals, bool return_inf = false, bool return_bus_time = false);
+    py::array_t<double> get_bus_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false, bool return_bus_time = false);
+    // for boarding links, this includes bus waiting time
     py::array_t<double> get_passenger_walking_link_tt(py::array_t<double>start_intervals);
-    py::array_t<double> get_passenger_walking_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 5);
+    py::array_t<double> get_passenger_walking_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180);
+    py::array_t<double> get_bus_driving_link_tt_car(py::array_t<double>start_intervals, bool return_inf = false);
+    py::array_t<double> get_bus_driving_link_tt_car_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
+    py::array_t<double> get_bus_driving_link_tt_truck(py::array_t<double>start_intervals, bool return_inf = false);
+    py::array_t<double> get_bus_driving_link_tt_truck_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
 
     py::array_t<double> get_car_link_speed(py::array_t<double>start_intervals);
     py::array_t<double> get_truck_link_speed(py::array_t<double>start_intervals);
-    py::array_t<double> get_bus_link_speed(py::array_t<double>start_intervals);
+    py::array_t<double> get_bus_link_speed(py::array_t<double>start_intervals, bool return_inf = false, bool return_bus_time = false);
 
     py::array_t<double> get_link_car_inflow(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
     py::array_t<double> get_link_truck_inflow(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
@@ -236,8 +253,12 @@ public:
     std::vector<bool> check_registered_links_in_registered_paths_bus();
     std::vector<bool> check_registered_links_in_registered_paths_walking();
 
-    int generate_paths_to_cover_registered_links_driving();
-    int generate_paths_to_cover_registered_links_bus_walking();
+    py::array_t<bool> are_registered_links_in_registered_paths_driving();
+    py::array_t<bool> are_registered_links_in_registered_paths_bus();
+    py::array_t<bool> are_registered_links_in_registered_paths_walking();
+
+    py::array_t<int> generate_paths_to_cover_registered_links_driving();
+    py::array_t<int> generate_paths_to_cover_registered_links_bus_walking();
 
     int save_passenger_path_table(const std::string &file_folder);
     int save_mode_path_table(const std::string &file_folder);
@@ -295,6 +316,13 @@ public:
     py::array_t<double> get_passenger_dar_matrix_bustransit(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
     py::array_t<double> get_passenger_dar_matrix_pnr(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
 
+    py::array_t<double> get_car_dar_matrix_bus_driving_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_truck_dar_matrix_bus_driving_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_passenger_dar_matrix_bustransit_bus_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+    py::array_t<double> get_passenger_dar_matrix_pnr_bus_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+
+    // py::array_t<double> get_passenger_bus_link_flow_relationship(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+
     py::array_t<double> get_car_ltg_matrix_driving(py::array_t<int>start_intervals, int threshold_timestamp);
     py::array_t<double> get_car_ltg_matrix_pnr(py::array_t<int>start_intervals, int threshold_timestamp);
     py::array_t<double> get_truck_ltg_matrix_driving(py::array_t<int>start_intervals, int threshold_timestamp);
@@ -308,6 +336,7 @@ public:
     std::vector<MNM_Dlink_Multiclass*> m_link_vec_driving;
     std::vector<MNM_Walking_Link*> m_link_vec_walking;
     std::vector<MNM_Bus_Link*> m_link_vec_bus;
+    std::vector<MNM_Dlink_Multiclass*> m_link_vec_bus_driving;
 
     std::vector<MNM_Path*> m_path_vec_driving;
     std::vector<MNM_Path*> m_path_vec_bus;

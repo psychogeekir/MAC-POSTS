@@ -862,7 +862,7 @@ TFlt MNM_Cumulative_Curve::get_result(TFlt time) {
 //   return TFlt(-1);
 // }
 
-TFlt MNM_Cumulative_Curve::get_time(TFlt result) {
+TFlt MNM_Cumulative_Curve::get_time(TFlt result, bool rounding_up) {
     // arrange2();
     if (m_recorder.empty()) {
         return TFlt(-1);
@@ -882,6 +882,9 @@ TFlt MNM_Cumulative_Curve::get_time(TFlt result) {
                                      [](const std::pair<TFlt, TFlt> &r, TFlt v){return MNM_Ults::approximate_less_than(r.second, v);});
     j = std::distance(m_recorder.begin(), _lower_j);
     IAssert(j >= 1);
+    if (rounding_up) {
+        return m_recorder[j].first;
+    }
     if (_lower_j != m_recorder.end()) {
         if (MNM_Ults::approximate_equal(m_recorder[j].second, result)) { 
             // printf("index j-1 %d, time %f, flow %f\n", j-1, m_recorder[j-1].first(), m_recorder[j-1].second());

@@ -10,6 +10,7 @@
 
 namespace py = pybind11;
 
+const TFlt TT_UPPER_BOUND = 20;
 
 Test_Types::Test_Types()
 {
@@ -248,7 +249,7 @@ int Dta_Api::initialize(const std::string &folder)
   m_dta = new MNM_Dta(folder);
   m_dta -> build_from_files();
   m_dta -> hook_up_node_and_link();
-  // m_dta -> is_ok();
+  m_dta -> is_ok();
   // printf("start load ID path mapping 0\n");
   if (MNM_Routing_Fixed *_routing = dynamic_cast<MNM_Routing_Fixed *>(m_dta -> m_routing)){
     MNM::get_ID_path_mapping(m_ID_path_mapping, _routing -> m_path_table);
@@ -264,9 +265,38 @@ int Dta_Api::initialize(const std::string &folder)
   return -1;
 }
 
-int Dta_Api::run_once()
+bool Dta_Api::check_input_files()
 {
-  return 0;
+    return m_dta -> is_ok();
+}
+
+int Dta_Api::generate_shortest_pathsets(const std::string &folder, int max_iter, double mid_scale, double heavy_scale, double min_path_tt)
+{
+    m_dta = new MNM_Dta(folder);
+    m_dta -> build_from_files();
+    m_dta -> hook_up_node_and_link();
+
+    Path_Table *_driving_path_table = \
+        MNM::build_pathset(m_dta -> m_graph, m_dta -> m_od_factory,
+                           m_dta -> m_link_factory, min_path_tt, max_iter, mid_scale, heavy_scale, 
+                           m_dta -> m_config -> get_int("max_interval") * m_dta -> m_config -> get_int("assign_frq"));
+    printf("driving pathset generated\n");
+    MNM::save_driving_path_table(folder, _driving_path_table, "path_table", "path_table_buffer", true);
+    printf("driving pathset saved\n");
+    
+    if (!_driving_path_table -> empty()) {
+        for (auto _it: *_driving_path_table) {
+            for (auto _it_it : *_it.second) {
+                delete _it_it.second;
+            }
+            _it.second -> clear();
+            delete _it.second;
+        }
+        _driving_path_table -> clear();
+    }
+    delete _driving_path_table;
+
+    return 0;
 }
 
 int Dta_Api::install_cc()
@@ -402,7 +432,9 @@ std::vector<bool> Dta_Api::check_registered_links_in_registered_paths()
     }
     for (auto* _path : m_path_vec) {
         for (size_t i = 0; i < m_link_vec.size(); ++i) {
-            _link_existing[i] = _path -> is_link_in(m_link_vec[i] -> m_link_ID);
+            if (!_link_existing[i]) {
+                _link_existing[i] = _path -> is_link_in(m_link_vec[i] -> m_link_ID);
+            }
         }
         if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
             break;
@@ -414,13 +446,40 @@ std::vector<bool> Dta_Api::check_registered_links_in_registered_paths()
     return _link_existing;
 }
 
-int Dta_Api::generate_paths_to_cover_registered_links()
+py::array_t<bool> Dta_Api::are_registered_links_in_registered_paths()
 {
     // used in Python API, check the input files before the DODE
     std::vector<bool> _link_existing = check_registered_links_in_registered_paths();
+
+    int new_shape [1] = {(int) _link_existing.size()};
+    auto result = py::array_t<bool>(new_shape);
+    auto result_buf = result.request();
+    bool *result_prt = (bool *) result_buf.ptr;
+
+    for (size_t v = 0; v < _link_existing.size(); ++v) {
+        result_prt[v] = _link_existing[v];
+    }
+    return result;
+}
+
+py::array_t<int> Dta_Api::generate_paths_to_cover_registered_links()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing = check_registered_links_in_registered_paths();
+    
+    int new_shape [1] = { 1 + (int) _link_existing.size()};
+    auto result = py::array_t<int>(new_shape);
+    auto result_buf = result.request();
+    int *result_prt = (int *) result_buf.ptr;
+    
     if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
         printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
-        return 0;
+        
+        result_prt[0] = 0;  // indicate whether the path table is updated
+        for (size_t v = 0; v < _link_existing.size(); ++v) {
+            result_prt[v + 1] = (int)_link_existing[v];
+        }
+        return result;
     }
 
     PNEGraph reversed_graph = MNM_Ults::reverse_graph(m_dta -> m_graph);
@@ -509,7 +568,8 @@ int Dta_Api::generate_paths_to_cover_registered_links()
 
             if (!_flg) {
                 printf("Cannot generate path covering this link\n");
-                exit(-1);
+                // exit(-1);
+                continue;
             }
             IAssert(_origin != nullptr && _dest != nullptr);
 
@@ -559,7 +619,12 @@ int Dta_Api::generate_paths_to_cover_registered_links()
         exit(-1);
     }
 
-    save_path_table(m_dta -> m_file_folder);
+    MNM::save_path_table(m_dta -> m_file_folder, dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_fixed -> m_path_table, m_dta -> m_od_factory, true);
+
+    result_prt[0] = 1;  // indicate whether the path table is updated
+    for (size_t v = 0; v < _link_existing.size(); ++v) {
+        result_prt[v + 1] = (int)_link_existing[v];
+    }
     
     _link_existing.clear();
     _cost_map.clear();
@@ -568,7 +633,7 @@ int Dta_Api::generate_paths_to_cover_registered_links()
     reversed_graph.Clr();
     pair_ptrs_1.clear();
     pair_ptrs_2.clear();
-    return 1;
+    return result;
 }
 
 int Dta_Api::save_path_table(const std::string &folder)
@@ -620,7 +685,7 @@ py::array_t<double> Dta_Api::get_link_inflow(py::array_t<int>start_intervals, py
   return result;
 }
 
-py::array_t<double> Dta_Api::get_link_tt(py::array_t<int>start_intervals)
+py::array_t<double> Dta_Api::get_link_tt(py::array_t<int>start_intervals, bool return_inf)
 {
   auto start_buf = start_intervals.request();
   if (start_buf.ndim != 1){
@@ -641,12 +706,21 @@ py::array_t<double> Dta_Api::get_link_tt(py::array_t<int>start_intervals)
       // use start_prt[t] + 1 as start_time in cc to compute link travel time for vehicles arriving at the beginning of interval start_prt[t]
       result_prt[i * l + t] = MNM_DTA_GRADIENT::get_travel_time(
               m_link_vec[i], TFlt(start_prt[t] + 1), m_dta -> m_unit_time, m_dta -> m_current_loading_interval)() * m_dta -> m_unit_time; // second
+      if (result_prt[i * l + t] > TT_UPPER_BOUND * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs) {
+        if (return_inf) {
+            result_prt[i * l + t] = std::numeric_limits<double>::infinity();
+        }
+        else {
+            result_prt[i * l + t] = TT_UPPER_BOUND * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs;
+        }
+        
+      }
     }
   }
   return result;
 }
 
-py::array_t<double> Dta_Api::get_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+py::array_t<double> Dta_Api::get_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials, bool return_inf)
 {
     auto start_buf = start_intervals.request();
     auto end_buf = end_intervals.request();
@@ -677,6 +751,14 @@ py::array_t<double> Dta_Api::get_link_tt_robust(py::array_t<double>start_interva
         for (size_t i = 0; i < m_link_vec.size(); ++i){
             double _tmp = MNM_DTA_GRADIENT::get_travel_time_robust(m_link_vec[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_dta -> m_unit_time, m_dta -> m_current_loading_interval, num_trials)();
             result_prt[i * l + t] = _tmp * m_dta -> m_unit_time;  // second
+            if (result_prt[i * l + t] > TT_UPPER_BOUND * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs) {
+                if (return_inf) {
+                    result_prt[i * l + t] = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    result_prt[i * l + t] = TT_UPPER_BOUND * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs;
+                }
+            }
         }
     }
     return result;
@@ -925,6 +1007,38 @@ int Mcdta_Api::initialize(const std::string &folder)
   printf("xxx\n");
   std::runtime_error("Mcdta_Api:: Routing type not implemented in API");
   return -1;
+}
+
+bool Mcdta_Api::check_input_files()
+{
+    return m_mcdta -> is_ok();
+}
+
+int Mcdta_Api::generate_shortest_pathsets(const std::string &folder, int max_iter, double mid_scale, double heavy_scale, double min_path_tt)
+{
+    m_mcdta = new MNM_Dta_Multiclass(folder);
+    m_mcdta -> build_from_files();
+    m_mcdta -> hook_up_node_and_link();
+
+    Path_Table *_driving_path_table = \
+        MNM::build_pathset_multiclass(m_mcdta -> m_graph, m_mcdta -> m_od_factory,
+                                      m_mcdta -> m_link_factory, min_path_tt, max_iter, mid_scale, heavy_scale, 
+                                      2 * m_mcdta -> m_config -> get_int("max_interval") * m_mcdta -> m_config -> get_int("assign_frq"));
+    printf("driving pathset generated\n");
+    MNM::save_driving_path_table(folder, _driving_path_table, "path_table", "path_table_buffer", true);
+    printf("driving pathset saved\n");
+
+    for (auto _it: *_driving_path_table) {
+        for (auto _it_it : *_it.second) {
+            delete _it_it.second;
+        }
+        _it.second -> clear();
+        delete _it.second;
+    }
+    _driving_path_table -> clear();
+    delete _driving_path_table;
+    
+    return 0;
 }
 
 int Mcdta_Api::install_cc()
@@ -1263,8 +1377,8 @@ py::array_t<double> Mcdta_Api::get_path_tt_car(py::array_t<int>link_IDs, py::arr
             throw std::runtime_error("Error, Mcdta_Api::get_path_tt_car, input start intervals exceeds the total loading intervals - 1");
           }
           double _tmp = MNM_DTA_GRADIENT::get_travel_time_car(_mclink, TFlt(start_prt[t] + 1), m_mcdta -> m_unit_time, m_mcdta -> m_current_loading_interval)() * m_mcdta -> m_unit_time;
-          if (_tmp > 20 * (_mclink -> m_length / _mclink -> m_ffs_car)){
-            _tmp = 20 * _mclink -> m_length / _mclink -> m_ffs_car;
+          if (_tmp > TT_UPPER_BOUND * (_mclink -> m_length / _mclink -> m_ffs_car)){
+            _tmp = TT_UPPER_BOUND * _mclink -> m_length / _mclink -> m_ffs_car;
           }
           avg_tt += _tmp; // seconds
       }
@@ -1305,8 +1419,8 @@ py::array_t<double> Mcdta_Api::get_path_tt_truck(py::array_t<int>link_IDs, py::a
             throw std::runtime_error("Error, Mcdta_Api::get_path_tt_truck, input start intervals exceeds the total loading intervals - 1");
           }
           double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck(_mclink, TFlt(start_prt[t] + 1), m_mcdta -> m_unit_time, m_mcdta -> m_current_loading_interval)() * m_mcdta -> m_unit_time;
-          if (_tmp > 20 * (_mclink -> m_length / _mclink -> m_ffs_truck)){
-              _tmp = 20 * _mclink -> m_length / _mclink -> m_ffs_truck;
+          if (_tmp > TT_UPPER_BOUND * (_mclink -> m_length / _mclink -> m_ffs_truck)){
+              _tmp = TT_UPPER_BOUND * _mclink -> m_length / _mclink -> m_ffs_truck;
           }
           avg_tt += _tmp; // seconds
       }
@@ -1412,7 +1526,7 @@ py::array_t<double> Mcdta_Api::get_truck_link_fftt(py::array_t<int>link_IDs)
 }
 
 // unit: m_mcdta -> m_unit_time (eg: 5 seconds)
-py::array_t<double> Mcdta_Api::get_car_link_tt(py::array_t<double>start_intervals)
+py::array_t<double> Mcdta_Api::get_car_link_tt(py::array_t<double>start_intervals, bool return_inf)
 {
   auto start_buf = start_intervals.request();
   if (start_buf.ndim != 1){
@@ -1431,16 +1545,21 @@ py::array_t<double> Mcdta_Api::get_car_link_tt(py::array_t<double>start_interval
     }
     for (size_t i = 0; i < m_link_vec.size(); ++i){
       double _tmp = MNM_DTA_GRADIENT::get_travel_time_car(m_link_vec[i], TFlt(start_prt[t] + 1), m_mcdta->m_unit_time, m_mcdta -> m_current_loading_interval)();
-      // if (_tmp * m_mcdta -> m_unit_time > 20 * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car)){
-      //     _tmp = 20 * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car / m_mcdta -> m_unit_time;
-      // }
+      if (_tmp * m_mcdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car)){
+            if (return_inf) {
+                _tmp = std::numeric_limits<double>::infinity();
+            }
+            else {
+                _tmp = TT_UPPER_BOUND * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car / m_mcdta -> m_unit_time;
+            }
+      }
       result_prt[i * l + t] = _tmp * m_mcdta -> m_unit_time;
     }
   }
   return result;
 }
 
-py::array_t<double> Mcdta_Api::get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+py::array_t<double> Mcdta_Api::get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials, bool return_inf)
 {
   auto start_buf = start_intervals.request();
   auto end_buf = end_intervals.request();
@@ -1470,16 +1589,21 @@ py::array_t<double> Mcdta_Api::get_car_link_tt_robust(py::array_t<double>start_i
     }
     for (size_t i = 0; i < m_link_vec.size(); ++i){
         double _tmp = MNM_DTA_GRADIENT::get_travel_time_car_robust(m_link_vec[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_mcdta -> m_unit_time, m_mcdta -> m_current_loading_interval, num_trials)();
-        // if (_tmp * m_mcdta -> m_unit_time > 20 * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car)){
-        //     _tmp = 20 * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car / m_mcdta -> m_unit_time;
-        // }
+        if (_tmp * m_mcdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car)){
+            if (return_inf) {
+                _tmp = std::numeric_limits<double>::infinity();
+            }
+            else {
+                _tmp = TT_UPPER_BOUND * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_car / m_mcdta -> m_unit_time;
+            }
+        }
         result_prt[i * l + t] = _tmp * m_mcdta -> m_unit_time;  // seconds
     }
   }
   return result;
 }
 
-py::array_t<double> Mcdta_Api::get_truck_link_tt(py::array_t<double>start_intervals)
+py::array_t<double> Mcdta_Api::get_truck_link_tt(py::array_t<double>start_intervals, bool return_inf)
 {
   auto start_buf = start_intervals.request();
   if (start_buf.ndim != 1){
@@ -1498,16 +1622,21 @@ py::array_t<double> Mcdta_Api::get_truck_link_tt(py::array_t<double>start_interv
     }
     for (size_t i = 0; i < m_link_vec.size(); ++i){
       double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck(m_link_vec[i], TFlt(start_prt[t] + 1), m_mcdta -> m_unit_time, m_mcdta -> m_current_loading_interval)();
-      // if (_tmp * 5 > 20 * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_truck)){
-      //     _tmp = 20 * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_truck / m_mcdta -> m_unit_time;
-      // }
+      if (_tmp * m_mcdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_truck)){
+            if (return_inf) {
+                _tmp = std::numeric_limits<double>::infinity();
+            }
+            else {
+                _tmp = TT_UPPER_BOUND * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_truck / m_mcdta -> m_unit_time;
+            }
+      }
       result_prt[i * l + t] = _tmp * m_mcdta -> m_unit_time;  // seconds
     }
   }
   return result;
 }
 
-py::array_t<double> Mcdta_Api::get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+py::array_t<double> Mcdta_Api::get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials, bool return_inf)
 {
   auto start_buf = start_intervals.request();
   auto end_buf = end_intervals.request();
@@ -1537,6 +1666,14 @@ py::array_t<double> Mcdta_Api::get_truck_link_tt_robust(py::array_t<double>start
     }
     for (size_t i = 0; i < m_link_vec.size(); ++i){
       double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck_robust(m_link_vec[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_mcdta -> m_unit_time, m_mcdta -> m_current_loading_interval, num_trials)();
+      if (_tmp * m_mcdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_truck)){
+            if (return_inf) {
+                _tmp = std::numeric_limits<double>::infinity();
+            }
+            else {
+                _tmp = TT_UPPER_BOUND * m_link_vec[i] -> m_length / m_link_vec[i] -> m_ffs_truck / m_mcdta -> m_unit_time;
+            }  
+      }
       result_prt[i * l + t] = _tmp * m_mcdta -> m_unit_time;  // second
     }
   }
@@ -1706,25 +1843,54 @@ std::vector<bool> Mcdta_Api::check_registered_links_in_registered_paths()
     }
     for (auto* _path : m_path_vec) {
         for (size_t i = 0; i < m_link_vec.size(); ++i) {
-            _link_existing[i] = _path -> is_link_in(m_link_vec[i] -> m_link_ID);
+            if (!_link_existing[i]) {
+                _link_existing[i] = _path -> is_link_in(m_link_vec[i] -> m_link_ID);
+            }
         }
         if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
             break;
         }
     }
     if (std::any_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return !v;})) {
-        printf("Warning: some observed bus links in m_link_vec are not covered by generated paths in m_path_vec!\n");
+        printf("Warning: some observed driving links in m_link_vec are not covered by generated paths in m_path_vec!\n");
     }
     return _link_existing;
 }
 
-int Mcdta_Api::generate_paths_to_cover_registered_links()
+py::array_t<bool> Mcdta_Api::are_registered_links_in_registered_paths()
 {
     // used in Python API, check the input files before the DODE
     std::vector<bool> _link_existing = check_registered_links_in_registered_paths();
+
+    int new_shape [1] = {(int) _link_existing.size()};
+    auto result = py::array_t<bool>(new_shape);
+    auto result_buf = result.request();
+    bool *result_prt = (bool *) result_buf.ptr;
+
+    for (size_t v = 0; v < _link_existing.size(); ++v) {
+        result_prt[v] = _link_existing[v];
+    }
+    return result;
+}
+
+py::array_t<int> Mcdta_Api::generate_paths_to_cover_registered_links()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing = check_registered_links_in_registered_paths();
+    
+    int new_shape [1] = { 1 + (int) _link_existing.size()};
+    auto result = py::array_t<int>(new_shape);
+    auto result_buf = result.request();
+    int *result_prt = (int *) result_buf.ptr;
+
     if (std::all_of(_link_existing.cbegin(), _link_existing.cend(), [](bool v){return v;})) {
         printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
-        return 0;
+        
+        result_prt[0] = 0;  // indicate whether the path table is updated
+        for (size_t v = 0; v < _link_existing.size(); ++v) {
+            result_prt[v + 1] = (int)_link_existing[v];
+        }
+        return result;
     }
 
     PNEGraph reversed_graph = MNM_Ults::reverse_graph(m_mcdta -> m_graph);
@@ -1814,7 +1980,8 @@ int Mcdta_Api::generate_paths_to_cover_registered_links()
 
             if (!_flg) {
                 printf("Cannot generate path covering this link\n");
-                exit(-1);
+                // exit(-1);
+                continue;
             }
             IAssert(_origin != nullptr && _dest != nullptr);
 
@@ -1859,11 +2026,16 @@ int Mcdta_Api::generate_paths_to_cover_registered_links()
         printf("All links in m_link_vec are covered by paths in m_path_vec!\n");
     }
     else {
-        printf("Something wrong in Mcdta_Api::generate_paths_to_cover_registered_links\n");
-        exit(-1);
+        printf("Mcdta_Api::generate_paths_to_cover_registered_links, NOT all links in m_link_vec are covered by paths in m_path_vec!\n");
+        // exit(-1);
     }
 
-    save_path_table(m_mcdta -> m_file_folder);
+    MNM::save_path_table(m_mcdta -> m_file_folder, dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_fixed_car -> m_path_table, m_mcdta -> m_od_factory, true);
+
+    result_prt[0] = 1;  // indicate whether the path table is updated
+    for (size_t v = 0; v < _link_existing.size(); ++v) {
+        result_prt[v + 1] = (int)_link_existing[v];
+    }
     
     _link_existing.clear();
     _cost_map.clear();
@@ -1872,7 +2044,7 @@ int Mcdta_Api::generate_paths_to_cover_registered_links()
     reversed_graph.Clr();
     pair_ptrs_1.clear();
     pair_ptrs_2.clear();
-    return 1;
+    return result;
 }
 
 int Mcdta_Api::save_path_table(const std::string &folder)
@@ -2172,6 +2344,7 @@ Mmdta_Api::Mmdta_Api()
     m_link_vec_driving = std::vector<MNM_Dlink_Multiclass*>();
     m_link_vec_walking = std::vector<MNM_Walking_Link*>();
     m_link_vec_bus = std::vector<MNM_Bus_Link*>();
+    m_link_vec_bus_driving = std::vector<MNM_Dlink_Multiclass*>();
 
     m_path_vec_driving = std::vector<MNM_Path*>();
     m_path_vec_bustransit = std::vector<MNM_Path*>();
@@ -2209,6 +2382,7 @@ Mmdta_Api::~Mmdta_Api()
     m_link_vec_driving.clear();
     m_link_vec_walking.clear();
     m_link_vec_bus.clear();
+    m_link_vec_bus_driving.clear();
 
     m_path_vec_driving.clear();
     m_path_vec_bustransit.clear();
@@ -2243,10 +2417,75 @@ Mmdta_Api::~Mmdta_Api()
     }
 }
 
+int Mmdta_Api::generate_shortest_pathsets(const std::string &folder, int max_iter, double mid_scale, double heavy_scale, double min_path_tt)
+{
+    m_mmdue = new MNM_MM_Due(folder);
+    m_mmdue -> initialize();
+
+    if (std::find(m_mmdue -> m_mode_vec.begin(), m_mmdue -> m_mode_vec.end(), driving) != m_mmdue -> m_mode_vec.end()) {
+        Path_Table *_driving_path_table = \
+            MNM::build_shortest_driving_pathset(m_mmdue -> m_mmdta -> m_graph, m_mmdue -> m_mmdta -> m_od_factory, m_mmdue -> m_od_mode_connectivity,
+                                                m_mmdue -> m_mmdta -> m_link_factory, min_path_tt, max_iter, mid_scale, heavy_scale, 2 * m_mmdue -> m_total_assign_inter);
+        printf("driving pathset generated\n");
+        MNM::save_driving_path_table(folder, _driving_path_table, "driving_path_table", "driving_path_table_buffer", true);
+        printf("driving pathset saved\n");
+
+        for (auto _it: *_driving_path_table) {
+            for (auto _it_it : *_it.second) {
+                delete _it_it.second;
+            }
+            _it.second -> clear();
+            delete _it.second;
+        }
+        _driving_path_table -> clear();
+        delete _driving_path_table;
+    }
+    if (std::find(m_mmdue -> m_mode_vec.begin(), m_mmdue -> m_mode_vec.end(), transit) != m_mmdue -> m_mode_vec.end()) {
+        Path_Table *_bustransit_path_table = \
+            MNM::build_shortest_bustransit_pathset(m_mmdue -> m_mmdta -> m_bus_transit_graph, m_mmdue -> m_mmdta -> m_od_factory, m_mmdue -> m_od_mode_connectivity,
+                                                m_mmdue -> m_mmdta -> m_transitlink_factory, min_path_tt, max_iter, mid_scale, heavy_scale, m_mmdue -> m_total_assign_inter);
+        printf("bus transit pathset generated\n");
+        MNM::save_bustransit_path_table(folder, _bustransit_path_table, "bustransit_path_table", "bustransit_path_table_buffer", true);
+        printf("bus transit pathset saved\n");
+
+        for (auto _it: *_bustransit_path_table) {
+            for (auto _it_it : *_it.second) {
+                delete _it_it.second;
+            }
+            _it.second -> clear();
+            delete _it.second;
+        }
+        _bustransit_path_table -> clear();
+        delete _bustransit_path_table;
+    }
+    if (std::find(m_mmdue -> m_mode_vec.begin(), m_mmdue -> m_mode_vec.end(), pnr) != m_mmdue -> m_mode_vec.end()) {
+        PnR_Path_Table *_pnr_path_table = \
+            MNM::build_shortest_pnr_pathset(m_mmdue -> m_mmdta -> m_graph, m_mmdue -> m_mmdta -> m_bus_transit_graph, m_mmdue -> m_mmdta -> m_od_factory,
+                                            m_mmdue -> m_od_mode_connectivity, m_mmdue -> m_mmdta -> m_link_factory, m_mmdue -> m_mmdta -> m_transitlink_factory,
+                                            min_path_tt, max_iter, mid_scale, heavy_scale, m_mmdue -> m_total_assign_inter);
+        printf("pnr pathset generated\n");
+        MNM::save_pnr_path_table(folder, _pnr_path_table, "pnr_path_table", "pnr_path_table_buffer", true);
+        printf("pnr pathset saved\n");
+
+        for (auto _it: *_pnr_path_table) {
+            for (auto _it_it : *_it.second) {
+                delete _it_it.second;
+            }
+            _it.second -> clear();
+            delete _it.second;
+        }
+        _pnr_path_table -> clear();
+        delete _pnr_path_table;
+    }
+
+    return 0;
+}
+
 int Mmdta_Api::initialize(const std::string &folder)
 {
     m_mmdue = new MNM_MM_Due(folder);
     m_mmdue -> initialize();
+    m_mmdue -> init_passenger_path_table();
     // m_mmdue -> m_passenger_path_table are created, at least one path for each mode for each OD pair, if connected
     // m_mmdue -> m_driving_path_table, m_mmdue -> m_pnr_path_table, and m_mmdue -> m_bus_path_table are all nullptr
     // m_mmdue -> m_truck_path_table and m_mmdue -> m_bus_path_table are pointing to the corresponding attributes of m_mmdue -> m_mmdta 
@@ -2309,8 +2548,20 @@ int Mmdta_Api::initialize(const std::string &folder)
 int Mmdta_Api::initialize_mmdue(const std::string &folder)
 {
     m_mmdue = new MNM_MM_Due(folder);
+    printf("================================ DUE set! =================================\n");
+
     m_mmdue -> initialize();
+    printf("========================= Finished initialization! ========================\n");
+
+    m_mmdue -> init_passenger_path_table();
+    m_mmdue -> init_passenger_path_flow();
+    printf("====================== Finished initialize passenger path flow! ====================\n");
     return 0;
+}
+
+bool Mmdta_Api::check_input_files()
+{
+    return m_mmdta -> is_ok();
 }
 
 int Mmdta_Api::install_cc()
@@ -2331,6 +2582,10 @@ int Mmdta_Api::install_cc()
         m_link_vec_bus[i] -> m_from_busstop -> install_cumulative_curve_multiclass();
         m_link_vec_bus[i] -> m_to_busstop -> install_cumulative_curve_multiclass();
     }
+    // truck traversing bus links
+    for (size_t i = 0; i < m_link_vec_bus_driving.size(); ++i){
+        m_link_vec_bus_driving[i] -> install_cumulative_curve_multiclass();
+    }
     return 0;
 }
 
@@ -2347,6 +2602,10 @@ int Mmdta_Api::install_cc_tree()
     // bus and passenger
     for (size_t i = 0; i < m_link_vec_bus.size(); ++i){
         m_link_vec_bus[i] -> install_cumulative_curve_tree();
+    }
+    // truck traversing bus links
+    for (size_t i = 0; i < m_link_vec_bus_driving.size(); ++i){
+        m_link_vec_bus_driving[i] -> install_cumulative_curve_tree_multiclass();
     }
     return 0;
 }
@@ -2368,14 +2627,6 @@ int Mmdta_Api::run_mmdue(const std::string &folder, bool verbose)
     std::string rec_folder = config -> get_string("rec_folder");
     
     MNM_Dta_Multimodal *mmdta;
-
-    printf("================================ DUE set! =================================\n");
-
-    // m_mmdue -> initialize();
-    printf("========================= Finished initialization! ========================\n");
-
-    m_mmdue -> init_passenger_path_flow();
-    printf("====================== Finished initialize passenger path flow! ====================\n");
 
     std::string gap_file_name = folder + "/" + rec_folder + "/gap_iteration";
     std::ofstream gap_file;
@@ -2621,6 +2872,79 @@ int Mmdta_Api::register_links_bus(py::array_t<int> links_bus)
     return 0;
 }
 
+py::array_t<double> Mmdta_Api::get_links_overlapped_bus_driving()
+{
+    if (m_link_vec_bus.empty()){
+        printf("Warning, Mmdta_Api::get_links_overlapped_bus_driving, bus links do not exist\n");
+        exit(-1);
+    }
+    struct _record { 
+        TInt bus_link_ID; 
+        TInt driving_link_ID; 
+        TFlt length_proportion;
+    };
+    std::vector<_record*> _overlapped_driving_link_records = std::vector<_record*>();
+    for (auto _bus_link : m_link_vec_bus) {
+        size_t i = 0;
+        for (auto _driving_link : _bus_link -> m_overlapped_driving_link_vec) {
+            auto new_record = new _record();
+            new_record->bus_link_ID = _bus_link -> m_link_ID;
+            new_record->driving_link_ID = _driving_link -> m_link_ID;
+            new_record->length_proportion = _bus_link -> m_overlapped_driving_link_length_portion_vec[i];
+            _overlapped_driving_link_records.push_back(new_record);
+            i++;
+        }
+    }
+
+    int new_shape [2] = { (int) _overlapped_driving_link_records.size(), 3};
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    _record* tmp_record;
+    for (size_t i = 0; i < _overlapped_driving_link_records.size(); ++i){
+        tmp_record = _overlapped_driving_link_records[i];
+        result_prt[i * 3 + 0] = (double) tmp_record -> bus_link_ID();
+        result_prt[i * 3 + 1] = (double) tmp_record -> driving_link_ID();
+        result_prt[i * 3 + 2] = (double) tmp_record -> length_proportion();
+    }
+
+    for (size_t i = 0; i < _overlapped_driving_link_records.size(); ++i){
+        delete _overlapped_driving_link_records[i];
+    }
+    _overlapped_driving_link_records.clear();
+    return result;
+}
+
+int Mmdta_Api::register_links_bus_driving(py::array_t<int> links_bus_driving)
+{
+    if (!m_link_vec_bus_driving.empty()){
+        printf("Warning, Mmdta_Api::register_links_bus_driving, link exists\n");
+        m_link_vec_bus_driving.clear();
+    }
+    auto links_buf = links_bus_driving.request();
+    if (links_buf.ndim != 1){
+        throw std::runtime_error("Number of dimensions must be one");
+    }
+    int *links_ptr = (int *) links_buf.ptr;
+    MNM_Dlink *_link;
+    for (int i = 0; i < links_buf.shape[0]; i++){
+        _link = m_mmdta -> m_link_factory -> get_link(TInt(links_ptr[i]));
+        // printf("%d\n", links_ptr[i]);
+        if (MNM_Dlink_Multiclass * _mclink = dynamic_cast<MNM_Dlink_Multiclass *>(_link)){
+            if(std::find(m_link_vec_bus_driving.begin(), m_link_vec_bus_driving.end(), _link) != m_link_vec_bus_driving.end()) {
+                throw std::runtime_error("Error, Mmdta_Api::register_links_bus_driving, link does not exist");
+            }
+            else {
+                m_link_vec_bus_driving.push_back(_mclink);
+            }
+        }
+        else{
+            throw std::runtime_error("Mmdta_Api::register_links_bus_driving: link type is not multiclass");
+        }
+    }
+    return 0;
+}
+
 int Mmdta_Api::get_cur_loading_interval()
 {
     return m_mmdta -> m_current_loading_interval();
@@ -2703,8 +3027,8 @@ int Mmdta_Api::print_simulation_results(const std::string &folder, int cong_freq
                         _str2 += std::to_string(dynamic_cast<MNM_Walking_Link*>(_transit_link) -> m_fftt) + "\n";
                     }
                     else {
-                        // _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval) * m_mmdta -> m_unit_time) + " ";
-                        _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus_robust(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter + 1), TFlt(_iter + cong_frequency + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval) * m_mmdta -> m_unit_time) + " ";
+                        // _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, m_mmdta -> m_explicit_bus, true,  !m_mmdta -> m_explicit_bus) * m_mmdta -> m_unit_time) + " ";
+                        _str2 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus_robust(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter + 1), TFlt(_iter + cong_frequency + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, cong_frequency, m_mmdta -> m_explicit_bus, true, !m_mmdta -> m_explicit_bus) * m_mmdta -> m_unit_time) + " ";
                         _str2 += std::to_string(dynamic_cast<MNM_Bus_Link*>(_transit_link) -> m_fftt) + "\n";
                     }
                     _vis_file3 << _str2;
@@ -2869,6 +3193,12 @@ py::array_t<double> Mmdta_Api::get_travel_stats()
     //         int(_count_car/m_mmdta -> m_flow_scalar), int(_count_truck/m_mmdta -> m_flow_scalar), int(_count_bus/m_mmdta -> m_flow_scalar), int(_count_passenger),
     //         float(_tot_tt_car/m_mmdta -> m_flow_scalar), float(_tot_tt_truck/m_mmdta -> m_flow_scalar), float(_tot_tt_bus/m_mmdta -> m_flow_scalar), float(_tot_tt_passenger));
     // m_mmdta -> m_emission -> output();
+    
+    // add flow_scalar to passenger
+    // printf("\n\nTotal car: %d, Total truck: %d, Total bus : %d, Total passenger: %d, Total car tt: %.2f hours, Total truck tt: %.2f hours, Total bus tt: %.2f hours, Total passenger tt: %.2f hours\n\n",
+    //         int(_count_car/m_mmdta -> m_flow_scalar), int(_count_truck/m_mmdta -> m_flow_scalar), int(_count_bus/m_mmdta -> m_flow_scalar), int(_count_passenger/m_mmdta -> m_flow_scalar),
+    //         float(_tot_tt_car/m_mmdta -> m_flow_scalar), float(_tot_tt_truck/m_mmdta -> m_flow_scalar), float(_tot_tt_bus/m_mmdta -> m_flow_scalar), float(_tot_tt_passenger/m_mmdta -> m_flow_scalar));
+    // m_mmdta -> m_emission -> output();
 
     // for all released vehicles and passengers
     int new_shape[1] = {9};
@@ -2879,12 +3209,15 @@ py::array_t<double> Mmdta_Api::get_travel_stats()
     result_ptr[1] = _count_pnr_car/m_mmdta -> m_flow_scalar;
     result_ptr[2] = _count_truck/m_mmdta -> m_flow_scalar;
     result_ptr[3] = _count_bus/m_mmdta -> m_flow_scalar;
-    result_ptr[4] = _count_passenger;
+    // result_ptr[4] = _count_passenger;
+    // add flow_scalar to passenger
+    result_ptr[4] = _count_passenger/m_mmdta -> m_flow_scalar;
     result_ptr[5] = _tot_tt_car/m_mmdta -> m_flow_scalar;  // hours
     result_ptr[6] = _tot_tt_truck/m_mmdta -> m_flow_scalar;  // hours
     result_ptr[7] = _tot_tt_bus/m_mmdta -> m_flow_scalar;  // hours
-    result_ptr[8] = _tot_tt_passenger;  // hours
-
+    // result_ptr[8] = _tot_tt_passenger;  // hours
+    // add flow_scalar to passenger
+    result_ptr[8] = _tot_tt_passenger/m_mmdta -> m_flow_scalar;  // hours
     return result;
 }
 
@@ -3220,13 +3553,72 @@ std::vector<bool> Mmdta_Api::check_registered_links_in_registered_paths_walking(
     return _link_existing;
 }
 
-int Mmdta_Api::generate_paths_to_cover_registered_links_driving()
+py::array_t<bool> Mmdta_Api::are_registered_links_in_registered_paths_driving()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing = check_registered_links_in_registered_paths_driving();
+
+    int new_shape [1] = {(int) _link_existing.size()};
+    auto result = py::array_t<bool>(new_shape);
+    auto result_buf = result.request();
+    bool *result_prt = (bool *) result_buf.ptr;
+
+    for (size_t v = 0; v < _link_existing.size(); ++v) {
+        result_prt[v] = _link_existing[v];
+    }
+    return result;
+}
+
+py::array_t<bool> Mmdta_Api::are_registered_links_in_registered_paths_bus()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing = check_registered_links_in_registered_paths_bus();
+
+    int new_shape [1] = {(int) _link_existing.size()};
+    auto result = py::array_t<bool>(new_shape);
+    auto result_buf = result.request();
+    bool *result_prt = (bool *) result_buf.ptr;
+
+    for (size_t v = 0; v < _link_existing.size(); ++v) {
+        result_prt[v] = _link_existing[v];
+    }
+    return result;
+}
+
+py::array_t<bool> Mmdta_Api::are_registered_links_in_registered_paths_walking()
+{
+    // used in Python API, check the input files before the DODE
+    std::vector<bool> _link_existing = check_registered_links_in_registered_paths_walking();
+
+    int new_shape [1] = {(int) _link_existing.size()};
+    auto result = py::array_t<bool>(new_shape);
+    auto result_buf = result.request();
+    bool *result_prt = (bool *) result_buf.ptr;
+
+    for (size_t v = 0; v < _link_existing.size(); ++v) {
+        result_prt[v] = _link_existing[v];
+    }
+    return result;
+}
+
+py::array_t<int> Mmdta_Api::generate_paths_to_cover_registered_links_driving()
 {
     // used in Python API, check the input files before the DODE
     std::vector<bool> _link_existing_driving = check_registered_links_in_registered_paths_driving();
+
+    int new_shape [1] = { 1 + (int) _link_existing_driving.size()};
+    auto result = py::array_t<int>(new_shape);
+    auto result_buf = result.request();
+    int *result_prt = (int *) result_buf.ptr;
+
     if (std::all_of(_link_existing_driving.cbegin(), _link_existing_driving.cend(), [](bool v){return v;})) {
         printf("driving_path_table NOT updated! All links in m_link_vec_driving are covered by paths in m_path_vec_driving!\n");
-        return 0;
+        
+        result_prt[0] = 0;  // indicate whether the path table is updated
+        for (size_t v = 0; v < _link_existing_driving.size(); ++v) {
+            result_prt[v + 1] = (int)_link_existing_driving[v];
+        }
+        return result;
     }
     
     PNEGraph reversed_graph = MNM_Ults::reverse_graph(m_mmdta -> m_graph);
@@ -3315,7 +3707,9 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_driving()
 
             if (!_flg) {
                 printf("Cannot generate driving path covering this link\n");
-                exit(-1);
+                // probably this is for pnr mode
+                // exit(-1);
+                continue;
             }
             IAssert(_origin != nullptr && _dest != nullptr);
 
@@ -3360,12 +3754,17 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_driving()
         printf("driving_path_table updated! All links in m_link_vec_driving are covered by paths in m_path_vec_driving!\n");
     }
     else {
-        printf("Something wrong in Mmdta_Api::generate_paths_to_cover_registered_links_driving\n");
-        exit(-1);
+        printf("Mmdta_Api::generate_paths_to_cover_registered_links_driving, NOT all links in m_link_vec_driving are covered by paths in m_path_vec_driving!\n");
+        // exit(-1);
     }
 
     MNM::save_driving_path_table(m_mmdta -> m_file_folder, dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_fixed_car -> m_path_table,
                                  "driving_path_table", "driving_path_table_buffer", true);
+    
+    result_prt[0] = 1;  // indicate whether the path table is updated
+    for (size_t v = 0; v < _link_existing_driving.size(); ++v) {
+        result_prt[v + 1] = (int)_link_existing_driving[v];
+    }
     
     _link_existing_driving.clear();
     _cost_map.clear();
@@ -3374,18 +3773,32 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_driving()
     reversed_graph.Clr();
     pair_ptrs_1.clear();
     pair_ptrs_2.clear();
-    return 1;
+    return result;
 }
 
-int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
+py::array_t<int> Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
 {
     // used in Python API, check the input files before the DODE
     std::vector<bool> _link_existing_bus = check_registered_links_in_registered_paths_bus();
     std::vector<bool> _link_existing_walking = check_registered_links_in_registered_paths_walking();
+
+    int new_shape [1] = { 1 + (int)_link_existing_bus.size() + (int)_link_existing_walking.size()};
+    auto result = py::array_t<int>(new_shape);
+    auto result_buf = result.request();
+    int *result_prt = (int *) result_buf.ptr;
+
     if (std::all_of(_link_existing_bus.cbegin(), _link_existing_bus.cend(), [](bool v){return v;}) &&
         std::all_of(_link_existing_walking.cbegin(), _link_existing_walking.cend(), [](bool v){return v;})) {
         printf("bustransit_path_table and pnr_path_table NOT updated! All links in m_link_vec_bus and m_link_vec_walking are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
-        return 0;
+        
+        result_prt[0] = 0;  // indicate whether the path table is updated
+        for (size_t v = 0; v < _link_existing_bus.size(); ++v) {
+            result_prt[v + 1] = (int)_link_existing_bus[v];
+        }
+        for (size_t v = _link_existing_bus.size(); v < _link_existing_bus.size() + _link_existing_walking.size(); ++v) {
+            result_prt[v + 1] = (int)_link_existing_walking[v - _link_existing_bus.size()];
+        }
+        return result;
     }
     
     PNEGraph reversed_graph = MNM_Ults::reverse_graph(m_mmdta -> m_bus_transit_graph);
@@ -3527,7 +3940,8 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
 
             if (!_flg) {
                 printf("Cannot generate bustransit or PnR path covering this link\n");
-                exit(-1);
+                // exit(-1);
+                continue;
             }
             IAssert(_origin != nullptr && _dest != nullptr);
             if (_is_pnr) {
@@ -3545,7 +3959,8 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
                 }
                 else {
                     printf("Cannot generate bustransit or PnR path covering this link\n");
-                    exit(-1);
+                    // exit(-1);
+                    continue;
                 }
             }
             if (!_shortest_path_tree_reversed.empty()) {
@@ -3584,7 +3999,8 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
             }
             else {
                 printf("Cannot generate bustransit or PnR path covering this link\n");
-                exit(-1);
+                // exit(-1);
+                continue;
             }
             _link_existing_bus[i] = true;
             
@@ -3620,8 +4036,8 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
         printf("bustransit_path_table updated! All links in m_link_vec_bus are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
     }
     else {
-        printf("Something wrong in Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking\n");
-        exit(-1);
+        printf("Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking, NOT all links in m_link_vec_bus are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+        // exit(-1);
     }
 
     for (size_t i = 0; i < m_link_vec_walking.size(); ++i) {
@@ -3740,7 +4156,8 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
 
             if (!_flg) {
                 printf("Cannot generate bustransit or PnR path covering this link\n");
-                exit(-1);
+                // exit(-1);
+                continue;
             }
             IAssert(_origin != nullptr && _dest != nullptr);
             if (_is_pnr) {
@@ -3758,7 +4175,8 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
                 }
                 else {
                     printf("Cannot generate bustransit or PnR path covering this link\n");
-                    exit(-1);
+                    // exit(-1);
+                    continue;
                 }
             }
             if (!_shortest_path_tree_reversed.empty()) {
@@ -3797,7 +4215,8 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
             }
             else {
                 printf("Cannot generate bustransit or PnR path covering this link\n");
-                exit(-1);
+                // exit(-1);
+                continue;
             }
             _link_existing_walking[i] = true;
             
@@ -3824,8 +4243,8 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
         printf("bustransit_path_table and/or pnr_path_table updated! All links in m_link_vec_bus and m_link_vec_walking are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
     }
     else {
-        printf("Something wrong in Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking\n");
-        exit(-1);
+        printf("Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking, NOT all links in m_link_vec_bus and m_link_vec_walking are covered by paths in m_path_vec_bustransit and m_path_vec_pnr!\n");
+        // exit(-1);
     }
 
 
@@ -3834,7 +4253,16 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
     MNM::save_pnr_path_table(m_mmdta -> m_file_folder, dynamic_cast<MNM_Routing_Multimodal_Hybrid*>(m_mmdta -> m_routing) -> m_routing_car_pnr_fixed -> m_pnr_path_table,
                              "pnr_path_table", "pnr_path_table_buffer", true);
     
+    result_prt[0] = 1;  // indicate whether the path table is updated
+    for (size_t v = 0; v < _link_existing_bus.size(); ++v) {
+        result_prt[v + 1] = (int)_link_existing_bus[v];
+    }
+    for (size_t v = _link_existing_bus.size(); v < _link_existing_bus.size() + _link_existing_walking.size(); ++v) {
+        result_prt[v + 1] = (int)_link_existing_walking[v - _link_existing_bus.size()];
+    }
+
     _link_existing_bus.clear();
+    _link_existing_walking.clear();
     _cost_map_driving.clear();
     _cost_map.clear();
     _shortest_path_tree.clear();
@@ -3842,7 +4270,7 @@ int Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking()
     reversed_graph.Clr();
     pair_ptrs_1.clear();
     pair_ptrs_2.clear();
-    return 1;
+    return result;
 }
 
 int Mmdta_Api::save_passenger_path_table(const std::string &file_folder)
@@ -4487,8 +4915,8 @@ py::array_t<double> Mmdta_Api::get_path_tt_car(py::array_t<int>link_IDs, py::arr
                     throw std::runtime_error("Error, Mmdta_Api::get_path_tt_car, input start intervals exceeds the total loading intervals - 1");
                 }
                 double _tmp = MNM_DTA_GRADIENT::get_travel_time_car(_mclink, TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval)() * m_mmdta -> m_unit_time;
-                if (_tmp > 20 * (_mclink -> m_length / _mclink -> m_ffs_car)){
-                    _tmp = 20 * _mclink -> m_length / _mclink -> m_ffs_car;
+                if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (_mclink -> m_length / _mclink -> m_ffs_car)){
+                    _tmp = TT_UPPER_BOUND * _mclink -> m_length / _mclink -> m_ffs_car;
                 }
                 avg_tt += _tmp; // seconds
             }
@@ -4528,8 +4956,8 @@ py::array_t<double> Mmdta_Api::get_path_tt_truck(py::array_t<int>link_IDs, py::a
                     throw std::runtime_error("Error, Mmdta_Api::get_path_tt_truck, input start intervals exceeds the total loading intervals - 1");
                 }
                 double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck(_mclink, TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval)() * m_mmdta -> m_unit_time;
-                if (_tmp > 20 * (_mclink -> m_length / _mclink -> m_ffs_truck)){
-                    _tmp = 20 * _mclink -> m_length / _mclink -> m_ffs_truck;
+                if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (_mclink -> m_length / _mclink -> m_ffs_truck)){
+                    _tmp = TT_UPPER_BOUND * _mclink -> m_length / _mclink -> m_ffs_truck;
                 }
                 avg_tt += _tmp; // seconds
             }
@@ -4914,7 +5342,7 @@ py::array_t<double> Mmdta_Api::get_walking_link_fftt(py::array_t<int>link_IDs)
 }
 
 // unit: m_mmdta -> m_unit_time (eg: 5 seconds)
-py::array_t<double> Mmdta_Api::get_car_link_tt(py::array_t<double>start_intervals)
+py::array_t<double> Mmdta_Api::get_car_link_tt(py::array_t<double>start_intervals, bool return_inf)
 {
     auto start_buf = start_intervals.request();
     if (start_buf.ndim != 1){
@@ -4933,16 +5361,21 @@ py::array_t<double> Mmdta_Api::get_car_link_tt(py::array_t<double>start_interval
         }
         for (size_t i = 0; i < m_link_vec_driving.size(); ++i){
             double _tmp = MNM_DTA_GRADIENT::get_travel_time_car(m_link_vec_driving[i], TFlt(start_prt[t] + 1), m_mmdta->m_unit_time, m_mmdta -> m_current_loading_interval)();
-            // if (_tmp * m_mmdta -> m_unit_time > 20 * (m_link_vec_driving[i] -> m_length / m_link_vec[i] -> m_ffs_car)){
-            //     _tmp = 20 * m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car / m_mmdta -> m_unit_time;
-            // }
+            if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car)){
+                if (return_inf) {
+                    _tmp = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    _tmp = TT_UPPER_BOUND * m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car / m_mmdta -> m_unit_time;
+                }
+            }
             result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
         }
     }
     return result;
 }
 
-py::array_t<double> Mmdta_Api::get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+py::array_t<double> Mmdta_Api::get_car_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials, bool return_inf)
 {
     auto start_buf = start_intervals.request();
     auto end_buf = end_intervals.request();
@@ -4972,16 +5405,21 @@ py::array_t<double> Mmdta_Api::get_car_link_tt_robust(py::array_t<double>start_i
         }
         for (size_t i = 0; i < m_link_vec_driving.size(); ++i){
             double _tmp = MNM_DTA_GRADIENT::get_travel_time_car_robust(m_link_vec_driving[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, num_trials)();
-            // if (_tmp * m_mmdta -> m_unit_time > 20 * (m_link_vec[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car)){
-            //     _tmp = 20 * m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car / m_mmdta -> m_unit_time;
-            // }
+            if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car)){
+                if (return_inf) {
+                    _tmp = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    _tmp = TT_UPPER_BOUND * m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_car / m_mmdta -> m_unit_time;
+                }
+            }
             result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
         }
     }
     return result;
 }
 
-py::array_t<double> Mmdta_Api::get_truck_link_tt(py::array_t<double>start_intervals)
+py::array_t<double> Mmdta_Api::get_truck_link_tt(py::array_t<double>start_intervals, bool return_inf)
 {
     auto start_buf = start_intervals.request();
     if (start_buf.ndim != 1){
@@ -5000,16 +5438,21 @@ py::array_t<double> Mmdta_Api::get_truck_link_tt(py::array_t<double>start_interv
         }
         for (size_t i = 0; i < m_link_vec_driving.size(); ++i){
             double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck(m_link_vec_driving[i], TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval)();
-            // if (_tmp * 5 > 20 * (m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_truck)){
-            //     _tmp = 20 * m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_truck / m_mmdta -> m_unit_time;
-            // }
+            if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_truck)){
+                if (return_inf) {
+                    _tmp = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    _tmp = TT_UPPER_BOUND * m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_truck / m_mmdta -> m_unit_time;
+                }
+            }
             result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
         }
     }
     return result;
 }
 
-py::array_t<double> Mmdta_Api::get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+py::array_t<double> Mmdta_Api::get_truck_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials, bool return_inf)
 {
     auto start_buf = start_intervals.request();
     auto end_buf = end_intervals.request();
@@ -5039,13 +5482,21 @@ py::array_t<double> Mmdta_Api::get_truck_link_tt_robust(py::array_t<double>start
         }
         for (size_t i = 0; i < m_link_vec_driving.size(); ++i){
             double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck_robust(m_link_vec_driving[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, num_trials)();
+            if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_truck)){
+                if (return_inf) {
+                    _tmp = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    _tmp = TT_UPPER_BOUND * m_link_vec_driving[i] -> m_length / m_link_vec_driving[i] -> m_ffs_truck / m_mmdta -> m_unit_time;
+                }
+            }
             result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
         }
     }
     return result;
 }
 
-py::array_t<double> Mmdta_Api::get_bus_link_tt(py::array_t<double>start_intervals)
+py::array_t<double> Mmdta_Api::get_bus_link_tt(py::array_t<double>start_intervals, bool return_inf, bool return_bus_time)
 {
     auto start_buf = start_intervals.request();
     if (start_buf.ndim != 1){
@@ -5063,14 +5514,20 @@ py::array_t<double> Mmdta_Api::get_bus_link_tt(py::array_t<double>start_interval
             throw std::runtime_error("Error, Mmdta_Api::get_bus_link_tt, input start intervals exceeds the total loading intervals - 1");
         }
         for (size_t i = 0; i < m_link_vec_bus.size(); ++i){
-            double _tmp = MNM_DTA_GRADIENT::get_travel_time_bus(m_link_vec_bus[i], TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval)();
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_bus(m_link_vec_bus[i], TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, m_mmdta -> m_explicit_bus, return_inf, return_bus_time)();
+            // if (std::isinf(_tmp)) {
+            //     result_prt[i * l + t] = std::numeric_limits<double>::quiet_NaN();
+            // }
+            // else {
+            //     result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
+            // }
             result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
         }
     }
     return result;
 }
 
-py::array_t<double> Mmdta_Api::get_bus_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials)
+py::array_t<double> Mmdta_Api::get_bus_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials, bool return_inf, bool return_bus_time)
 {
     auto start_buf = start_intervals.request();
     auto end_buf = end_intervals.request();
@@ -5099,7 +5556,13 @@ py::array_t<double> Mmdta_Api::get_bus_link_tt_robust(py::array_t<double>start_i
             throw std::runtime_error("Error, Mmdta_Api::get_bus_link_tt_robust, input end intervals exceeds the total loading intervals");
         }
         for (size_t i = 0; i < m_link_vec_bus.size(); ++i){
-            double _tmp = MNM_DTA_GRADIENT::get_travel_time_bus_robust(m_link_vec_bus[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, num_trials)();
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_bus_robust(m_link_vec_bus[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, num_trials, m_mmdta -> m_explicit_bus, return_inf, return_bus_time)();
+            // if (std::isinf(_tmp)) {
+            //     result_prt[i * l + t] = std::numeric_limits<double>::quiet_NaN();
+            // }
+            // else {
+            //     result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
+            // }
             result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds
         }
     }
@@ -5168,6 +5631,172 @@ py::array_t<double> Mmdta_Api::get_passenger_walking_link_tt_robust(py::array_t<
     return result;
 }
 
+py::array_t<double> Mmdta_Api::get_bus_driving_link_tt_car(py::array_t<double>start_intervals, bool return_inf)
+{
+    auto start_buf = start_intervals.request();
+    if (start_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car, input dimension mismatch");
+    }
+    if (m_link_vec_bus_driving.empty()){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car, m_link_vec_bus_driving is empty");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec_bus_driving.size(), l};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    double *start_prt = (double *) start_buf.ptr;
+    for (int t = 0; t < l; ++t){
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car, input start intervals exceeds the total loading intervals - 1");
+        }
+        for (size_t i = 0; i < m_link_vec_bus_driving.size(); ++i){
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_car(m_link_vec_bus_driving[i], TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval)();
+            if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec_bus_driving[i] -> m_length / m_link_vec_bus_driving[i] -> m_ffs_car)){
+                if (return_inf) {
+                    _tmp = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    _tmp = TT_UPPER_BOUND * m_link_vec_bus_driving[i] -> m_length / m_link_vec_bus_driving[i] -> m_ffs_car / m_mmdta -> m_unit_time;
+                }
+            }
+            result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds, the length portion is in python
+        }
+    }
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_bus_driving_link_tt_car_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials, bool return_inf)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car_robust, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car_robust, input length mismatch");
+    }
+    if (m_link_vec_bus_driving.empty()){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car_robust, m_link_vec_bus_driving is empty");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec_bus_driving.size(), l};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    double *start_prt = (double *) start_buf.ptr;
+    double *end_prt = (double *) end_buf.ptr;
+    for (int t = 0; t < l; ++t){
+        if (start_prt[t] >= end_prt[t]){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car_robust, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car_robust, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_car_robust, input end intervals exceeds the total loading intervals");
+        }
+        for (size_t i = 0; i < m_link_vec_bus_driving.size(); ++i){
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_car_robust(m_link_vec_bus_driving[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, num_trials)();
+            if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec_bus_driving[i] -> m_length / m_link_vec_bus_driving[i] -> m_ffs_car)){
+                if (return_inf) {
+                    _tmp = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    _tmp = TT_UPPER_BOUND * m_link_vec_bus_driving[i] -> m_length / m_link_vec_bus_driving[i] -> m_ffs_car / m_mmdta -> m_unit_time;
+                }
+            }
+            result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds, the length portion is in python
+        }
+    }
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_bus_driving_link_tt_truck(py::array_t<double>start_intervals, bool return_inf)
+{
+    auto start_buf = start_intervals.request();
+    if (start_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt, input dimension mismatch");
+    }
+    if (m_link_vec_bus_driving.empty()){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt, m_link_vec_bus_driving is empty");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec_bus_driving.size(), l};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    double *start_prt = (double *) start_buf.ptr;
+    for (int t = 0; t < l; ++t){
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt, input start intervals exceeds the total loading intervals - 1");
+        }
+        for (size_t i = 0; i < m_link_vec_bus_driving.size(); ++i){
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck(m_link_vec_bus_driving[i], TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval)();
+            if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec_bus_driving[i] -> m_length / m_link_vec_bus_driving[i] -> m_ffs_truck)){
+                if (return_inf) {
+                    _tmp = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    _tmp = TT_UPPER_BOUND * m_link_vec_bus_driving[i] -> m_length / m_link_vec_bus_driving[i] -> m_ffs_truck / m_mmdta -> m_unit_time;
+                }
+            }
+            result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds, the length portion is in python
+        }
+    }
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_bus_driving_link_tt_truck_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials, bool return_inf)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_robust, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_robust, input length mismatch");
+    }
+    if (m_link_vec_bus_driving.empty()){
+        throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_robust, m_link_vec_bus_driving is empty");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec_bus_driving.size(), l};
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    double *start_prt = (double *) start_buf.ptr;
+    double *end_prt = (double *) end_buf.ptr;
+    for (int t = 0; t < l; ++t){
+        if (start_prt[t] >= end_prt[t]){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_robust, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_robust, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_bus_driving_link_tt_robust, input end intervals exceeds the total loading intervals");
+        }
+        for (size_t i = 0; i < m_link_vec_bus_driving.size(); ++i){
+            double _tmp = MNM_DTA_GRADIENT::get_travel_time_truck_robust(m_link_vec_bus_driving[i], TFlt(start_prt[t] + 1), TFlt(end_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, num_trials)();
+            if (_tmp * m_mmdta -> m_unit_time > TT_UPPER_BOUND * (m_link_vec_bus_driving[i] -> m_length / m_link_vec_bus_driving[i] -> m_ffs_truck)){
+                if (return_inf) {
+                    _tmp = std::numeric_limits<double>::infinity();
+                }
+                else {
+                    _tmp = TT_UPPER_BOUND * m_link_vec_bus_driving[i] -> m_length / m_link_vec_bus_driving[i] -> m_ffs_truck / m_mmdta -> m_unit_time;
+                }
+            }
+            result_prt[i * l + t] = _tmp * m_mmdta -> m_unit_time;  // seconds, the length portion is in python
+        }
+    }
+    return result;
+}
+
 py::array_t<double> Mmdta_Api::get_car_link_speed(py::array_t<double>start_intervals)
 {
     auto start_buf = start_intervals.request();
@@ -5220,7 +5849,7 @@ py::array_t<double> Mmdta_Api::get_truck_link_speed(py::array_t<double>start_int
     return result;
 }
 
-py::array_t<double> Mmdta_Api::get_bus_link_speed(py::array_t<double>start_intervals)
+py::array_t<double> Mmdta_Api::get_bus_link_speed(py::array_t<double>start_intervals, bool return_inf, bool return_bus_time)
 {
     auto start_buf = start_intervals.request();
     if (start_buf.ndim != 1){
@@ -5239,8 +5868,13 @@ py::array_t<double> Mmdta_Api::get_bus_link_speed(py::array_t<double>start_inter
         }
         // use start_prt[t] + 1 as start_time in cc to compute link travel time for vehicles arriving at the beginning of interval start_prt[t]
         for (size_t i = 0; i < m_link_vec_bus.size(); ++i){
-            double _tt = MNM_DTA_GRADIENT::get_travel_time_bus(m_link_vec_bus[i], TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval)() * m_mmdta -> m_unit_time; // seconds
-            result_prt[i * l + t] = (m_link_vec_bus[i] -> m_length) / _tt * 3600 / 1600; // mile per hour
+            double _tt = MNM_DTA_GRADIENT::get_travel_time_bus(m_link_vec_bus[i], TFlt(start_prt[t] + 1), m_mmdta -> m_unit_time, m_mmdta -> m_current_loading_interval, m_mmdta -> m_explicit_bus, return_inf, return_bus_time)() * m_mmdta -> m_unit_time; // seconds
+            if (std::isinf(_tt)) {
+                result_prt[i * l + t] = 0;
+            }
+            else {
+                result_prt[i * l + t] = (m_link_vec_bus[i] -> m_length) / _tt * 3600 / 1600; // mile per hour
+            }
         }
     }
     return result;
@@ -5784,9 +6418,14 @@ py::array_t<double> Mmdta_Api::get_enroute_and_queue_passenger_stats_agg()
     }
     else{
         for (int i = 0; i < _tot_interval; ++i){
-            result_prt[i * 3] =  m_mmdta -> m_enroute_passenger_num[i]();
-            result_prt[i * 3 + 1] =  m_mmdta -> m_queue_passenger_num[i]();
-            result_prt[i * 3 + 2] =  m_mmdta -> m_enroute_passenger_num[i]() - m_mmdta -> m_queue_passenger_num[i]();
+            // result_prt[i * 3] =  m_mmdta -> m_enroute_passenger_num[i]();
+            // result_prt[i * 3 + 1] =  m_mmdta -> m_queue_passenger_num[i]();
+            // result_prt[i * 3 + 2] =  m_mmdta -> m_enroute_passenger_num[i]() - m_mmdta -> m_queue_passenger_num[i]();
+
+            // add flow_scalar to passenger
+            result_prt[i * 3] =  m_mmdta -> m_enroute_passenger_num[i]() / m_mmdta -> m_flow_scalar;
+            result_prt[i * 3 + 1] =  m_mmdta -> m_queue_passenger_num[i]() / m_mmdta -> m_flow_scalar;
+            result_prt[i * 3 + 2] =  (m_mmdta -> m_enroute_passenger_num[i]() - m_mmdta -> m_queue_passenger_num[i]()) / m_mmdta -> m_flow_scalar;
         }
     }
     return result;
@@ -5852,7 +6491,9 @@ py::array_t<double> Mmdta_Api::get_queue_passenger_each_link(py::array_t<int>use
             if (m_mmdta -> m_queue_passenger_map.find(links_prt[i]) == m_mmdta -> m_queue_passenger_map.end()){
                 throw std::runtime_error("Error, Mmdta_Api::get_queue_passenger_each_link, can't find link ID");
             }
-            result_prt[i * num_intervals + t] = (*(m_mmdta -> m_queue_passenger_map[links_prt[i]]))[intervals_prt[t]];
+            // result_prt[i * num_intervals + t] = (*(m_mmdta -> m_queue_passenger_map[links_prt[i]]))[intervals_prt[t]];
+            // add flow_scalar to passenger
+            result_prt[i * num_intervals + t] = (*(m_mmdta -> m_queue_passenger_map[links_prt[i]]))[intervals_prt[t]] / m_mmdta -> m_flow_scalar;
         }
     }
     return result;
@@ -6331,6 +6972,284 @@ py::array_t<double> Mmdta_Api::get_passenger_dar_matrix_pnr(py::array_t<int>star
     return result;
 }
 
+py::array_t<double> Mmdta_Api::get_car_dar_matrix_bus_driving_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, input length mismatch");
+    }
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
+    int *end_prt = (int *) end_buf.ptr;
+    std::vector<dar_record*> _record = std::vector<dar_record*>();
+    // for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
+    //   m_link_vec_driving[i] -> m_N_in_tree -> print_out();
+    // }
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, input end intervals exceeds the total loading intervals");
+        }
+        for (size_t i = 0; i<m_link_vec_bus_driving.size(); ++i){
+            // MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec_bus_driving[i], m_path_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
+            MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec_bus_driving[i], m_pathID_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
+        }
+    }
+    // path_ID, assign_time, link_ID, start_int, flow
+    int new_shape [2] = { (int) _record.size(), 5};
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    dar_record* tmp_record;
+    for (size_t i = 0; i < _record.size(); ++i){
+        tmp_record = _record[i];
+        result_prt[i * 5 + 0] = (double) tmp_record -> path_ID();
+        // the count of 1 min interval
+        result_prt[i * 5 + 1] = (double) tmp_record -> assign_int();
+        result_prt[i * 5 + 2] = (double) tmp_record -> link_ID();
+        // the count of unit time interval (5s)
+        result_prt[i * 5 + 3] = (double) tmp_record -> link_start_int();
+        result_prt[i * 5 + 4] = tmp_record -> flow();
+//        printf("path ID: %f, departure assign interval (1 min): %f, link ID: %f, time interval (5 s): %f, flow: %f\n",
+//               result_prt[i * 5 + 0], result_prt[i * 5 + 1], result_prt[i * 5 + 2], result_prt[i * 5 + 3], result_prt[i * 5 + 4]);
+    }
+    for (size_t i = 0; i < _record.size(); ++i){
+        delete _record[i];
+    }
+    _record.clear();
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_truck_dar_matrix_bus_driving_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, input length mismatch");
+    }
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
+    int *end_prt = (int *) end_buf.ptr;
+    std::vector<dar_record*> _record = std::vector<dar_record*>();
+    // for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
+    //   m_link_vec_driving[i] -> m_N_in_tree -> print_out();
+    // }
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, input end intervals exceeds the total loading intervals");
+        }
+        for (size_t i = 0; i<m_link_vec_bus_driving.size(); ++i){
+            // MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec_bus_driving[i], m_path_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
+            MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec_bus_driving[i], m_pathID_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
+        }
+    }
+    // path_ID, assign_time, link_ID, start_int, flow
+    int new_shape [2] = { (int) _record.size(), 5};
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    dar_record* tmp_record;
+    for (size_t i = 0; i < _record.size(); ++i){
+        tmp_record = _record[i];
+        result_prt[i * 5 + 0] = (double) tmp_record -> path_ID();
+        // the count of 1 min interval
+        result_prt[i * 5 + 1] = (double) tmp_record -> assign_int();
+        result_prt[i * 5 + 2] = (double) tmp_record -> link_ID();
+        // the count of unit time interval (5s)
+        result_prt[i * 5 + 3] = (double) tmp_record -> link_start_int();
+        result_prt[i * 5 + 4] = tmp_record -> flow();
+//        printf("path ID: %f, departure assign interval (1 min): %f, link ID: %f, time interval (5 s): %f, flow: %f\n",
+//               result_prt[i * 5 + 0], result_prt[i * 5 + 1], result_prt[i * 5 + 2], result_prt[i * 5 + 3], result_prt[i * 5 + 4]);
+    }
+    for (size_t i = 0; i < _record.size(); ++i){
+        delete _record[i];
+    }
+    _record.clear();
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, input length mismatch");
+    }
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
+    int *end_prt = (int *) end_buf.ptr;
+    std::vector<dar_record*> _record = std::vector<dar_record*>();
+    // for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+    //   m_link_vec_bus[i] -> m_N_in_tree -> print_out();
+    // }
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, input end intervals exceeds the total loading intervals");
+        }
+        for (size_t i = 0; i < m_link_vec_bus.size(); ++i){
+            // MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_path_set_bustransit, TFlt(start_prt[t]), TFlt(end_prt[t]));
+            MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_pathID_set_bustransit, TFlt(start_prt[t]), TFlt(end_prt[t]));
+        }
+    }
+    // path_ID, assign_time, link_ID, start_int, flow
+    int new_shape [2] = { (int) _record.size(), 5};
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    dar_record* tmp_record;
+    for (size_t i = 0; i < _record.size(); ++i){
+        tmp_record = _record[i];
+        result_prt[i * 5 + 0] = (double) tmp_record -> path_ID();
+        // the count of 1 min interval
+        result_prt[i * 5 + 1] = (double) tmp_record -> assign_int();
+        result_prt[i * 5 + 2] = (double) tmp_record -> link_ID();
+        // the count of unit time interval (5s)
+        result_prt[i * 5 + 3] = (double) tmp_record -> link_start_int();
+        result_prt[i * 5 + 4] = tmp_record -> flow();
+//        printf("path ID: %f, departure assign interval (1 min): %f, link ID: %f, time interval (5 s): %f, flow: %f\n",
+//               result_prt[i * 5 + 0], result_prt[i * 5 + 1], result_prt[i * 5 + 2], result_prt[i * 5 + 3], result_prt[i * 5 + 4]);
+    }
+    for (size_t i = 0; i < _record.size(); ++i){
+        delete _record[i];
+    }
+    _record.clear();
+    return result;
+}
+
+py::array_t<double> Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link(py::array_t<int>start_intervals, py::array_t<int>end_intervals)
+{
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, input length mismatch");
+    }
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
+    int *end_prt = (int *) end_buf.ptr;
+    std::vector<dar_record*> _record = std::vector<dar_record*>();
+    // for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+    //   m_link_vec_bus[i] -> m_N_in_tree -> print_out();
+    // }
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, input end intervals exceeds the total loading intervals");
+        }
+        for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+            // MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_path_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
+            MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_pathID_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
+        }
+    }
+    // path_ID, assign_time, link_ID, start_int, flow
+    int new_shape [2] = { (int) _record.size(), 5};
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    dar_record* tmp_record;
+    for (size_t i = 0; i < _record.size(); ++i){
+        tmp_record = _record[i];
+        result_prt[i * 5 + 0] = (double) tmp_record -> path_ID();
+        // the count of 1 min interval
+        result_prt[i * 5 + 1] = (double) tmp_record -> assign_int();
+        result_prt[i * 5 + 2] = (double) tmp_record -> link_ID();
+        // the count of unit time interval (5s)
+        result_prt[i * 5 + 3] = (double) tmp_record -> link_start_int();
+        result_prt[i * 5 + 4] = tmp_record -> flow();
+//        printf("path ID: %f, departure assign interval (1 min): %f, link ID: %f, time interval (5 s): %f, flow: %f\n",
+//               result_prt[i * 5 + 0], result_prt[i * 5 + 1], result_prt[i * 5 + 2], result_prt[i * 5 + 3], result_prt[i * 5 + 4]);
+    }
+    for (size_t i = 0; i < _record.size(); ++i){
+        delete _record[i];
+    }
+    _record.clear();
+    return result;
+}
+
+
+// py::array_t<double> Mmdta_Api::get_passenger_bus_link_flow_relationship(py::array_t<int>start_intervals, py::array_t<int>end_intervals)
+// {
+//     auto start_buf = start_intervals.request();
+//     auto end_buf = end_intervals.request();
+//     if (start_buf.ndim != 1 || end_buf.ndim != 1){
+//         throw std::runtime_error("Error, Mmdta_Api::get_passenger_bus_link_flow_relationship, input dimension mismatch");
+//     }
+//     if (start_buf.shape[0] != end_buf.shape[0]){
+//         throw std::runtime_error("Error, Mmdta_Api::get_passenger_bus_link_flow_relationship, input length mismatch");
+//     }
+//     int l = start_buf.shape[0];
+//     int *start_prt = (int *) start_buf.ptr;
+//     int *end_prt = (int *) end_buf.ptr;
+
+//     int new_shape [1] = { (int) m_link_vec_bus.size() * l};
+//     auto result = py::array_t<double>(new_shape);
+//     auto result_buf = result.request();
+//     double *result_prt = (double *) result_buf.ptr;
+
+//     double _small_number = 1e-4;
+//     for (int t = 0; t < l; ++t){
+//         if (end_prt[t] <= start_prt[t]){
+//             throw std::runtime_error("Error, Mmdta_Api::get_passenger_bus_link_flow_relationship, end time is smaller than or equal to start time");
+//         }
+//         if (start_prt[t] >= get_cur_loading_interval()){
+//             throw std::runtime_error("Error, Mmdta_Api::get_passenger_bus_link_flow_relationship, input start intervals exceeds the total loading intervals - 1");
+//         }
+//         if (end_prt[t] > get_cur_loading_interval()){
+//             throw std::runtime_error("Error, Mmdta_Api::get_passenger_bus_link_flow_relationship, input end intervals exceeds the total loading intervals");
+//         }
+//         for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+//             TFlt _passenger_count = MNM_DTA_GRADIENT::get_link_inflow_passenger(m_link_vec_bus[i], TFlt(start_prt[t]), TFlt(end_prt[t]));
+//             TFlt _bus_count = MNM_DTA_GRADIENT::get_link_inflow_bus(m_link_vec_bus[i], TFlt(start_prt[t]), TFlt(end_prt[t]));
+//             if (_passenger_count <= _small_number) {
+//                 // _passenger_count = _small_number;
+//                 result_prt[i + t*l] = (double)1.;
+//             }
+//             else if (_bus_count <= _small_number) {
+//                 // _passenger_count = _small_number;
+//                 result_prt[i + t*l] = (double)0.;
+//             }
+//             else {
+//                 result_prt[i + t*l] = (double)_bus_count / _passenger_count;
+//             }
+//         }
+//     }
+//     return result;
+// }
+
 py::array_t<double> Mmdta_Api::get_car_ltg_matrix_driving(py::array_t<int>start_intervals, int threshold_timestamp)
 {
     // input: intervals in which the agents are released for each path, 1 min interval = 12 5-s intervals
@@ -6561,13 +7480,151 @@ py::array_t<double> Mmdta_Api::get_truck_ltg_matrix_driving(py::array_t<int>star
     if (start_buf.ndim != 1){
         throw std::runtime_error("Error, Mmdta_Api::get_truck_ltg_matrix_driving, input dimension mismatch");
     }
-    // int l = start_buf.shape[0];
-    // int *start_prt = (int *) start_buf.ptr;
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
 
     std::vector<ltg_record*> _record = std::vector<ltg_record*>();
-    // bool _flg; 
-    // TFlt _fftt, _gradient;
-    // int _t_arrival, _t_depart, _t_arrival_lift_up, _t_depart_lift_up, _cost_map_index;
+    bool _flg; 
+    TFlt _fftt, _gradient;
+    int _t_arrival, _t_depart, _t_arrival_lift_up, _t_depart_lift_up, _t_depart_prime, _t_queue_dissipated_valid, _t_depart_lift_up_valid;
+    for (auto *_path : m_path_vec_driving) {
+        // check if the path does not include any link in m_link_vec_driving
+        _flg = false;
+        for (auto *_link : m_link_vec_driving) {
+            if (_path -> is_link_in(_link -> m_link_ID)) {
+                _flg = true;
+                break;
+            }
+        }
+        if (!_flg) {
+            continue;
+        }
+
+        for (int t = 0; t < l; ++t){
+            // printf("Current processing time: %d\n", t);
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_truck_ltg_matrix_driving, input start intervals exceeds the total loading intervals - 1");
+            }
+
+            _t_arrival = -1, _t_depart = -1, _t_arrival_lift_up = -1, _t_depart_lift_up = -1, _t_depart_prime = -1;
+            // trace one additional veh departing from origin of path at start_prt[t]
+            _t_depart = start_prt[t];
+            for (TInt _link_ID : _path -> m_link_vec) {
+                // arrival and departure time of original perturbation vehicle
+                _t_arrival = _t_depart;
+                _t_depart = _t_arrival + MNM_Ults::round_up_time(m_mmdue -> m_link_cost_map_truck[_link_ID][_t_arrival < get_cur_loading_interval() ? _t_arrival : get_cur_loading_interval() - 1]);
+                
+                // arrival time of the new perturbation vehicle
+                auto *_link = dynamic_cast<MNM_Dlink_Multiclass*>(m_mmdta -> m_link_factory -> get_link(_link_ID));
+                if (dynamic_cast<MNM_Dlink_Pq_Multimodal*>(_link) != nullptr) {
+                    _t_arrival_lift_up = _t_arrival;  // for last pq, _t_arrival_lift_up >= get_cur_loading_interval()
+                }
+                else {
+                    IAssert(dynamic_cast<MNM_Dlink_Ctm_Multimodal*>(_link) != nullptr);
+                    IAssert(_t_depart_lift_up >= 0);  // from its upstream link
+                    _t_arrival_lift_up = _t_depart_lift_up;
+                }
+                IAssert(_t_arrival_lift_up >= _t_arrival);
+
+                IAssert(_link -> m_last_valid_time_truck > 0);
+                if (_t_arrival_lift_up > int(round(_link -> m_last_valid_time_truck - 1)) || _t_arrival_lift_up >= threshold_timestamp) {
+                    break;
+                }
+
+                // departure time of new perturbation vehicle
+                _t_depart_prime = _t_arrival_lift_up + MNM_Ults::round_up_time(m_mmdue -> m_link_cost_map_truck[_link_ID][_t_arrival_lift_up < get_cur_loading_interval() ? _t_arrival_lift_up : get_cur_loading_interval() - 1]);
+
+                // arrival time of the NEXT new perturbation for the NEXT link
+                _fftt = dynamic_cast<MNM_Dlink_Multiclass*>(m_mmdta -> m_link_factory -> get_link(_link_ID)) -> get_link_freeflow_tt_loading_truck();
+                // _fftt = dynamic_cast<MNM_Dlink_Ctm_Multiclass*>(m_mmdta -> m_link_factory -> get_link(_link_ID)) -> get_link_freeflow_tt_truck() / m_mmdue -> m_unit_time;
+                _t_depart_lift_up = m_mmdue -> m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] + MNM_Ults::round_up_time(_fftt);
+                    
+                if (!m_mmdue -> m_link_congested_truck[_link_ID][_t_arrival_lift_up]) {
+                    if (m_mmdue -> m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] == _t_arrival_lift_up) {
+                        IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) == _t_depart_lift_up);
+                    }
+                    else {
+                        // critical state where subgradient applies
+                        IAssert(m_mmdue -> m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] > _t_arrival_lift_up);
+                        IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) < _t_depart_lift_up);
+                    }
+                }
+                else {
+                    IAssert(m_mmdue -> m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] > _t_arrival_lift_up);
+                    IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) < _t_depart_lift_up);
+                }
+
+                if (_t_depart_lift_up < _t_depart_prime) {
+                    printf("Error, Mmdta_Api::get_truck_ltg_matrix_driving, something is wrong");
+                    exit(-1);
+                    // _t_depart_lift_up can be equal to _t_depart_prime, when the arrival curve is horizontal
+                }
+
+                if (_t_depart_prime < get_cur_loading_interval() - 1 &&
+                    std::find_if(m_link_vec_driving.begin(), m_link_vec_driving.end(), 
+                                 [&_link_ID](const MNM_Dlink_Multiclass *_l){return _l -> m_link_ID == _link_ID;}) != m_link_vec_driving.end()) {
+                    if (m_mmdue -> m_link_congested_truck[_link_ID][_t_arrival_lift_up] && _t_depart_lift_up > _t_depart_prime) {
+                        IAssert(_link -> m_last_valid_time_truck > 0);
+                        if (m_mmdue -> m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] <= int(round(_link -> m_last_valid_time_truck - 1))) {
+                            _t_queue_dissipated_valid = m_mmdue -> m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up];
+                            _t_depart_lift_up_valid = _t_depart_lift_up;
+                        }
+                        else {
+                            _t_queue_dissipated_valid = int(round(_link -> m_last_valid_time_truck));
+                            _t_depart_lift_up_valid = _t_queue_dissipated_valid - 1 + MNM_Ults::round_up_time(m_mmdue -> m_link_cost_map_truck[_link_ID][_t_queue_dissipated_valid - 1 < get_cur_loading_interval() ? _t_queue_dissipated_valid - 1 : get_cur_loading_interval() - 1]);
+                        }
+                        IAssert(_t_depart_lift_up_valid <= get_cur_loading_interval() - 1);
+                        IAssert(_t_arrival_lift_up < _t_queue_dissipated_valid);
+                        if (_t_depart_prime > _t_depart_lift_up_valid) {
+                            std::cout << "\nError, Mmdta_Api::get_truck_ltg_matrix_driving" << "\n";
+                            std::cout << "interval: " << start_prt[t] << ", link: " << _link_ID << "\n";
+                            std::cout << "car in" << "\n";
+                            std::cout << _link -> m_N_in_truck -> to_string() << "\n";
+                            std::cout << "car out" << "\n";
+                            std::cout << _link -> m_N_out_truck -> to_string() << "\n\n";
+                            std::cout << "last valid time: " << _link -> m_last_valid_time_truck << "\n";
+                            std::cout << "_t_arrival: " << _t_arrival << "\n";
+                            std::cout << "_t_depart: " << _t_depart << "\n";
+                            std::cout << "_t_arrival_lift_up: " << _t_arrival_lift_up << "\n";
+                            std::cout << "_t_depart_prime: " << _t_depart_prime << "\n";
+                            std::cout << "m_mmdue -> m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up]: " << m_mmdue -> m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] << "\n";
+                            std::cout << "_t_queue_dissipated_valid: " << _t_queue_dissipated_valid << "\n";
+                            std::cout << "_t_depart_lift_up: " << _t_depart_lift_up << "\n";
+                            std::cout << "_t_depart_lift_up_valid: " << _t_depart_lift_up_valid << "\n";
+                            std::cout << "_fftt: " << _fftt << "\n";
+                            std::cout << "m_mmdue -> m_link_cost_map_truck[_link_ID][_t_queue_dissipated_valid]: " << m_mmdue -> m_link_cost_map_truck[_link_ID][_t_queue_dissipated_valid - 1 < get_cur_loading_interval() ? _t_queue_dissipated_valid - 1 : get_cur_loading_interval() - 1] << "\n";
+                            std::cout << "get_cur_loading_interval(): " << get_cur_loading_interval() << "\n";
+                            exit(-1);
+                        }
+                        if (_t_depart_prime < _t_depart_lift_up_valid) {
+
+                            _gradient = MNM_DTA_GRADIENT::get_departure_cc_slope_truck(_link, TFlt(_t_depart_prime), TFlt(_t_depart_lift_up_valid + 1));
+                            if (_gradient > DBL_EPSILON) {
+                                _gradient = m_mmdue -> m_unit_time / _gradient;  // seconds
+                                for (int t_prime = _t_arrival_lift_up; t_prime < _t_queue_dissipated_valid; ++t_prime) {
+                                    MNM_DTA_GRADIENT::add_ltg_records_veh(_record, _link, _path, start_prt[t], t_prime, _gradient);
+                                }
+                            }
+
+                            // for (int t_prime = _t_arrival_lift_up; t_prime < _t_queue_dissipated_valid; ++t_prime) {
+                            //     _gradient = MNM_DTA_GRADIENT::get_departure_cc_slope_truck(_link, 
+                            //                                                             TFlt(t_prime + MNM_Ults::round_up_time(m_mmdue -> m_link_cost_map_truck[_link_ID][t_prime < get_cur_loading_interval() ? t_prime : get_cur_loading_interval() - 1])), 
+                            //                                                             TFlt(t_prime + MNM_Ults::round_up_time(m_mmdue -> m_link_cost_map_truck[_link_ID][t_prime < get_cur_loading_interval() ? t_prime : get_cur_loading_interval() - 1]) + 1) 
+                            //                                                             );
+                            //     if (_gradient > DBL_EPSILON) {
+                            //         _gradient = m_mmdue -> m_unit_time / _gradient;  // seconds
+                            //         MNM_DTA_GRADIENT::add_ltg_records_veh(_record, _link, _path, start_prt[t], t_prime, _gradient);
+                            //     }
+                            // }
+
+                        }
+                        
+                    }
+                }
+            }
+            
+        }
+    }
 
     // _record.size() = num_timesteps x num_links x num_path x num_assign_timesteps
     // path_ID, assign_time, link_ID, start_int, gradient
@@ -6727,12 +7784,14 @@ PYBIND11_MODULE(MNMAPI, m) {
     py::class_<Dta_Api> (m, "dta_api")
             .def(py::init<>())
             .def("initialize", &Dta_Api::initialize)
+            .def("check_input_files", &Dta_Api::check_input_files)
             .def("run_whole", &Dta_Api::run_whole)
             .def("install_cc", &Dta_Api::install_cc)
             .def("install_cc_tree", &Dta_Api::install_cc_tree)
             .def("get_cur_loading_interval", &Dta_Api::get_cur_loading_interval)
             .def("register_links", &Dta_Api::register_links)
             .def("register_paths", &Dta_Api::register_paths)
+            .def("are_registered_links_in_registered_paths", &Dta_Api::are_registered_links_in_registered_paths)
             .def("generate_paths_to_cover_registered_links", &Dta_Api::generate_paths_to_cover_registered_links)
             .def("get_link_tt", &Dta_Api::get_link_tt)
             .def("get_link_tt_robust", &Dta_Api::get_link_tt_robust)
@@ -6746,6 +7805,8 @@ PYBIND11_MODULE(MNMAPI, m) {
     py::class_<Mcdta_Api> (m, "mcdta_api")
             .def(py::init<>())
             .def("initialize", &Mcdta_Api::initialize)
+            .def("check_input_files", &Mcdta_Api::check_input_files)
+            .def("generate_shortest_pathsets", &Mcdta_Api::generate_shortest_pathsets)
             .def("run_whole", &Mcdta_Api::run_whole)
             .def("install_cc", &Mcdta_Api::install_cc)
             .def("install_cc_tree", &Mcdta_Api::install_cc_tree)
@@ -6756,6 +7817,7 @@ PYBIND11_MODULE(MNMAPI, m) {
 
             .def("register_links", &Mcdta_Api::register_links)
             .def("register_paths", &Mcdta_Api::register_paths)
+            .def("are_registered_links_in_registered_paths", &Mcdta_Api::are_registered_links_in_registered_paths)
             .def("generate_paths_to_cover_registered_links", &Mcdta_Api::generate_paths_to_cover_registered_links)
 
             .def("get_car_link_fftt", &Mcdta_Api::get_car_link_fftt)
@@ -6793,6 +7855,8 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("initialize", &Mmdta_Api::initialize)
             .def("run_whole", &Mmdta_Api::run_whole)
             .def("initialize_mmdue", &Mmdta_Api::initialize_mmdue)
+            .def("generate_shortest_pathsets", &Mmdta_Api::generate_shortest_pathsets)
+            .def("check_input_files", &Mmdta_Api::check_input_files)
             .def("run_mmdue", &Mmdta_Api::run_mmdue)
             .def("run_mmdta_adaptive", &Mmdta_Api::run_mmdta_adaptive)
             .def("install_cc", &Mmdta_Api::install_cc)
@@ -6806,11 +7870,18 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("register_links_bus", &Mmdta_Api::register_links_bus)
             .def("register_links_walking", &Mmdta_Api::register_links_walking)
 
+            .def("get_links_overlapped_bus_driving", &Mmdta_Api::get_links_overlapped_bus_driving)
+            .def("register_links_bus_driving", &Mmdta_Api::register_links_bus_driving)
+
             .def("register_paths", &Mmdta_Api::register_paths)
             .def("register_paths_driving", &Mmdta_Api::register_paths_driving)
             .def("register_paths_bustransit", &Mmdta_Api::register_paths_bustransit)
             .def("register_paths_pnr", &Mmdta_Api::register_paths_pnr)
             .def("register_paths_bus", &Mmdta_Api::register_paths_bus)
+
+            .def("are_registered_links_in_registered_paths_driving", &Mmdta_Api::are_registered_links_in_registered_paths_driving)
+            .def("are_registered_links_in_registered_paths_bus", &Mmdta_Api::are_registered_links_in_registered_paths_bus)
+            .def("are_registered_links_in_registered_paths_walking", &Mmdta_Api::are_registered_links_in_registered_paths_walking)
 
             .def("generate_paths_to_cover_registered_links_driving", &Mmdta_Api::generate_paths_to_cover_registered_links_driving)
             .def("generate_paths_to_cover_registered_links_bus_walking", &Mmdta_Api::generate_paths_to_cover_registered_links_bus_walking)
@@ -6831,6 +7902,10 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_bus_link_tt_robust", &Mmdta_Api::get_bus_link_tt_robust)
             .def("get_passenger_walking_link_tt", &Mmdta_Api::get_passenger_walking_link_tt)
             .def("get_passenger_walking_link_tt_robust", &Mmdta_Api::get_passenger_walking_link_tt_robust)
+            .def("get_bus_driving_link_tt_car", &Mmdta_Api::get_bus_driving_link_tt_car)
+            .def("get_bus_driving_link_tt_car_robust", &Mmdta_Api::get_bus_driving_link_tt_car_robust)
+            .def("get_bus_driving_link_tt_truck", &Mmdta_Api::get_bus_driving_link_tt_truck)
+            .def("get_bus_driving_link_tt_truck_robust", &Mmdta_Api::get_bus_driving_link_tt_truck_robust)
 
             .def("get_link_car_inflow", &Mmdta_Api::get_link_car_inflow)
             .def("get_link_truck_inflow", &Mmdta_Api::get_link_truck_inflow)
@@ -6910,6 +7985,11 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_bus_dar_matrix_driving_link", &Mmdta_Api::get_bus_dar_matrix_driving_link)
             .def("get_passenger_dar_matrix_bustransit", &Mmdta_Api::get_passenger_dar_matrix_bustransit)
             .def("get_passenger_dar_matrix_pnr", &Mmdta_Api::get_passenger_dar_matrix_pnr)
+            .def("get_car_dar_matrix_bus_driving_link", &Mmdta_Api::get_car_dar_matrix_bus_driving_link)
+            .def("get_truck_dar_matrix_bus_driving_link", &Mmdta_Api::get_truck_dar_matrix_bus_driving_link)
+            .def("get_passenger_dar_matrix_bustransit_bus_link", &Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link)
+            .def("get_passenger_dar_matrix_pnr_bus_link", &Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link)
+            // .def("get_passenger_bus_link_flow_relationship", &Mmdta_Api::get_passenger_bus_link_flow_relationship)
 
             .def("get_car_ltg_matrix_driving", &Mmdta_Api::get_car_ltg_matrix_driving)
             .def("get_car_ltg_matrix_pnr", &Mmdta_Api::get_car_ltg_matrix_pnr)

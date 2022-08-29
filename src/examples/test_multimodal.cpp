@@ -28,6 +28,7 @@ int main()
     // std::string folder = "/home/alanpi/Desktop/MAC-POSTS/data/input_files_SPC_separate_Routing";
     // std::string folder = "/home/lemma/Documents/MAC-POSTS/src/examples/mcDODE/a6e7b31067d2ead8d3725fc0ed587d06c958f63c";
     std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_dta";
+    // std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multimodal_dode/record/input_files_estimate_path_flow";
 
     // on macOS (Mac air)
     // std::string folder = "/Users/alan-air/Dropbox/MAC-POSTS/data/input_files_MckeesRocks_SPC";
@@ -60,7 +61,7 @@ int main()
 
     printf("\n\n\n====================================== Start loading! =======================================\n");
     bool _verbose = false;
-    bool output_link_cong = false; // if true output link congestion level every cong_frequency
+    bool output_link_cong = true; // if true output link congestion level every cong_frequency
     TInt cong_frequency = 60; // 15 minutes
     bool output_veh_locs = true; // if true output veh location every vis_frequency
     TInt vis_frequency = 60; // 5 minutes
@@ -112,7 +113,7 @@ int main()
         print_vehicle_statistics(dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory));
         print_passenger_statistics(test_dta -> m_passenger_factory);
     }
-
+    test_dta -> m_current_loading_interval = _current_inter;
     test_dta -> m_emission -> output();
 
     // Output vehicles' total count and travel time, before divided by flow_scalar
@@ -210,12 +211,12 @@ int main()
                     _str += "driving_link_ID: " + std::to_string(_link -> m_link_ID()) + " ";
                     _str += "car_inflow: " + std::to_string(MNM_DTA_GRADIENT::get_link_inflow_car(_link_m, _iter, _iter+1)) + " ";
                     _str += "truck_inflow: " + std::to_string(MNM_DTA_GRADIENT::get_link_inflow_truck(_link_m, _iter, _iter+1)) + " ";
-                    _str += "car_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
-                    _str += "truck_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
+                    _str += "car_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
+                    _str += "truck_tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
                     _str += "car_fftt (s): " + std::to_string(_link_m -> get_link_freeflow_tt_car()) + " ";
                     _str += "truck_fftt (s): " + std::to_string(_link_m -> get_link_freeflow_tt_truck()) + " ";
-                    _str += "car_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) * 3600 / 1600) + " ";
-                    _str += "truck_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) * 3600 / 1600) + "\n";
+                    _str += "car_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_car(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) * 3600 / 1600) + " ";
+                    _str += "truck_speed (mph): " + std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time_truck(_link_m, TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) * 3600 / 1600) + "\n";
                     _vis_file2 << _str;
                 }
                 for (auto _link_it : test_dta -> m_transitlink_factory -> m_transit_link_map){
@@ -224,11 +225,11 @@ int main()
                     _str += "bus_transit_link_ID: " + std::to_string(_transit_link -> m_link_ID()) + " ";
                     _str += "bus_transit_link_type: " + std::to_string(_transit_link -> m_link_type) + " ";
                     if (_transit_link -> m_link_type == MNM_TYPE_WALKING_MULTIMODAL) {
-                        _str += "tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transit_link), TFlt(_iter), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
+                        _str += "tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transit_link), TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
                         _str += "fftt (s): " + std::to_string(dynamic_cast<MNM_Walking_Link*>(_transit_link) -> m_fftt) + "\n";
                     }
                     else {
-                        _str += "tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
+                        _str += "tt (s): " + std::to_string(MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transit_link), TFlt(_iter + 1), test_dta -> m_unit_time, test_dta -> m_current_loading_interval) * test_dta -> m_unit_time) + " ";
                         _str += "fftt (s): " + std::to_string(dynamic_cast<MNM_Bus_Link*>(_transit_link) -> m_fftt) + "\n";
                     }
                     _vis_file2 << _str;

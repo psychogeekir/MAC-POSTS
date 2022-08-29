@@ -61,6 +61,10 @@ class MNM_dlink():
         # factor for converting truck flow to equivalent car flow, only for calculating node demand for Inout, FWJ, and GRJ node types
         self.convert_factor = convert_factor
 
+        # increase length of links which are too short for CTM
+        # if self.typ == 'CTM' and np.floor(self.length / self.ffs_car * 3600 / 5) <= 1:
+        #     self.length = 2 * 5 / 3600 * self.ffs_car
+
     def get_car_fft(self):
         # get free flow time for car (unit: second)
         return self.length / self.ffs_car * 3600
@@ -88,7 +92,7 @@ class MNM_dlink():
         #   assert(unit_time * self.ffs / 3600 <= self.length)
 
     def __str__(self):
-        return ("MNM_dlink, ID: {}, type: {}, length: {} miles, ffs_car: {} mi/h, ffs_truck: {}".format(
+        return ("MNM_dlink, ID: {}, type: {}, length: {} miles, ffs_car: {} mph, ffs_truck: {} mph".format(
                 self.ID, self.typ, self.length, self.ffs_car, self.ffs_truck))
 
     def __repr__(self):
@@ -356,6 +360,11 @@ class MNM_path():
         # truck
         self.truck_route_portions = None
 
+        # car
+        self.route_portions_tensor = None
+        # truck
+        self.truck_route_portions_tensor = None
+
         self.path_cost_car = None
         self.path_cost_truck = None
 
@@ -392,6 +401,14 @@ class MNM_path():
     def attach_route_choice_portions_truck(self, portions):
         # for truck: portion of trucks using this path to the total truck demand for this OD pair
         self.truck_route_portions = portions
+
+    def attach_route_choice_portions_tensor(self, portions):
+        # for car: portion of cars using this path to the total car demand for this OD pair
+        self.route_portions_tensor = portions
+
+    def attach_route_choice_portions_truck_tensor(self, portions):
+        # for truck: portion of trucks using this path to the total truck demand for this OD pair
+        self.truck_route_portions_tensor = portions
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -603,7 +620,9 @@ class MNM_config():
             'adaptive_ratio_truck': np.float,
             'routing_type': str, 
             'init_demand_split': np.int, 
-            
+            'num_of_car_labels': np.int,
+            'num_of_truck_labels': np.int,
+
             # STAT
             'rec_mode': str, 
             'rec_mode_para': str, 

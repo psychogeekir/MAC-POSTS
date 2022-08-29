@@ -8,7 +8,7 @@ MNM_Path::MNM_Path() {
     m_node_vec = std::deque<TInt>();
     m_buffer_length = 0;
     m_p = 0;
-    m_buffer = NULL;
+    m_buffer = nullptr;
     m_path_ID = -1;
     m_link_set = std::set<TInt>();
 }
@@ -298,8 +298,11 @@ namespace MNM {
                     // printf("Adding to path table\n");
                     // std::cout << _path -> node_vec_to_string();
                     // std::cout << _path -> link_vec_to_string();
-                    _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(
-                            _path);
+                    _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path);
+                }
+                else {
+                    printf("No driving path found to connect origin node ID %d and destination node ID %d\n", _origin_node_ID(), _dest_node_ID());
+                    exit(-1);
                 }
             }
         }
@@ -308,44 +311,61 @@ namespace MNM {
 
 
     Path_Table *
-    build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale) {
+    build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length) {
         // printf("11\n");
+        // MaxIter: maximum iteration to find alternative shortest path, when MaxIter = 0, just shortest path
+        // Mid_Scale and Heavy_Scale are different penalties to the travel cost of links in existing paths
+
         /* initialize data structure */
+        TInt _dest_node_ID, _origin_node_ID;
         Path_Table *_path_table = new Path_Table();
         for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
+            _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
             std::unordered_map<TInt, MNM_Pathset *> *_new_map = new std::unordered_map<TInt, MNM_Pathset *>();
-            _path_table->insert(std::pair<TInt, std::unordered_map<TInt, MNM_Pathset *> *>(_o_it->second->m_origin_node->m_node_ID, _new_map));
+            _path_table->insert(std::pair<TInt, std::unordered_map<TInt, MNM_Pathset *> *>(_origin_node_ID, _new_map));
             for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
-                MNM_Pathset *_pathset = new MNM_Pathset();
-                _new_map->insert(std::pair<TInt, MNM_Pathset *>(_d_it->second->m_dest_node->m_node_ID, _pathset));
+                // assume build_demand is called before this function
+                if (_o_it -> second->m_demand.find(_d_it -> second) != _o_it -> second->m_demand.end()) {
+                    _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
+                    MNM_Pathset *_pathset = new MNM_Pathset();
+                    _new_map->insert(std::pair<TInt, MNM_Pathset *>(_dest_node_ID, _pathset));
+                }
             }
         }
 
         // printf("111\n");
         std::unordered_map<TInt, TInt> _mid_shortest_path_tree = std::unordered_map<TInt, TInt>();
+        std::unordered_map<TInt, TFlt> _mid_cost_map = std::unordered_map<TInt, TFlt>();
         std::unordered_map<TInt, TInt> _heavy_shortest_path_tree = std::unordered_map<TInt, TInt>();
         std::unordered_map<TInt, TFlt> _heavy_cost_map = std::unordered_map<TInt, TFlt>();
-        std::unordered_map<TInt, TFlt> _mid_cost_map = std::unordered_map<TInt, TFlt>();
 
-        TInt _dest_node_ID, _origin_node_ID;
         std::unordered_map<TInt, TFlt> _free_cost_map = std::unordered_map<TInt, TFlt>();
-        std::unordered_map<TInt, TInt> _free_shortest_path_tree;
+        std::unordered_map<TInt, TInt> _free_shortest_path_tree = std::unordered_map<TInt, TInt>();
         MNM_Path *_path;
         for (auto _link_it = link_factory->m_link_map.begin(); _link_it != link_factory->m_link_map.end(); _link_it++) {
             _free_cost_map.insert(std::pair<TInt, TFlt>(_link_it->first, _link_it->second->get_link_tt()));
         }
         // printf("1111\n");
-        for (auto _d_it = od_factory->m_destination_map.begin();
-             _d_it != od_factory->m_destination_map.end(); _d_it++) {
+        for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
             _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
             MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _free_cost_map, _free_shortest_path_tree);
             for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
+                if (_o_it -> second->m_demand.find(_d_it -> second) == _o_it -> second->m_demand.end()) {
+                    continue;
+                }
                 _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
                 _path = MNM::extract_path(_origin_node_ID, _dest_node_ID, _free_shortest_path_tree, graph);
                 if (_path != nullptr) {
                     if (_path->get_path_length(link_factory) > min_path_length) {
+                        if (buffer_length > 0) {
+                            _path -> allocate_buffer(buffer_length);
+                        }
                         _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path);
                     }
+                }
+                else {
+                    printf("No driving path found to connect origin node ID %d and destination node ID %d\n", _origin_node_ID(), _dest_node_ID());
+                    exit(-1);
                 }
             }
         }
@@ -354,35 +374,39 @@ namespace MNM {
         _heavy_cost_map.insert(_free_cost_map.begin(), _free_cost_map.end());
 
         MNM_Dlink *_link;
+        MNM_Path *_path_mid, *_path_heavy;
         size_t _CurIter = 0;
         while (_CurIter < MaxIter) {
-            printf("Current interval %d\n", (int) _CurIter);
-            for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
-                _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
-                MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _free_cost_map, _free_shortest_path_tree);
-                for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
-                    _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
-                    for (auto &_path : _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec) {
-                        for (auto &_link_ID : _path->m_link_vec) {
+            printf("Current trial %d\n", (int) _CurIter);
+            for (auto _o_it : *_path_table) {
+                for (auto _d_it : *_o_it.second) {
+                    for (auto &_path : _d_it.second->m_path_vec) {
+                        for (auto &_link_ID : _path -> m_link_vec) {
                             _link = link_factory->get_link(_link_ID);
-                            _mid_cost_map.find(_link->m_link_ID)->second = _link->get_link_tt() * Mid_Scale;
-                            _heavy_cost_map.find(_link->m_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
+                            _mid_cost_map.find(_link_ID)->second = _link->get_link_tt() * Mid_Scale;
+                            _heavy_cost_map.find(_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
                         }
                     }
                 }
             }
-            MNM_Path *_path_mid, *_path_heavy;
+            
             for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
                 _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
                 MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _mid_cost_map, _mid_shortest_path_tree);
                 MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _heavy_cost_map, _heavy_shortest_path_tree);
                 for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
+                    if (_o_it -> second->m_demand.find(_d_it -> second) == _o_it -> second->m_demand.end()) {
+                        continue;
+                    }
                     _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
                     _path_mid = MNM::extract_path(_origin_node_ID, _dest_node_ID, _mid_shortest_path_tree, graph);
                     _path_heavy = MNM::extract_path(_origin_node_ID, _dest_node_ID, _heavy_shortest_path_tree, graph);
                     if (_path_mid != nullptr) {
                         if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(_path_mid)) {
                             if (_path_mid->get_path_length(link_factory) > min_path_length) {
+                                if (buffer_length > 0) {
+                                    _path_mid -> allocate_buffer(buffer_length);
+                                }
                                 _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path_mid);
                             }
                         }
@@ -393,6 +417,9 @@ namespace MNM {
                     if (_path_heavy != nullptr) {
                         if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(_path_heavy)) {
                             if (_path_heavy->get_path_length(link_factory) > min_path_length) {
+                                if (buffer_length > 0) {
+                                    _path_heavy -> allocate_buffer(buffer_length);
+                                }
                                 _path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path_heavy);
                             }
                         }
@@ -404,6 +431,15 @@ namespace MNM {
             }
             _CurIter += 1;
         }
+
+        _mid_shortest_path_tree.clear();
+        _mid_cost_map.clear();
+        _heavy_shortest_path_tree.clear();
+        _heavy_cost_map.clear();
+
+        _free_cost_map.clear();
+        _free_shortest_path_tree.clear();
+        
         return _path_table;
     }
 
@@ -424,17 +460,28 @@ namespace MNM {
             printf("Error happens when open _path_table_file\n");
             exit(-1);
         }
-        TInt _dest_node_ID, _origin_node_ID;
-        // printf("ssssssma\n");
-        for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
-            // printf("---\n");
-            _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
-            for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
-                _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
-                // printf("----\n");
-                // printf("o node %d, d node %d\n", _origin_node_ID(), _dest_node_ID());
-                for (auto &_path : path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec) {
-                    // printf("test\n");
+        // TInt _dest_node_ID, _origin_node_ID;
+        // // printf("ssssssma\n");
+        // for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
+        //     // printf("---\n");
+        //     _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
+        //     for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
+        //         _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
+        //         // printf("----\n");
+        //         // printf("o node %d, d node %d\n", _origin_node_ID(), _dest_node_ID());
+        //         for (auto &_path : path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec) {
+        //             // printf("test\n");
+        //             _path_table_file << _path->node_vec_to_string();
+        //             // printf("test2\n");
+        //             if (w_buffer) {
+        //                 _path_buffer_file << _path->buffer_to_string();
+        //             }
+        //         }
+        //     }
+        // }
+        for (auto _o_it : *path_table) {
+            for (auto _d_it : *_o_it.second) {
+                for (auto &_path : _d_it.second->m_path_vec) {
                     _path_table_file << _path->node_vec_to_string();
                     // printf("test2\n");
                     if (w_buffer) {
@@ -452,18 +499,29 @@ namespace MNM {
 
 
     int print_path_table(Path_Table *path_table, MNM_OD_Factory *od_factory, bool w_buffer) {
-        TInt _dest_node_ID, _origin_node_ID;
-        // printf("ssssssma\n");
-        for (auto _d_it = od_factory->m_destination_map.begin();
-             _d_it != od_factory->m_destination_map.end(); _d_it++) {
-            // printf("---\n");
-            _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
-            for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
-                _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
-                // printf("----\n");
-                // printf("o node %d, d node %d\n", _origin_node_ID(), _dest_node_ID());
-                for (auto &_path : path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec) {
-                    // printf("test\n");
+        // TInt _dest_node_ID, _origin_node_ID;
+        // // printf("ssssssma\n");
+        // for (auto _d_it = od_factory->m_destination_map.begin();
+        //      _d_it != od_factory->m_destination_map.end(); _d_it++) {
+        //     // printf("---\n");
+        //     _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
+        //     for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
+        //         _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
+        //         // printf("----\n");
+        //         // printf("o node %d, d node %d\n", _origin_node_ID(), _dest_node_ID());
+        //         for (auto &_path : path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec) {
+        //             // printf("test\n");
+        //             std::cout << "path: " << _path->node_vec_to_string();
+        //             // printf("test2\n");
+        //             if (w_buffer) {
+        //                 std::cout << "buffer: " << _path->buffer_to_string();
+        //             }
+        //         }
+        //     }
+        // }
+        for (auto _o_it : *path_table) {
+            for (auto _d_it : *_o_it.second) {
+                for (auto &_path : _d_it.second->m_path_vec) {
                     std::cout << "path: " << _path->node_vec_to_string();
                     // printf("test2\n");
                     if (w_buffer) {
@@ -474,37 +532,6 @@ namespace MNM {
         }
         return 0;
     }
-
-// int save_path_table_w_buffer(Path_Table *path_table, MNM_OD_Factory *od_factory)
-// {
-//   std::string _file_name = "path_table";
-//   std::string _data_file_name = "path_buffer";
-//   std::ofstream _path_table_file, _path_buffer_file;
-//   _path_table_file.open(_file_name, std::ofstream::out);     
-//   if (!_path_table_file.is_open()){
-//     printf("Error happens when open _path_table_file\n");
-//     exit(-1);
-//   }
-//   _path_buffer_file.open(_data_file_name, std::ofstream::out);     
-//   if (!_path_buffer_file.is_open()){
-//     printf("Error happens when open _path_buffer_file\n");
-//     exit(-1);
-//   }
-//   TInt _dest_node_ID, _origin_node_ID;
-//   for (auto _d_it = od_factory -> m_destination_map.begin(); _d_it != od_factory -> m_destination_map.end(); _d_it++){
-//     _dest_node_ID = _d_it -> second -> m_dest_node -> m_node_ID;
-//     for (auto _o_it = od_factory -> m_origin_map.begin(); _o_it != od_factory -> m_origin_map.end(); _o_it++){
-//       _origin_node_ID = _o_it -> second -> m_origin_node -> m_node_ID;
-//       for (auto &_path : path_table -> find(_origin_node_ID) -> second -> find(_dest_node_ID) -> second -> m_path_vec){
-//         _path_table_file << _path -> node_vec_to_string();
-//         _path_buffer_file << _path -> buffer_to_string();
-//       }
-//     }
-//   }
-//   _path_table_file.close();
-//   _path_buffer_file.close();
-//   return 0;
-// }
 
     int allocate_path_table_buffer(Path_Table *path_table, TInt num) {
         for (auto _it : *path_table) {

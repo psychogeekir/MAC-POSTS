@@ -7,8 +7,8 @@
 #add_executable (test_dta test_dta.cpp test_multiclass_bus.cpp)
 #target_link_libraries (test_dta Snap g3log minami ${CMAKE_THREAD_INIT})
 
-# add_executable (path test_path.cpp)
-# target_link_libraries (path PUBLIC Snap minami adv_ds)
+add_executable (test_pathset_generation test_pathset_generation.cpp)
+target_link_libraries (test_pathset_generation PUBLIC Snap minami adv_ds)
 
 #add_executable (realtime test_realtime.cpp path.cpp dta.cpp vehicle.cpp dlink.cpp od.cpp factory.cpp dnode.cpp ults.cpp io.cpp routing.cpp statistics.cpp shortest_path.cpp realtime_dta.cpp marginal_cost.cpp vms.cpp workzone.cpp)
 #target_link_libraries (realtime LINK_PUBLIC Snap g3log ${CMAKE_THREAD_INIT})
@@ -82,5 +82,11 @@ target_link_libraries (test_multimodal_due_adaptive Snap minami adv_ds)
 #add_executable (test_tree_cc test_tree_cc.cpp)
 #target_link_libraries (test_tree_cc Snap minami adv_ds)
 
-add_executable (test_python_api test_python_api.cpp)
-target_link_libraries (test_python_api Snap minami adv_ds)
+add_executable (test_python_mcdta_api test_python_mcdta_api.cpp)
+target_link_libraries (test_python_mcdta_api Snap minami adv_ds)
+
+add_executable (test_python_mmdta_api test_python_mmdta_api.cpp)
+target_link_libraries (test_python_mmdta_api Snap minami adv_ds)
+
+add_executable (test_multimodal_pathset_generation test_multimodal_pathset_generation.cpp)
+target_link_libraries (test_multimodal_pathset_generation Snap minami adv_ds)

@@ -6,6 +6,8 @@
 #include "dnode.h"
 #include "ults.h"
 #include <unordered_map>
+#include <vector>
+
 
 class MNM_Destination;
 class MNM_Veh;
@@ -21,7 +23,8 @@ public:
   MNM_Origin(TInt ID, TInt max_interval, TFlt flow_scalar, TInt frequency);
   virtual ~MNM_Origin();
   TInt m_Origin_ID;
-  virtual int release(MNM_Veh_Factory* veh_factory, TInt current_interval);//TODO change to generalized version
+  virtual TInt generate_label(TInt veh_class);
+  virtual int release(MNM_Veh_Factory* veh_factory, TInt current_interval);  // TODO: change to generalized version
   virtual int release_one_interval(TInt current_interval, MNM_Veh_Factory* veh_factory, TInt assign_interval, TFlt adaptive_ratio);
 
   virtual int release_one_interval_biclass(TInt current_interval,
@@ -38,6 +41,8 @@ public:
   TInt m_max_assign_interval;
   TFlt m_flow_scalar;
   std::unordered_map<MNM_Destination*, TFlt*> m_demand;
+
+  std::vector<TFlt> m_vehicle_label_ratio;
 };
 
 

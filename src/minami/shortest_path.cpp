@@ -7,6 +7,8 @@
 
 #include <queue>
 
+static_assert(std::numeric_limits<double>::is_iec559, "No iec559 infinity implementation for this compiler!\n");
+
 int MNM_Shortest_Path::one_to_one(TInt origin_node_ID, TInt dest_node_ID,
                                   PNEGraph graph, 
                                   const std::unordered_map<TInt, TFlt> &cost_map,
@@ -30,7 +32,7 @@ int MNM_Shortest_Path::all_to_one_Dijkstra(TInt dest_node_ID,
     for (auto _node_it = graph->BegNI(); _node_it < graph->EndNI(); _node_it++) {
         _node_id = _node_it.GetId();
         if (_node_id != dest_node_ID) {
-            dist_to_dest.insert({_node_id, TFlt(std::numeric_limits<double>::max())});
+            dist_to_dest.insert({_node_id, TFlt(std::numeric_limits<double>::infinity())});
             output_map.insert({_node_id, -1});  // If the destination is not accessible the output remains -1
         }
     }
@@ -90,7 +92,7 @@ int MNM_Shortest_Path::all_to_one_Dijkstra(TInt dest_node_ID,
     for (auto _node_it = graph->BegNI(); _node_it < graph->EndNI(); _node_it++) {
         _node_id = _node_it.GetId();
         if (_node_id != dest_node_ID) {
-            dist_to_dest.insert({_node_id, TFlt(std::numeric_limits<double>::max())});
+            dist_to_dest.insert({_node_id, TFlt(std::numeric_limits<double>::infinity())});
             output_map.insert({_node_id, -1});  // If the destination is not accessible the output remains -1
         }
     }
@@ -151,7 +153,7 @@ int MNM_Shortest_Path::all_to_one_Dijkstra(TInt dest_node_ID,
     for (auto _node_it = graph->BegNI(); _node_it < graph->EndNI(); _node_it++) {
         _node_id = _node_it.GetId();
         if (_node_id != dest_node_ID) {
-            dist_to_dest[_node_id][dist_position] = TFlt(std::numeric_limits<double>::max());
+            dist_to_dest[_node_id][dist_position] = TFlt(std::numeric_limits<double>::infinity());
             output_map[_node_id][output_position] = -1;  // If the destination is not accessible the output remains -1
         }
     }
@@ -213,9 +215,9 @@ int MNM_Shortest_Path::all_to_one_Dijkstra_deprecated(TInt dest_node_ID,
         // _node_it.GetId(), _node_it.GetOutDeg(), _node_it.GetInDeg());
         _node_ID = _node_it.GetId();
         if (_node_ID != dest_node_ID) {
-            _dist.insert(std::pair<TInt, TFlt>(_node_ID, DBL_MAX));
+            _dist.insert(std::pair<TInt, TFlt>(_node_ID, TFlt(std::numeric_limits<double>::infinity())));
             output_map.insert(std::pair<TInt, TInt>(_node_ID, -1));
-            _cost = new MNM_Cost(_node_ID, DBL_MAX);
+            _cost = new MNM_Cost(_node_ID, TFlt(std::numeric_limits<double>::infinity()));
             // m_Q.push_back(_cost);
             m_Q.push(_cost);
             m_Q_support.insert(std::pair<TInt, MNM_Cost *>(_node_ID, _cost));
@@ -292,7 +294,7 @@ int MNM_Shortest_Path::all_to_one_FIFO(TInt dest_node_ID,
         // _node_it.GetId(), _node_it.GetOutDeg(), _node_it.GetInDeg());
         _node_ID = _node_it.GetId();
         if (_node_ID != dest_node_ID) {
-            _dist.insert(std::pair<TInt, TFlt>(_node_ID, DBL_MAX));
+            _dist.insert(std::pair<TInt, TFlt>(_node_ID, TFlt(std::numeric_limits<double>::infinity())));
             if (output_map.find(_node_ID) != output_map.end()) {
                 output_map.find(_node_ID)->second = -1;
             } else {
@@ -356,7 +358,7 @@ int MNM_Shortest_Path::all_to_one_FIFO(TInt dest_node_ID,
     for (auto _node_it = graph->BegNI(); _node_it < graph->EndNI(); _node_it++) {
         _node_ID = _node_it.GetId();
         if (_node_ID != dest_node_ID) {
-            dist_to_dest[_node_ID][dist_position] = DBL_MAX;
+            dist_to_dest[_node_ID][dist_position] = TFlt(std::numeric_limits<double>::infinity());
             output_map[_node_ID][output_position] = -1;  // If the destination is not accessible the output remains -1
             m_Q_support.insert(std::pair<TInt, bool>(_node_ID, false));
         }
@@ -421,7 +423,7 @@ int MNM_Shortest_Path::all_to_one_FIFO(TInt dest_node_ID,
         // _node_it.GetId(), _node_it.GetOutDeg(), _node_it.GetInDeg());
         _node_ID = _node_it.GetId();
         if (_node_ID != dest_node_ID) {
-            _dist.insert(std::pair<TInt, TFlt>(_node_ID, DBL_MAX));
+            _dist.insert(std::pair<TInt, TFlt>(_node_ID, TFlt(std::numeric_limits<double>::infinity())));
             if (output_map.find(_node_ID) != output_map.end()) {
                 output_map.find(_node_ID)->second = -1;
             } else {
@@ -494,7 +496,7 @@ int MNM_Shortest_Path::all_to_one_FIFO(TInt dest_node_ID,
     for (auto _node_it = graph->BegNI(); _node_it < graph->EndNI(); _node_it++) {
         _node_ID = _node_it.GetId();
         if (_node_ID != dest_node_ID) {
-            dist_to_dest[_node_ID][dist_position] = DBL_MAX;
+            dist_to_dest[_node_ID][dist_position] = TFlt(std::numeric_limits<double>::infinity());
             output_map[_node_ID][output_position] = -1;  // If the destination is not accessible the output remains -1
             m_Q_support.insert(std::pair<TInt, bool>(_node_ID, false));
         }
@@ -573,7 +575,7 @@ int MNM_Shortest_Path::all_to_one_LIFO(TInt dest_node_ID,
         // _node_it.GetId(), _node_it.GetOutDeg(), _node_it.GetInDeg());
         _node_ID = _node_it.GetId();
         if (_node_ID != dest_node_ID) {
-            _dist.insert(std::pair<TInt, TFlt>(_node_ID, DBL_MAX));
+            _dist.insert(std::pair<TInt, TFlt>(_node_ID, TFlt(std::numeric_limits<double>::infinity())));
             if (output_map.find(_node_ID) != output_map.end()) {
                 output_map.find(_node_ID)->second = -1;
             } else {
@@ -692,7 +694,7 @@ int MNM_TDSP_Tree::initialize() {
 int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt *> &cost_map) {
     // printf("Init in update tree\n");
     // init tree and cost
-    static_assert(std::numeric_limits<double>::is_iec559, "No iec559 infinity implementation for this compiler!\n");
+    
     TInt _node_ID;
     for (auto _node_it = m_graph->BegNI(); _node_it < m_graph->EndNI(); _node_it++) {
         for (int t = 0; t < m_max_interval; ++t) {
@@ -731,6 +733,9 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt *> &cost_map)
             _dst_node = _edge_it.GetDstNId();
             _src_node = _edge_it.GetSrcNId();
             _edge_cost = cost_map.find(_edge_it.GetId()) -> second[t];
+            if (std::isinf(_edge_cost)) {
+                continue;
+            }
             // _temp_cost = _edge_cost + get_distance_to_destination(_dst_node, TFlt(t) + _edge_cost);
             _temp_cost = _edge_cost + get_distance_to_destination(_dst_node, t, _edge_cost, 1e-4);
             if (m_dist[_src_node][t] > _temp_cost) {
@@ -749,7 +754,7 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt*>& link_cost_
                                const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_cost_map) {
     // printf("Init in update tree\n");
     // init tree and cost
-    static_assert(std::numeric_limits<double>::is_iec559, "No iec559 infinity implementation for this compiler!\n");
+    
     TInt _node_ID, _in_edge_ID, _out_edge_ID;
     for (auto _node_it = m_graph->BegNI(); _node_it < m_graph->EndNI(); _node_it++) {
         for (int t = 0; t < m_max_interval; ++t) {
@@ -789,6 +794,9 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt*>& link_cost_
             _src_node = _edge_it.GetSrcNId();
             // _src_node -> _edge_cost -> _dst_node -> node_cost -> the beigining of next link after _dst_node
             _edge_cost = link_cost_map.find(_edge_it.GetId()) -> second[t];
+            if (std::isinf(_edge_cost)) {
+                continue;
+            }
             _temp_cost = _edge_cost;
             if (_dst_node != m_dest_node_ID) {
                 // _out_edge_ID = m_tree[_dst_node][round_time(TFlt(t) + _temp_cost)];
@@ -826,7 +834,8 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_ma
         _cur_link_ID = m_tree[_cur_node_ID][_cur_time];
         if (_cur_link_ID == -1) {
             printf("No available path between node %d and node %d\n", src_node_ID(), m_dest_node_ID());
-            exit(-1);
+            // exit(-1);
+            return -1;
         } 
         path->m_link_vec.push_back(_cur_link_ID);
         // _cur_time += cost_map.find(_cur_link_ID) -> second[round_time(_cur_time)];
@@ -851,7 +860,8 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time,
         _cur_link_ID = m_tree[_cur_node_ID][_cur_time];
         if (_cur_link_ID == -1) {
             printf("No available path between node %d and node %d\n", src_node_ID(), m_dest_node_ID());
-            exit(-1);
+            // exit(-1);
+            return -1;
         } 
         path->m_link_vec.push_back(_cur_link_ID);
         // first node cost, then link cost

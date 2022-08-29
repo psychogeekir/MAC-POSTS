@@ -40,6 +40,7 @@ int main()
     printf("================================ DUE set! =================================\n");
 
     test_due -> initialize();
+    test_due -> init_passenger_path_table();
     printf("========================= Finished initialization! ========================\n");
 
     test_due -> init_passenger_path_flow();
@@ -66,7 +67,7 @@ int main()
         printf("---------- Iteration %d ----------\n", i);
 
         // DNL using dta, new dta is built from scratch
-        mmdta = test_due->run_mmdta(true);
+        mmdta = test_due->run_mmdta(false);
 
         // update time dependent cost and save existing path table
         test_due -> build_link_cost_map(mmdta, false);

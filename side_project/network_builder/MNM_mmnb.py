@@ -1209,7 +1209,13 @@ class MNM_config():
             'boarding_time_per_passenger': np.float,
             'alighting_time_per_passenger': np.float,
 
+            'explicit_bus': np.int,
+            'historical_bus_waiting_time': np.int,
+
             'init_demand_split': np.int, 
+            
+            'num_of_car_labels': np.int,
+            'num_of_truck_labels': np.int,
 
             # STAT
             'rec_mode': str, 
@@ -1588,6 +1594,11 @@ class MNM_network_builder():
             for path_ID, path in path_table.ID2path.items():
                 assert(path_ID not in self.ID2path)
                 self.ID2path[path_ID] = (mode, path)
+
+    def check_input_files(self, folder_path):
+        a = MNMAPI.mmdta_api()
+        a.initialize(folder_path)  # suppose is_ok() is not enabled in initialize()
+        return a.check_input_files()
 
     def load_from_folder(self, folder_path, config_file_name = 'config.conf', 
                         bus_link_file_name = 'bus_link', walking_link_file_name = 'walking_link',
@@ -2175,6 +2186,24 @@ class MNM_network_builder():
                 D = self.od.D_dict.inv[D_node]
                 pnr_demand = self.path_table_pnr.path_dict[O_node][D_node].normalize_route_portions(sum_to_OD = True)
                 self.demand_pnr.add_demand(O, D, pnr_demand, overwriting = True)
+
+    def update_demand_path_busroute(self, bus_flow):
+        # bus_flow is 1D ndarray recording the time-dependent flows with length of number of total paths x intervals
+        assert (len(bus_flow) == len(self.path_table_bus.ID2path) * self.config.config_dict['DTA']['max_interval'])
+        max_interval = self.config.config_dict['DTA']['max_interval']
+        # reshape pnr_flow into ndarray with dimensions of intervals x number of total paths
+        bus_flow = bus_flow.reshape(self.config.config_dict['DTA']['max_interval'], len(self.path_table_bus.ID2path))
+        self.demand_bus.path_flow_matrix = bus_flow.T
+        # update time-varying portions   
+        self.demand_bus.demand_dict = dict()
+        for i, path_ID in enumerate(self.path_table_bus.ID2path.keys()):
+            path = self.path_table_bus.ID2path[path_ID]
+            path.attach_route_choice_portions_bus(bus_flow[:, i])
+            route_ID = path.route_ID
+            O = self.od.O_dict.inv[path.origin_node]
+            D = self.od.D_dict.inv[path.destination_node]
+            self.demand_bus.add_demand(O, D, route_ID, bus_flow[:, i], overwriting=True)
+                
 
     def get_route_portion_matrix(self, path_table, demand, get_truck=False):
         if get_truck:

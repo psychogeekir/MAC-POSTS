@@ -62,7 +62,51 @@ namespace MNM_DTA_GRADIENT {
         return TFlt(-1);
     }
 
-    TFlt get_travel_time_from_cc(TFlt start_time, MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TFlt last_valid_time, TFlt fftt)
+    TFlt get_last_valid_time_bus(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TInt end_loading_timestamp, const std::string& s)
+    {
+        if (MNM_Ults::approximate_less_than(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second)) {
+            printf("max in cc flow: %lf, max out cc flow: %lf\n", N_in -> m_recorder.back().second(), N_out -> m_recorder.back().second());
+            printf("diff: %lf\n", N_in -> m_recorder.back().second - N_out -> m_recorder.back().second);
+            printf("Cumulative Curve Count Error!\n");
+            std::cout << s << std::endl;
+            exit(-1);
+        }
+        IAssert(end_loading_timestamp >= int(N_in -> m_recorder.back().first));
+        IAssert(end_loading_timestamp >= int(N_out -> m_recorder.back().first));
+        TFlt _cc_flow_out = N_out -> m_recorder.back().second;
+
+        TFlt _last_valid_time = N_in -> get_time(_cc_flow_out);
+        TFlt _cc_flow = N_in -> get_result(_last_valid_time);
+        IAssert(!MNM_Ults::approximate_less_than(_cc_flow_out, _cc_flow));
+
+        int _cc_floor = int(_cc_flow);
+        int _cc_ceil = _cc_floor + 1;
+
+        if (_cc_floor == 0 && !MNM_Ults::approximate_equal(_cc_flow, TFlt(1))) {
+            return TFlt(0);
+        }
+
+        if (MNM_Ults::approximate_equal(_cc_flow, TFlt(_cc_floor))) {
+            return _last_valid_time;
+        }
+        else if (MNM_Ults::approximate_equal(_cc_flow, TFlt(_cc_ceil))) {
+            return _last_valid_time;
+        }
+        else {
+            IAssert(MNM_Ults::approximate_less_than(TFlt(_cc_floor), _cc_flow));
+
+            TFlt _last_valid_time_2 = N_in -> get_time(TFlt(_cc_floor));
+            TFlt _flow = N_in -> get_result(TFlt(_last_valid_time_2));
+            if (MNM_Ults::approximate_equal(_flow, TFlt(_cc_floor))) {
+                return _last_valid_time_2;
+            }
+            else {
+                return _last_valid_time;
+            }
+        } 
+    }
+
+    TFlt get_travel_time_from_cc(TFlt start_time, MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TFlt last_valid_time, TFlt fftt, bool rounding_up)
     {
         if (last_valid_time <= 0) return fftt;
         if (start_time > last_valid_time) {
@@ -79,7 +123,7 @@ namespace MNM_DTA_GRADIENT {
         // IAssert(_true_start_time <= last_valid_time);
 
         // get the earliest time point in N_out that reaches the outflow == _cc_flow as the end_time
-        TFlt _end_time = N_out -> get_time(_cc_flow);
+        TFlt _end_time = N_out -> get_time(_cc_flow, rounding_up);
 
         if (_end_time() < 0 || (_end_time - start_time < 0) || (_end_time - start_time < fftt)){
             return fftt; // in intervals

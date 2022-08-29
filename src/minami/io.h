@@ -45,6 +45,9 @@ public:
   static int read_td_node_cost(const std::string& file_folder, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &td_node_cost, 
                                  const TInt num_rows, const TInt num_timestamps, const std::string& file_name = "tdsp_node_cost");
 
+  static int read_origin_vehicle_label_ratio(const std::string& file_folder, MNM_ConfReader *conf_reader,
+                                             MNM_OD_Factory *od_factory, const std::string& file_name = "Origin_vehicle_label");
+
 //private:
   static std::vector<std::string> split(const std::string &text, char sep);
   static  std::string inline &ltrim(std::string &s) {s.erase(s.begin(), std::find_if(s.begin(), s.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));

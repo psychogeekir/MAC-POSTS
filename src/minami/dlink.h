@@ -31,7 +31,7 @@ public:
   int add_increment(std::pair<TFlt, TFlt> r);
   TFlt get_result(TFlt time);
   TFlt get_approximated_result(TFlt time);
-  TFlt get_time(TFlt result);
+  TFlt get_time(TFlt result, bool rounding_up=false);
   std::string to_string();
   int shrink(TInt number);
 private:

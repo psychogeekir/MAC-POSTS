@@ -11,6 +11,7 @@
 
 class MNM_Busstop_Virtual;
 class MNM_Routing_Multimodal_Hybrid;
+class MNM_Origin_Multimodal;
 class MNM_Destination_Multimodal;
 class MNM_Transit_Link;
 class MNM_Bus_Link;
@@ -43,7 +44,6 @@ public:
                 TFlt flow_scalar);
     virtual ~MNM_Busstop();
 
-    virtual TFlt get_bus_waiting_time(TFlt time) {return -1.;};
     virtual bool hold_bus(MNM_Veh *veh, MNM_Veh_Multimodal *veh_multimodal,
                           std::deque<MNM_Veh*> *from_queue,
                           std::deque<MNM_Veh*> *held_queue,
@@ -96,7 +96,7 @@ public:
                         TFlt flow_scalar);
     virtual ~MNM_Busstop_Virtual() override;
     int install_cumulative_curve_multiclass();
-    virtual TFlt get_bus_waiting_time(TFlt time) override;
+
     virtual bool hold_bus(MNM_Veh *veh, MNM_Veh_Multimodal *veh_multimodal,
                           std::deque<MNM_Veh*> *from_queue,
                           std::deque<MNM_Veh*> *held_queue,
@@ -104,6 +104,11 @@ public:
     virtual int release_bus(TInt timestamp, MNM_Veh_Multimodal *veh_multimodal) override;
     virtual int receive_bus(TInt timestamp, MNM_Veh_Multimodal *veh_multimodal) override;
     virtual int update_routing_passenger(TInt timestamp) override;
+
+    TFlt get_waiting_time_snapshot(TInt timestamp);  // based on network snapshot
+
+    // use historical bus waiting time, passenger don't need to rely on the bus to traverse the bus link
+    int virtual_evolve(TInt timestamp);
 
     TInt m_route_ID;
     MNM_Busstop_Physical *m_busstop_physical;
@@ -115,6 +120,15 @@ public:
     MNM_Walking_Link* m_alighting_link;
     MNM_Cumulative_Curve* m_N_in_bus;
     MNM_Cumulative_Curve* m_N_out_bus;
+    TFlt m_last_valid_time = TFlt(-1);
+
+    TFlt m_total_bus = -1;
+    MNM_Origin_Multimodal *m_origin = nullptr;
+    MNM_Destination_Multimodal *m_dest = nullptr;
+
+    TInt m_historical_waiting_time = -1;  // intervals
+    TInt m_max_alighting_passengers_per_unit_time;
+    TInt m_max_boarding_passengers_per_unit_time;
 
 //    MNM_Cumulative_Curve *m_N_in_car;
 //    MNM_Cumulative_Curve *m_N_out_car;
@@ -287,6 +301,7 @@ public:
     virtual TInt get_class() override {return m_class;};  // virtual getter
     virtual TInt get_bus_route_ID() override {return m_bus_route_ID;};  // virtual getter
     virtual bool get_ispnr() override {return m_pnr;}; // virtual getter
+    virtual TInt get_label() override {return m_label;};  // virtual getter
 
     TInt m_capacity;
     TInt m_bus_route_ID;
@@ -462,8 +477,9 @@ public:
     virtual ~MNM_Transit_Link();
     int install_cumulative_curve();
     virtual int install_cumulative_curve_tree();
+    virtual int clear_incoming_array(TInt timestamp) {return 0;};
     virtual int evolve(TInt timestamp) {return 0;};
-    virtual TFlt get_link_tt() {return TFlt(0);}; // real-time tt in seconds
+    virtual TFlt get_link_tt(bool count_runs=true) {return TFlt(0);}; // real-time tt in seconds
 
     virtual TInt get_link_freeflow_tt_loading_passenger() {return -1;};  // intervals
 
@@ -476,6 +492,11 @@ public:
     TInt m_to_node_ID;
     TFlt m_fftt; // seconds
     TFlt m_unit_time;
+
+    std::deque<MNM_Passenger*> m_incoming_array;
+    // <passenger, time left to be moved to finished queue>
+    std::unordered_map<MNM_Passenger*, TInt> m_passenger_queue;
+    std::deque<MNM_Passenger*> m_finished_array;
 
     // recording passengers dar
     MNM_Cumulative_Curve *m_N_in;
@@ -495,13 +516,18 @@ public:
     MNM_Bus_Link(TInt link_ID, TInt from_busstop_ID, TInt to_busstop_ID, TFlt bus_fftt, TFlt unit_time);
     virtual ~MNM_Bus_Link() override;
     virtual int install_cumulative_curve_tree() override;
-    virtual TFlt get_link_tt() override; // real-time tt in seconds
+    virtual TFlt get_link_tt(bool count_runs=true) override; // real-time tt in seconds
+    int get_overlapped_driving_link_length_portion();
+    // use historical avarage waiting time
+    virtual int clear_incoming_array(TInt timestamp) override;
+    virtual int evolve(TInt timestamp) override;
 
     TInt m_route_ID;
     MNM_Busstop_Virtual* m_from_busstop;
     MNM_Busstop_Virtual* m_to_busstop;
     TFlt m_last_valid_time_bus = TFlt(-1);
     std::vector<MNM_Dlink*> m_overlapped_driving_link_vec;
+    std::vector<TFlt> m_overlapped_driving_link_length_portion_vec;
     TFlt m_length;
 
     // recording passengers dar
@@ -519,17 +545,13 @@ public:
     MNM_Walking_Link(TInt ID, const std::string& walking_type, const std::string& from_node_type, const std::string& to_node_type,
                      TInt from_node_ID, TInt to_node_ID, TFlt walking_time, TFlt unit_time);
     virtual ~MNM_Walking_Link() override;
-    virtual TFlt get_link_tt() override; // real-time tt in seconds
-    int clear_incoming_array(TInt timestamp);
+    virtual TFlt get_link_tt(bool count_runs=true) override; // real-time tt in seconds
+    virtual int clear_incoming_array(TInt timestamp) override;
     virtual int evolve(TInt timestamp) override;
 
     TInt m_max_stamp;
     std::string m_walking_type;
-
-    std::deque<MNM_Passenger*> m_incoming_array;
-    // <passenger, time left to be moved to finished queue>
-    std::unordered_map<MNM_Passenger*, TInt> m_passenger_queue;
-    std::deque<MNM_Passenger*> m_finished_array;
+    TInt m_historical_bus_waiting_time = 0;
 };
 
 /**************************************************************************
@@ -701,6 +723,7 @@ public:
                          MNM_Busstop_Virtual* start_busstop, MNM_Busstop_Virtual* end_busstop, TFlt unit_interval, TInt end_loading_timestamp);
     TFlt get_whole_busroute_tt(TFlt start_time, MNM_Link_Factory *link_factory,
                                MNM_Busstop_Factory* busstop_factory, TFlt unit_interval, TInt end_loading_timestamp);
+    std::string busstop_vec_to_string();
 };
 
 /******************************************************************************************************************
@@ -989,7 +1012,8 @@ public:
                                                MNM_ConfReader *conf_reader,
                                                MNM_OD_Factory *od_factory,
                                                const std::string& file_name_driving = "driving_demand",
-                                               const std::string& file_name_bus = "bus_demand");
+                                               const std::string& file_name_bus = "bus_demand",
+                                               const bool use_explicit_bus=true);
     static int build_pnr_demand(const std::string& file_folder,
                                 MNM_ConfReader *conf_reader,
                                 MNM_OD_Factory *od_factory,
@@ -999,7 +1023,8 @@ public:
                                        MNM_OD_Factory *od_factory,
                                        const std::string& file_name = "bustransit_demand");
 
-    static Bus_Path_Table *load_bus_path_table(const PNEGraph& graph, TInt num_path,
+    static Bus_Path_Table *load_bus_path_table(const PNEGraph& graph, TInt num_path, 
+                                               MNM_Node_Factory *node_factory=nullptr, MNM_Busstop_Factory *busstop_factory=nullptr, TInt num_release_interval=-1,
                                                const std::string& file_name="bus_path_table",
                                                const std::string& route_file_name="bus_route");
     static PnR_Path_Table *load_pnr_path_table(const PNEGraph& driving_graph, const PNEGraph& transit_graph,
@@ -1029,6 +1054,7 @@ public:
     virtual int build_from_files() override;
     int find_connected_pnr_parkinglot_for_destination();
     bool check_bus_transit_connectivity();
+    bool check_bus_path_table();
     virtual bool is_ok() override;
     virtual int pre_loading() override;
     virtual int load_once(bool verbose, TInt load_int, TInt assign_int) override;
@@ -1052,6 +1078,8 @@ public:
     std::deque<TInt> m_enroute_passenger_num;
     std::deque<TInt> m_queue_passenger_num;
     std::unordered_map<TInt, std::deque<TInt>*> m_queue_passenger_map;
+
+    bool m_explicit_bus;
 };
 
 /******************************************************************************************************************
@@ -1061,14 +1089,15 @@ public:
 ******************************************************************************************************************/
 namespace MNM_DTA_GRADIENT
 {
+TFlt get_bus_waiting_time(MNM_Busstop_Virtual *busstop, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp, bool return_inf=false);
 
 TFlt get_travel_time_walking(MNM_Walking_Link *link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp);
 
 TFlt get_travel_time_walking_robust(MNM_Walking_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials=TInt(10));
 
-TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp);
+TFlt get_travel_time_bus(MNM_Bus_Link *link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp, bool explicit_bus=true, bool return_inf=false, bool return_bus_time=false);
 
-TFlt get_travel_time_bus_robust(MNM_Bus_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials=TInt(10));
+TFlt get_travel_time_bus_robust(MNM_Bus_Link *link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials=TInt(10), bool explicit_bus=true, bool return_inf=false, bool return_bus_time=false);
 
 TFlt get_link_inflow_bus(MNM_Bus_Link *link, TFlt start_time, TFlt end_time);
 
@@ -1357,6 +1386,15 @@ namespace MNM {
                                                            std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> &od_mode_connectivity,
                                                            MNM_MM_Due *mmdue);
 
+    Path_Table *build_shortest_driving_pathset(PNEGraph &driving_graph, MNM_OD_Factory *od_factory, std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> &od_mode_connectivity,
+                                               MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length);
+
+    Path_Table *build_shortest_bustransit_pathset(PNEGraph &bustransit_graph, MNM_OD_Factory *od_factory, std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> &od_mode_connectivity,
+                                                  MNM_Transit_Link_Factory *bus_transitlink_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length);
+
+    PnR_Path_Table *build_shortest_pnr_pathset(PNEGraph &driving_graph, PNEGraph &bustransit_graph, MNM_OD_Factory *od_factory, std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> &od_mode_connectivity,
+                                               MNM_Link_Factory *link_factory, MNM_Transit_Link_Factory *bus_transitlink_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length);
+
     int allocate_passenger_path_table_buffer(Passenger_Path_Table *path_table, TInt num);
 
     int generate_init_mode_demand_file(MNM_MM_Due *mmdue, const std::string &file_folder,
@@ -1417,6 +1455,8 @@ public:
 
     int load_od_mode_connectivity(const std::string &connectivity_file_name="od_mode_connectivity");
 
+    virtual int init_passenger_path_table();
+    
     virtual int init_passenger_path_flow();
 
     virtual int update_origin_demand_from_passenger_path_table(MNM_Dta_Multimodal *mmdta);

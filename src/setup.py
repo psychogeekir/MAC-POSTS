@@ -58,7 +58,7 @@ class CMakeBuild(build_ext):
             os.makedirs(self.build_temp)
         # Generate a Project Buildsystem (e.g., Makefile)
         subprocess.check_call(['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp, env=env)
-        # Build a Project ('--build <dir>' specifies the maek files directory)
+        # Build a Project ('--build <dir>' specifies the make files directory)
         # If cwd is not None, the function changes the working directory to cwd before executing the child. cwd can be a string, bytes or path-like object. In particular, the function looks for executable (or for the first item in args) relative to cwd if the executable path is a relative path
         subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=self.build_temp)
 

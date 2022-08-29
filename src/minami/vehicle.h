@@ -33,6 +33,7 @@ public:
   virtual TInt get_class() {return m_class;}; // virtual getter for derived class
   virtual TInt get_bus_route_ID() {return m_bus_route_ID;}; // virtual getter for derived class
   virtual bool get_ispnr() {return m_pnr;}; // virtual getter for derived class
+  virtual TInt get_label() {return m_label;}; // virtual getter for derived class
 // private:
   Vehicle_type m_type;
   MNM_Dlink *m_current_link;
@@ -51,6 +52,9 @@ public:
   TInt m_bus_route_ID;
   // m_pnr only used in multimodal loading
   bool m_pnr;
+
+  // m_label only used with registration data
+  TInt m_label = 0;
 };
 
 

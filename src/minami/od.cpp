@@ -13,6 +13,8 @@ MNM_Origin::MNM_Origin(TInt ID, TInt max_interval, TFlt flow_scalar, TInt freque
   }
   m_frequency = frequency;
   m_demand = std::unordered_map<MNM_Destination*, TFlt*>();  // destination node, time-varying demand
+
+  m_vehicle_label_ratio = std::vector<TFlt> ();
 }
 
 MNM_Origin::~MNM_Origin()
@@ -21,6 +23,7 @@ MNM_Origin::~MNM_Origin()
     free(_demand_it -> second);
   }
   m_demand.clear();
+  m_vehicle_label_ratio.clear();
 }
 
 int MNM_Origin::add_dest_demand(MNM_Destination *dest, TFlt* demand)
@@ -31,6 +34,27 @@ int MNM_Origin::add_dest_demand(MNM_Destination *dest, TFlt* demand)
   }
   m_demand.insert(std::pair<MNM_Destination*, TFlt*>(dest, _demand));
   return 0;
+}
+
+TInt MNM_Origin::generate_label(TInt veh_class)
+{
+  if (m_vehicle_label_ratio.empty()) {
+    return TInt(0);
+  }
+  else {
+    TFlt _r = MNM_Ults::rand_flt();
+    TInt _label = 0;
+    for (TFlt _p : m_vehicle_label_ratio){
+      // printf("2\n");
+      if (_p >= _r) {
+        return _label;
+      }
+      else{
+        _r -= _p;
+        _label += 1;
+      }
+    }
+  }
 }
 
 int MNM_Origin::release(MNM_Veh_Factory* veh_factory, TInt current_interval)
@@ -44,6 +68,7 @@ int MNM_Origin::release(MNM_Veh_Factory* veh_factory, TInt current_interval)
         _veh = veh_factory -> make_veh(current_interval, MNM_TYPE_ADAPTIVE);
         _veh -> set_destination(_demand_it -> first);
         _veh -> set_origin(this);
+        _veh -> m_label = generate_label(_veh -> get_class());
         m_origin_node -> m_in_veh_queue.push_back(_veh);
       }
     }
@@ -56,6 +81,7 @@ int MNM_Origin::release_one_interval(TInt current_interval, MNM_Veh_Factory* veh
                                     TInt assign_interval, TFlt adaptive_ratio)
 {
   if (assign_interval < 0) return 0;
+  m_current_assign_interval = assign_interval;
   TInt _veh_to_release;
   MNM_Veh *_veh;
   for (auto _demand_it = m_demand.begin(); _demand_it != m_demand.end(); _demand_it++) {
@@ -79,6 +105,7 @@ int MNM_Origin::release_one_interval(TInt current_interval, MNM_Veh_Factory* veh
       _veh -> set_destination(_demand_it -> first);
       _veh -> set_origin(this);
       _veh -> m_assign_interval = assign_interval;
+      _veh -> m_label = generate_label(_veh -> get_class());
       // printf("Pushing vehil, %d\n", m_origin_node -> m_node_ID());
       m_origin_node -> m_in_veh_queue.push_back(_veh);
     }

@@ -20,8 +20,9 @@ int main()
 
 	// On ubuntu (PC)
 	// std::string folder = "/home/alanpi/Desktop/MAC-POSTS/data/input_files_SPC_separate_Routing";
-	// std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multiclass";
-	std::string folder = "/srv/data/qiling/Projects/Pittsburgh/pgh/baseline";
+	std::string folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multiclass_new";
+	// std::string folder = "/srv/data/qiling/Projects/Pittsburgh/pgh/baseline";
+	// std::string folder = "/srv/data/qiling/Projects/Philly/input_files_philly";
 
 
     MNM_ConfReader *config = new MNM_ConfReader(folder + "/config.conf", "STAT");

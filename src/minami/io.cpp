@@ -199,7 +199,7 @@ int  MNM_IO::build_od_factory(const std::string& file_folder,
         _dest_ID = TInt(std::stoi(_words[0]));
         _node_ID = TInt(std::stoi(_words[1]));
         _dest = od_factory -> make_destination(_dest_ID);
-
+        _dest -> m_flow_scalar = _flow_scalar;
         /* hook up */
         _dest ->  m_dest_node =  (MNM_DMDND*) node_factory -> get_node(_node_ID);
         ((MNM_DMDND*)  node_factory -> get_node(_node_ID)) -> hook_up_destination(_dest);
@@ -321,6 +321,52 @@ int  MNM_IO::build_od_factory(const std::string& file_folder, MNM_ConfReader *co
   }
   _od_file.close();
   return 0;
+}
+
+int MNM_IO::read_origin_vehicle_label_ratio(const std::string& file_folder, MNM_ConfReader *conf_reader,
+                                            MNM_OD_Factory *od_factory, const std::string& file_name)
+{
+	/* find file */
+	std::string _file_name = file_folder + "/" + file_name;
+	std::ifstream _file;
+	_file.open(_file_name, std::ios::in);
+
+	/* build */
+	MNM_Origin *_origin;
+	TInt _origin_ID;
+	std::string _line;
+	std::vector<std::string> _words;
+	if (_file.is_open()) {
+		/* read config */
+		TInt _num_of_O = conf_reader -> get_int("num_of_O");
+		TInt _num_of_vehicle_labels = conf_reader -> get_int("num_of_vehicle_labels");
+
+		if (_num_of_vehicle_labels <= 0) {
+			return 0;
+		}
+		
+		// printf("Start build Origin-Destination factory.\n");
+		std::getline(_file, _line); //skip the first line
+		// printf("Processing Origin node.\n");
+		for (int i=0; i < _num_of_O; ++i){
+			std::getline(_file, _line);
+			_words = split(_line, ' ');
+			if ((int)_words.size() == 1 + _num_of_vehicle_labels) {   // check 
+				// std::cout << "Processing: " << _line << "\n";
+				_origin_ID = TInt(std::stoi(_words[0]));
+
+				_origin = od_factory -> get_origin(_origin_ID);
+				for (int j = 0; j < _num_of_vehicle_labels; ++j) {
+					_origin -> m_vehicle_label_ratio.push_back(TFlt(std::stof(_words[1+j])));
+				}
+			}
+		}
+	}
+	else {
+		printf("No vehicle registration data\n");
+	}
+	_file.close();
+	return 0;
 }
 
 PNEGraph MNM_IO::build_graph(const std::string& file_folder, MNM_ConfReader *conf_reader)
@@ -688,11 +734,11 @@ int MNM_IO::dump_cumulative_curve(const std::string& file_folder, MNM_Link_Facto
   for (auto _link_it = link_factory -> m_link_map.begin(); _link_it != link_factory -> m_link_map.end(); _link_it++){
     _link = _link_it -> second;
     std::string _temp_s = std::to_string(_link -> m_link_ID) + ",";
-    if (_link -> m_N_in != NULL) {
+    if (_link -> m_N_in != nullptr) {
       std::string _temp_s_in = _temp_s + "in," + _link -> m_N_in -> to_string() + "\n";
       _cc_file << _temp_s_in;
     }
-    if (_link -> m_N_out != NULL) {
+    if (_link -> m_N_out != nullptr) {
       std::string _temp_s_out = _temp_s + "out," + _link -> m_N_out -> to_string() + "\n";
       _cc_file << _temp_s_out;
     }

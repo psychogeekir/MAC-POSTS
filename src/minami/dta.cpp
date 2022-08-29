@@ -93,6 +93,7 @@ int MNM_Dta::set_routing()
   }
 
   else if (m_config -> get_string("routing_type") == "Predetermined"){
+    // single class
     Path_Table *_path_table = MNM::build_pathset(m_graph, m_od_factory, m_link_factory);
     MNM_Pre_Routing *_pre_routing = new MNM_Pre_Routing(_path_table, m_od_factory);
     m_routing = new MNM_Routing_Predetermined(m_graph, m_od_factory, m_node_factory,
@@ -203,6 +204,7 @@ int MNM_Dta::build_from_files()
   // std::cout << m_od_factory -> m_destination_map.size() << "\n";
   m_graph = MNM_IO::build_graph(m_file_folder, m_config);
   MNM_IO::build_demand(m_file_folder, m_config, m_od_factory);
+  MNM_IO::read_origin_vehicle_label_ratio(m_file_folder, m_config, m_od_factory);
   build_workzone();
   set_statistics();
   printf("Start building routing\n");
@@ -252,7 +254,7 @@ bool MNM_Dta::is_ok()
   bool _temp_flag = true;
   //Checks the graph data structure for internal consistency.
   //For each node in the graph check that its neighbors are also nodes in the graph.
-  printf("Checking......Driving Graph consistent!\n");
+  printf("\nChecking......Driving Graph consistent!\n");
   _temp_flag = m_graph -> IsOk(); 
   _flag = _flag && _temp_flag;
   if (_temp_flag)  printf("Passed!\n");

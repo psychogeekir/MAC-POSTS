@@ -1647,7 +1647,8 @@ int MNM_DMOND_Multiclass::evolve(TInt timestamp)
 						_next_link = dynamic_cast<MNM_Dlink_Pq_Multiclass *>(_link);
 						// m_out_volume[_link] -= _next_link -> m_veh_convert_factor;
 						m_out_volume[_link] -= 1;
-						_moved_truck += 1;
+						// only for non-bus truck
+						if (_veh -> get_bus_route_ID() == -1)  _moved_truck += 1;
 					}
 					_que_it = m_in_veh_queue.erase(_que_it); //c++ 11
 		        }
@@ -1711,7 +1712,8 @@ int MNM_DMDND_Multiclass::evolve(TInt timestamp)
 				_moved_car += 1;
 			}
 			else {
-				_moved_truck += 1;
+				// only for non-bus truck
+				if (_veh -> get_bus_route_ID() == -1) _moved_truck += 1;
 			}
 			_link -> m_finished_array.pop_front();
 	    }
@@ -1897,13 +1899,14 @@ int MNM_Dnode_Inout_Multiclass::move_vehicle(TInt timestamp)
 								}
 								else {
 									IAssert(_veh -> m_class == 1);
-									m_veh_moved_truck[i * _offset + j] += 1;
+									// only for non-bus truck
+									if (_veh -> get_bus_route_ID() == -1) m_veh_moved_truck[i * _offset + j] += 1;
 									_olink = dynamic_cast<MNM_Dlink_Multiclass *>(_out_link);
 									_ilink = dynamic_cast<MNM_Dlink_Multiclass *>(_in_link);
 									if (_olink -> m_N_in_tree_truck != nullptr) {
 									 	_olink -> m_N_in_tree_truck -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
 									}
-//									if (_ilink -> m_N_out_tree_truck != nullptr) {
+//									if (_ilink -> m_N_out_tree_truck != nullptr && _veh -> get_bus_route_ID() == -1) {
 //										_ilink -> m_N_out_tree_truck -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
 //									}
 								}
@@ -1926,13 +1929,14 @@ int MNM_Dnode_Inout_Multiclass::move_vehicle(TInt timestamp)
 							}
 							else {
 								IAssert(_veh -> m_class == 1);
-								m_veh_moved_truck[i * _offset + j] += 1;
+								// only for non-bus truck
+								if (_veh -> get_bus_route_ID() == -1) m_veh_moved_truck[i * _offset + j] += 1;
 								_olink = dynamic_cast<MNM_Dlink_Multiclass *>(_out_link);
 								_ilink = dynamic_cast<MNM_Dlink_Multiclass *>(_in_link);
 								if (_olink -> m_N_in_tree_truck != nullptr) {
 								 	_olink -> m_N_in_tree_truck -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
 								}
-//								if (_ilink -> m_N_out_tree_truck != nullptr) {
+//								if (_ilink -> m_N_out_tree_truck != nullptr && _veh -> get_bus_route_ID() == -1) {
 //									_ilink -> m_N_out_tree_truck -> add_flow(TFlt(timestamp + 1), 1/m_flow_scalar, _veh -> m_path, _veh -> m_assign_interval);
 //								}
 							}
@@ -2115,6 +2119,8 @@ MNM_Origin_Multiclass::MNM_Origin_Multiclass(TInt ID,
 {
 	m_demand_car = std::unordered_map<MNM_Destination_Multiclass*, TFlt*>();
 	m_demand_truck = std::unordered_map<MNM_Destination_Multiclass*, TFlt*>();
+	m_car_label_ratio = std::vector<TFlt> ();
+	m_truck_label_ratio = std::vector<TFlt> ();
 }
 
 MNM_Origin_Multiclass::~MNM_Origin_Multiclass()
@@ -2128,6 +2134,52 @@ MNM_Origin_Multiclass::~MNM_Origin_Multiclass()
 		free(_demand_it.second);
 	}
 	m_demand_truck.clear();
+	m_car_label_ratio.clear();
+	m_truck_label_ratio.clear();
+}
+
+TInt MNM_Origin_Multiclass::generate_label(TInt veh_class)
+{
+	if (veh_class == 0) {
+		if (m_car_label_ratio.empty()) {
+			return TInt(0);
+		}
+		else {
+			TFlt _r = MNM_Ults::rand_flt();
+			TInt _label = 0;
+			for (TFlt _p : m_car_label_ratio){
+				if (_p >= _r) {
+					return _label;
+				}
+				else{
+					_r -= _p;
+					_label += 1;
+				}
+			}
+		}
+	}
+	else if (veh_class == 1) {
+		if (m_truck_label_ratio.empty()) {
+			return TInt(0);
+		}
+		else {
+			TFlt _r = MNM_Ults::rand_flt();
+			TInt _label = 0;
+			for (TFlt _p : m_truck_label_ratio){
+				if (_p >= _r) {
+					return _label;
+				}
+				else{
+					_r -= _p;
+					_label += 1;
+				}
+			}
+		}
+	}
+	else {
+		printf("MNM_Origin_Multiclass::generate_label, Wrong vehicle class!\n");
+		exit(-1);
+	}
 }
 
 int MNM_Origin_Multiclass::add_dest_demand_multiclass(MNM_Destination_Multiclass *dest, 
@@ -2188,6 +2240,7 @@ int MNM_Origin_Multiclass::release_one_interval(TInt current_interval,
 												TFlt adaptive_ratio)
 {
 	if (assign_interval < 0) return 0;
+	m_current_assign_interval = assign_interval;
 	TInt _veh_to_release;
 	MNM_Veh_Multiclass *_veh;
 	MNM_Veh_Factory_Multiclass *_vfactory = dynamic_cast<MNM_Veh_Factory_Multiclass *>(veh_factory);
@@ -2213,6 +2266,7 @@ int MNM_Origin_Multiclass::release_one_interval(TInt current_interval,
 			_veh -> set_destination(_demand_it -> first);
 			_veh -> set_origin(this);
 			_veh -> m_assign_interval = assign_interval;
+			_veh -> m_label = generate_label(_veh -> get_class());
 			m_origin_node -> m_in_veh_queue.push_back(_veh);
 		}
 	}
@@ -2238,6 +2292,7 @@ int MNM_Origin_Multiclass::release_one_interval(TInt current_interval,
 			_veh -> set_destination(_demand_it -> first);
 			_veh -> set_origin(this);
 			_veh -> m_assign_interval = assign_interval;
+			_veh -> m_label = generate_label(_veh -> get_class());
 			m_origin_node -> m_in_veh_queue.push_back(_veh);
 		}
 	}
@@ -2252,6 +2307,7 @@ int MNM_Origin_Multiclass::release_one_interval_biclass(TInt current_interval,
 														TFlt adaptive_ratio_truck)
 {
 	if (assign_interval < 0) return 0;
+	m_current_assign_interval = assign_interval;
 	TInt _veh_to_release;
 	MNM_Veh_Multiclass *_veh;
 	MNM_Veh_Factory_Multiclass *_vfactory = dynamic_cast<MNM_Veh_Factory_Multiclass *>(veh_factory);
@@ -2277,6 +2333,7 @@ int MNM_Origin_Multiclass::release_one_interval_biclass(TInt current_interval,
 			_veh -> set_destination(_demand_it -> first);
 			_veh -> set_origin(this);
 			_veh -> m_assign_interval = assign_interval;
+			_veh -> m_label = generate_label(_veh -> get_class());
 			m_origin_node -> m_in_veh_queue.push_back(_veh);
 		}
 	}
@@ -2302,6 +2359,7 @@ int MNM_Origin_Multiclass::release_one_interval_biclass(TInt current_interval,
 			_veh -> set_destination(_demand_it -> first);
 			_veh -> set_origin(this);
 			_veh -> m_assign_interval = assign_interval;
+			_veh -> m_label = generate_label(_veh -> get_class());
 			m_origin_node -> m_in_veh_queue.push_back(_veh);
 		}
 	}
@@ -2413,6 +2471,8 @@ int MNM_Veh_Factory_Multiclass::remove_finished_veh(MNM_Veh *veh, bool del)
 		m_total_time_truck += (veh -> m_finish_time - veh -> m_start_time);
 	}
 	MNM_Veh_Factory::remove_finished_veh(veh, del);
+	IAssert(m_num_car == m_finished_car + m_enroute_car);
+	IAssert(m_num_truck == m_finished_truck + m_enroute_truck);
 	return 0;
 }
 
@@ -2827,7 +2887,7 @@ int MNM_IO_Multiclass::build_demand_multiclass(const std::string& file_folder,
 		std::getline(_demand_file,_line); //skip the first line
 		for (int i = 0; i < _num_OD; ++i){
 			std::getline(_demand_file,_line);
-			_words = split(_line, ' ');
+			_words = split(trim(_line), ' ');
 			if (TInt(_words.size()) == (_max_interval * 2 + 2)) {
 				_O_ID = TInt(std::stoi(_words[0]));
 				_D_ID = TInt(std::stoi(_words[1]));
@@ -2895,7 +2955,97 @@ int MNM_IO_Multiclass::build_demand_multiclass(const std::string& file_folder,
 	return 0;
 }
 
+int MNM_IO_Multiclass::read_origin_car_label_ratio(const std::string& file_folder, MNM_ConfReader *conf_reader,
+								                   MNM_OD_Factory *od_factory, const std::string& file_name)
+{
+	/* find file */
+	std::string _file_name = file_folder + "/" + file_name;
+	std::ifstream _file;
+	_file.open(_file_name, std::ios::in);
 
+	/* build */
+	MNM_Origin_Multiclass *_origin;
+	TInt _origin_ID;
+	std::string _line;
+	std::vector<std::string> _words;
+	if (_file.is_open()) {
+		/* read config */
+		TInt _num_of_O = conf_reader -> get_int("num_of_O");
+		TInt _num_of_vehicle_labels = conf_reader -> get_int("num_of_car_labels");
+
+		if (_num_of_vehicle_labels <= 0) {
+			return 0;
+		}
+		
+		// printf("Start build Origin-Destination factory.\n");
+		std::getline(_file, _line); //skip the first line
+		// printf("Processing Origin node.\n");
+		for (int i=0; i < _num_of_O; ++i){
+			std::getline(_file, _line);
+			_words = split(_line, ' ');
+			if ((int)_words.size() == 1 + _num_of_vehicle_labels) {   // check 
+				// std::cout << "Processing: " << _line << "\n";
+				_origin_ID = TInt(std::stoi(_words[0]));
+
+				_origin = dynamic_cast<MNM_Origin_Multiclass*>(od_factory -> get_origin(_origin_ID));
+				for (int j = 0; j < _num_of_vehicle_labels; ++j) {
+					_origin -> m_car_label_ratio.push_back(TFlt(std::stof(_words[1+j])));
+				}
+			}
+		}
+	}
+	else {
+		printf("No vehicle registration data\n");
+	}
+	_file.close();
+	return 0;
+}
+
+int MNM_IO_Multiclass::read_origin_truck_label_ratio(const std::string& file_folder, MNM_ConfReader *conf_reader,
+										             MNM_OD_Factory *od_factory, const std::string& file_name)
+{
+	/* find file */
+	std::string _file_name = file_folder + "/" + file_name;
+	std::ifstream _file;
+	_file.open(_file_name, std::ios::in);
+
+	/* build */
+	MNM_Origin_Multiclass *_origin;
+	TInt _origin_ID;
+	std::string _line;
+	std::vector<std::string> _words;
+	if (_file.is_open()) {
+		/* read config */
+		TInt _num_of_O = conf_reader -> get_int("num_of_O");
+		TInt _num_of_vehicle_labels = conf_reader -> get_int("num_of_truck_labels");
+
+		if (_num_of_vehicle_labels <= 0) {
+			return 0;
+		}
+		
+		// printf("Start build Origin-Destination factory.\n");
+		std::getline(_file, _line); //skip the first line
+		// printf("Processing Origin node.\n");
+		for (int i=0; i < _num_of_O; ++i){
+			std::getline(_file, _line);
+			_words = split(_line, ' ');
+			if ((int)_words.size() == 1 + _num_of_vehicle_labels) {   // check 
+				// std::cout << "Processing: " << _line << "\n";
+				_origin_ID = TInt(std::stoi(_words[0]));
+
+				_origin = dynamic_cast<MNM_Origin_Multiclass*>(od_factory -> get_origin(_origin_ID));
+				for (int j = 0; j < _num_of_vehicle_labels; ++j) {
+					_origin -> m_truck_label_ratio.push_back(TFlt(std::stof(_words[1+j])));
+				}
+			}
+		}
+	}
+	else {
+		printf("No vehicle registration data\n");
+	}
+	_file.close();
+	return 0;
+}
 
 
 /******************************************************************************************************************
@@ -2967,6 +3117,8 @@ int MNM_Dta_Multiclass::build_from_files()
 	MNM_IO_Multiclass::build_od_factory(m_file_folder, m_config, m_od_factory, m_node_factory);
 	m_graph = MNM_IO_Multiclass::build_graph(m_file_folder, m_config);
 	MNM_IO_Multiclass::build_demand_multiclass(m_file_folder, m_config, m_od_factory);
+	MNM_IO_Multiclass::read_origin_car_label_ratio(m_file_folder, m_config, m_od_factory);
+	MNM_IO_Multiclass::read_origin_truck_label_ratio(m_file_folder, m_config, m_od_factory);
 	// build_workzone();
 	m_workzone = nullptr;
 	set_statistics();
@@ -3106,7 +3258,7 @@ TFlt get_average_waiting_time_at_intersection(MNM_Dlink_Multiclass* link)
 	TFlt _tot_vehs = 0;
 	_tot_vehs = link -> m_N_in_car -> m_recorder.back().second + link -> m_N_in_truck -> m_recorder.back().second;
 
-	return link -> m_tot_wait_time_at_intersection / _tot_vehs;  // seconds
+	return link -> m_tot_wait_time_at_intersection / (_tot_vehs + 1e-6);  // seconds
 }
 
 TFlt get_average_waiting_time_at_intersection_car(MNM_Dlink_Multiclass* link)
@@ -3120,7 +3272,7 @@ TFlt get_average_waiting_time_at_intersection_car(MNM_Dlink_Multiclass* link)
 	TFlt _tot_vehs = 0;
 	_tot_vehs = link -> m_N_in_car -> m_recorder.back().second;
 
-	return link -> m_tot_wait_time_at_intersection_car / _tot_vehs;  // seconds
+	return link -> m_tot_wait_time_at_intersection_car / (_tot_vehs + 1e-6);  // seconds
 }
 
 TFlt get_average_waiting_time_at_intersection_truck(MNM_Dlink_Multiclass* link)
@@ -3134,7 +3286,7 @@ TFlt get_average_waiting_time_at_intersection_truck(MNM_Dlink_Multiclass* link)
 	TFlt _tot_vehs = 0;
 	_tot_vehs = link -> m_N_in_truck -> m_recorder.back().second;
 
-	return link -> m_tot_wait_time_at_intersection_truck / _tot_vehs;
+	return link -> m_tot_wait_time_at_intersection_truck / (_tot_vehs + 1e-6);
 }
 
 TInt get_is_spillback(MNM_Dlink_Multiclass* link) // 0 - no spillback, 1 - spillback
@@ -3514,6 +3666,138 @@ int print_vehicle_statistics(MNM_Veh_Factory_Multiclass *veh_factory)
 	veh_factory -> m_num_truck(), veh_factory -> m_enroute_truck(), veh_factory -> m_finished_truck(),
 	veh_factory -> m_total_time_car(), veh_factory -> m_total_time_truck());
 	return 0;
+}
+
+Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length) {
+	// printf("11\n");
+	// MaxIter: maximum iteration to find alternative shortest path, when MaxIter = 0, just shortest path
+	// Mid_Scale and Heavy_Scale are different penalties to the travel cost of links in existing paths
+
+	/* initialize data structure */
+	TInt _dest_node_ID, _origin_node_ID;
+	Path_Table *_path_table = new Path_Table();
+	for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
+		_origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
+		std::unordered_map<TInt, MNM_Pathset *> *_new_map = new std::unordered_map<TInt, MNM_Pathset *>();
+		_path_table->insert(std::pair<TInt, std::unordered_map<TInt, MNM_Pathset *> *>(_origin_node_ID, _new_map));
+		for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
+			// assume build_demand is called before this function
+			if (dynamic_cast<MNM_Origin_Multiclass*>(_o_it -> second) -> m_demand_car.find(dynamic_cast<MNM_Destination_Multiclass*>(_d_it -> second)) != dynamic_cast<MNM_Origin_Multiclass*>(_o_it -> second) -> m_demand_car.end()) {
+				_dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
+				MNM_Pathset *_pathset = new MNM_Pathset();
+				_new_map->insert(std::pair<TInt, MNM_Pathset *>(_dest_node_ID, _pathset));
+			}
+		}
+	}
+
+	// printf("111\n");
+	std::unordered_map<TInt, TInt> _mid_shortest_path_tree = std::unordered_map<TInt, TInt>();
+	std::unordered_map<TInt, TFlt> _mid_cost_map = std::unordered_map<TInt, TFlt>();
+	std::unordered_map<TInt, TInt> _heavy_shortest_path_tree = std::unordered_map<TInt, TInt>();
+	std::unordered_map<TInt, TFlt> _heavy_cost_map = std::unordered_map<TInt, TFlt>();
+
+	std::unordered_map<TInt, TFlt> _free_cost_map = std::unordered_map<TInt, TFlt>();
+	std::unordered_map<TInt, TInt> _free_shortest_path_tree = std::unordered_map<TInt, TInt>();
+	MNM_Path *_path;
+	for (auto _link_it = link_factory->m_link_map.begin(); _link_it != link_factory->m_link_map.end(); _link_it++) {
+		_free_cost_map.insert(std::pair<TInt, TFlt>(_link_it->first, _link_it->second->get_link_tt()));
+	}
+	// printf("1111\n");
+	for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
+		_dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
+		MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _free_cost_map, _free_shortest_path_tree);
+		for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
+			if (dynamic_cast<MNM_Origin_Multiclass*>(_o_it -> second) -> m_demand_car.find(dynamic_cast<MNM_Destination_Multiclass*>(_d_it -> second)) == dynamic_cast<MNM_Origin_Multiclass*>(_o_it -> second) -> m_demand_car.end()) {
+				continue;
+			}
+			_origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
+			_path = MNM::extract_path(_origin_node_ID, _dest_node_ID, _free_shortest_path_tree, graph);
+			if (_path != nullptr) {
+				if (_path->get_path_length(link_factory) > min_path_length) {
+					if (buffer_length > 0) {
+						_path -> allocate_buffer(buffer_length);
+					}
+					_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path);
+				}
+			}
+			else {
+				printf("No driving path found to connect origin node ID %d and destination node ID %d\n", _origin_node_ID(), _dest_node_ID());
+				exit(-1);
+			}
+		}
+	}
+	// printf("22\n");
+	_mid_cost_map.insert(_free_cost_map.begin(), _free_cost_map.end());
+	_heavy_cost_map.insert(_free_cost_map.begin(), _free_cost_map.end());
+
+	MNM_Dlink *_link;
+	MNM_Path *_path_mid, *_path_heavy;
+	size_t _CurIter = 0;
+	while (_CurIter < MaxIter) {
+		printf("Current trial %d\n", (int) _CurIter);
+		for (auto _o_it : *_path_table) {
+			for (auto _d_it : *_o_it.second) {
+				for (auto &_path : _d_it.second->m_path_vec) {
+					for (auto &_link_ID : _path -> m_link_vec) {
+						_link = link_factory->get_link(_link_ID);
+						_mid_cost_map.find(_link_ID)->second = _link->get_link_tt() * Mid_Scale;
+						_heavy_cost_map.find(_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
+					}
+				}
+			}
+		}
+		
+		for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
+			_dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
+			MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _mid_cost_map, _mid_shortest_path_tree);
+			MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _heavy_cost_map, _heavy_shortest_path_tree);
+			for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
+				if (dynamic_cast<MNM_Origin_Multiclass*>(_o_it -> second) -> m_demand_car.find(dynamic_cast<MNM_Destination_Multiclass*>(_d_it -> second)) == dynamic_cast<MNM_Origin_Multiclass*>(_o_it -> second) -> m_demand_car.end()) {
+					continue;
+				}
+				_origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
+				_path_mid = MNM::extract_path(_origin_node_ID, _dest_node_ID, _mid_shortest_path_tree, graph);
+				_path_heavy = MNM::extract_path(_origin_node_ID, _dest_node_ID, _heavy_shortest_path_tree, graph);
+				if (_path_mid != nullptr) {
+					if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(_path_mid)) {
+						if (_path_mid->get_path_length(link_factory) > min_path_length) {
+							if (buffer_length > 0) {
+								_path_mid -> allocate_buffer(buffer_length);
+							}
+							_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path_mid);
+						}
+					}
+					else {
+						delete _path_mid;
+					}
+				}
+				if (_path_heavy != nullptr) {
+					if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(_path_heavy)) {
+						if (_path_heavy->get_path_length(link_factory) > min_path_length) {
+							if (buffer_length > 0) {
+								_path_heavy -> allocate_buffer(buffer_length);
+							}
+							_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec.push_back(_path_heavy);
+						}
+					}
+					else {
+						delete _path_heavy;
+					}
+				}
+			}
+		}
+		_CurIter += 1;
+	}
+
+	_mid_shortest_path_tree.clear();
+	_mid_cost_map.clear();
+	_heavy_shortest_path_tree.clear();
+	_heavy_cost_map.clear();
+
+	_free_cost_map.clear();
+	_free_shortest_path_tree.clear();
+	
+	return _path_table;
 }
 
 } // end namespace MNM

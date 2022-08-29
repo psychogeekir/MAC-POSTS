@@ -395,6 +395,7 @@ class MNM_Origin_Multiclass : public MNM_Origin
 public:
 	MNM_Origin_Multiclass(TInt ID, TInt max_interval, TFlt flow_scalar, TInt frequency);
 	virtual ~MNM_Origin_Multiclass() override;
+	virtual TInt generate_label(TInt veh_class) override;
     virtual int release(MNM_Veh_Factory* veh_factory, TInt current_interval) override;
     virtual int release_one_interval(TInt current_interval,
 									MNM_Veh_Factory* veh_factory, 
@@ -414,6 +415,9 @@ public:
 	// two new unordered_map for both classes
 	std::unordered_map<MNM_Destination_Multiclass*, TFlt*> m_demand_car;
 	std::unordered_map<MNM_Destination_Multiclass*, TFlt*> m_demand_truck;
+
+	std::vector<TFlt> m_car_label_ratio;
+	std::vector<TFlt> m_truck_label_ratio;
 };
 
 class MNM_Destination_Multiclass : public MNM_Destination
@@ -441,6 +445,7 @@ public:
     virtual TInt get_class() override {return m_class;};  // virtual getter
     virtual TInt get_bus_route_ID() override {return m_bus_route_ID;};  // virtual getter
     virtual bool get_ispnr() override {return m_pnr;}; // virtual getter
+	virtual TInt get_label() override {return m_label;}; // virtual getter for derived class
 
 	TInt m_class;
 	TFlt m_visual_position_on_link; //[0(start), 1(end)], for vehicle-based visualization
@@ -547,6 +552,11 @@ public:
  									   MNM_ConfReader *conf_reader,
  									   MNM_OD_Factory *od_factory,
                                        const std::string& file_name = "MNM_input_demand");
+	
+	static int read_origin_car_label_ratio(const std::string& file_folder, MNM_ConfReader *conf_reader,
+											MNM_OD_Factory *od_factory, const std::string& file_name = "MNM_origin_label_car");
+	static int read_origin_truck_label_ratio(const std::string& file_folder, MNM_ConfReader *conf_reader,
+											MNM_OD_Factory *od_factory, const std::string& file_name = "MNM_origin_label_truck");
 };
 
 
@@ -628,6 +638,8 @@ int add_ltg_records_veh(std::vector<ltg_record*> &record, MNM_Dlink_Multiclass *
 namespace MNM
 {
 int print_vehicle_statistics(MNM_Veh_Factory_Multiclass *veh_factory);
+Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, 
+                                     TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
 }
 
 /******************************************************************************************************************
