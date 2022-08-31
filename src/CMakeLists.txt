@@ -18,7 +18,7 @@ set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 #set (CMAKE_EXE_LIKKER_FLAGS "-pthread")
 
 # https://stackoverflow.com/questions/24174394/cmake-is-not-able-to-find-python-libraries
-# set (PYTHON_EXECUTABLE:FILEPATH "/home/qiling/anaconda3/envs/mac_posts_python3/bin/")
+# set (PYTHON_EXECUTABLE:FILEPATH "/home/qiling/anaconda3/envs/mac_posts_python3/bin/python")
 # set (PYTHON_INCLUDE_DIR "/home/qiling/anaconda3/envs/mac_posts_python3/include/python3.9")
 # set (PYTHON_LIBRARY "/home/qiling/anaconda3/envs/mac_posts_python3/lib/libpython3.9.so")
 # set (PYTHON_INCLUDE_DIR "$(python -c \"from distutils.sysconfig import get_python_inc; print(get_python_inc())\")")
