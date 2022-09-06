@@ -1087,7 +1087,7 @@ int MNM_Dlink_Lq_Multiclass::evolve(TInt timestamp)
 	}
 
 	// Empty buffers, nothing to move to finished array
-	if ((m_veh_out_buffer_car.size() == 0) && (m_veh_out_buffer_car.size() == 0)){
+	if ((m_veh_out_buffer_car.size() == 0) && (m_veh_out_buffer_truck.size() == 0)){
 		m_tot_wait_time_at_intersection += m_finished_array.size()/m_flow_scalar * m_unit_time;
 		m_tot_wait_time_at_intersection_car += TFlt(_count_car)/m_flow_scalar * m_unit_time;
 		m_tot_wait_time_at_intersection_truck += TFlt(_count_truck)/m_flow_scalar * m_unit_time;
@@ -2180,6 +2180,7 @@ TInt MNM_Origin_Multiclass::generate_label(TInt veh_class)
 		printf("MNM_Origin_Multiclass::generate_label, Wrong vehicle class!\n");
 		exit(-1);
 	}
+	return -1;
 }
 
 int MNM_Origin_Multiclass::add_dest_demand_multiclass(MNM_Destination_Multiclass *dest, 
@@ -3740,8 +3741,12 @@ Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory
 				for (auto &_path : _d_it.second->m_path_vec) {
 					for (auto &_link_ID : _path -> m_link_vec) {
 						_link = link_factory->get_link(_link_ID);
-						_mid_cost_map.find(_link_ID)->second = _link->get_link_tt() * Mid_Scale;
-						_heavy_cost_map.find(_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
+						if (Mid_Scale > 1) {
+							_mid_cost_map.find(_link_ID)->second = _link->get_link_tt() * Mid_Scale;
+						}
+						if (Heavy_Scale > 1) {
+							_heavy_cost_map.find(_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
+						}
 					}
 				}
 			}
@@ -3749,15 +3754,25 @@ Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory
 		
 		for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
 			_dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
-			MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _mid_cost_map, _mid_shortest_path_tree);
-			MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _heavy_cost_map, _heavy_shortest_path_tree);
+			if (Mid_Scale > 1) {
+				MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _mid_cost_map, _mid_shortest_path_tree);
+			}
+			if (Heavy_Scale > 1) {
+				MNM_Shortest_Path::all_to_one_FIFO(_dest_node_ID, graph, _heavy_cost_map, _heavy_shortest_path_tree);
+			}
 			for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
 				if (dynamic_cast<MNM_Origin_Multiclass*>(_o_it -> second) -> m_demand_car.find(dynamic_cast<MNM_Destination_Multiclass*>(_d_it -> second)) == dynamic_cast<MNM_Origin_Multiclass*>(_o_it -> second) -> m_demand_car.end()) {
 					continue;
 				}
 				_origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
-				_path_mid = MNM::extract_path(_origin_node_ID, _dest_node_ID, _mid_shortest_path_tree, graph);
-				_path_heavy = MNM::extract_path(_origin_node_ID, _dest_node_ID, _heavy_shortest_path_tree, graph);
+				_path_mid = nullptr;
+				_path_heavy = nullptr;
+				if (Mid_Scale > 1) {
+					_path_mid = MNM::extract_path(_origin_node_ID, _dest_node_ID, _mid_shortest_path_tree, graph);
+				}
+				if (Heavy_Scale > 1) {
+					_path_heavy = MNM::extract_path(_origin_node_ID, _dest_node_ID, _heavy_shortest_path_tree, graph);
+				}
 				if (_path_mid != nullptr) {
 					if (!_path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->is_in(_path_mid)) {
 						if (_path_mid->get_path_length(link_factory) > min_path_length) {

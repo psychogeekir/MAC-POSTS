@@ -55,6 +55,7 @@ TInt MNM_Origin::generate_label(TInt veh_class)
       }
     }
   }
+  return -1;
 }
 
 int MNM_Origin::release(MNM_Veh_Factory* veh_factory, TInt current_interval)

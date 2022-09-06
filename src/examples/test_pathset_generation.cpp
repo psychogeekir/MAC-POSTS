@@ -53,7 +53,7 @@ int main()
 
   // printf("node:%d, link:%d\n", p -> m_node_vec.size(),p -> m_link_vec.size());
 
-  Path_Table *path_table = MNM::build_pathset_multiclass(m_graph, m_od_factory, m_link_factory, 0, 0, 3, 6, buffer_length);
+  Path_Table *path_table = MNM::build_pathset_multiclass(m_graph, m_od_factory, m_link_factory, 0, 1, -1, 6, buffer_length);
   printf("Finish running\n");
   // MNM_Path *p;
   // for (size_t i = 0; i< path_table -> find(1) -> second -> find(5) -> second -> m_path_vec.size(); ++i){
