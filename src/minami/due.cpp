@@ -18,11 +18,13 @@ MNM_Due::MNM_Due(std::string file_folder) {
     m_total_assign_inter = m_dta_config->get_int("max_interval");
     m_path_table = nullptr;
     // m_od_factory = nullptr;
+    m_vot = m_due_config->get_float("vot");
     m_early_rate = m_due_config->get_float("early_rate");
     m_late_rate = m_due_config->get_float("late_rate");
     m_target_time = m_due_config->get_float("target_time");
     m_step_size = m_due_config->get_float("lambda");  //0.01;  // MSA
-    m_cost_map = std::unordered_map<TInt, TFlt *>();  // time-varying link cost
+    m_link_tt_map = std::unordered_map<TInt, TFlt *>();  // time-varying link tt
+    m_link_cost_map = std::unordered_map<TInt, TFlt *>();  // time-varying link cost
 }
 
 // int MNM_Due::init_path_table()
@@ -33,8 +35,6 @@ MNM_Due::MNM_Due(std::string file_folder) {
 //   m_path_table = MNM_IO::load_path_table(_whole_path, m_graph, _num_path);
 //   return 0;
 // }
-
-
 
 
 MNM_Due::~MNM_Due() {
@@ -174,9 +174,9 @@ TFlt MNM_Due::compute_merit_function_fixed_departure_time_choice() {
 TFlt MNM_Due::get_disutility(TFlt depart_time, TFlt tt) {
     TFlt _arrival_time = depart_time + tt;
     if (_arrival_time >= m_target_time) {
-        return tt + m_late_rate * (_arrival_time - m_target_time);
+        return m_vot * tt + m_late_rate * (_arrival_time - m_target_time);
     } else {
-        return tt + m_early_rate * (m_target_time - _arrival_time);
+        return m_vot * tt + m_early_rate * (m_target_time - _arrival_time);
     }
     throw std::runtime_error("Error in MNM_Due::get_disutility");
 }
@@ -184,7 +184,7 @@ TFlt MNM_Due::get_disutility(TFlt depart_time, TFlt tt) {
 
 TFlt MNM_Due::get_tt(TFlt depart_time, MNM_Path *path) {
     // true path tt
-    return MNM_DTA_GRADIENT::get_path_travel_time(path, depart_time, m_cost_map, m_total_loading_inter);
+    return MNM_DTA_GRADIENT::get_path_travel_time(path, depart_time, m_link_tt_map, m_total_loading_inter);
 }
 
 
@@ -195,8 +195,9 @@ int MNM_Due::build_cost_map(MNM_Dta *dta) {
         for (auto _link_it : dta->m_link_factory->m_link_map) {
             _link = _link_it.second;
             // use i+1 as start_time in cc to compute link travel time for vehicles arriving at the beginning of interval i, i+1 is the end of the interval i, the beginning of interval i + 1
-            m_cost_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_unit_time, dta -> m_current_loading_interval) ;
-            // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_cost_map[_link_it.first][i] << "\n";
+            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_unit_time, dta -> m_current_loading_interval);
+            m_link_cost_map[_link_it.first][i] = m_vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
+            // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_cost_map[_link_it.first][i] << "\n";
         }
     }
     return 0;
@@ -211,10 +212,14 @@ MNM_Due_Msa::MNM_Due_Msa(std::string file_folder)
 }
 
 MNM_Due_Msa::~MNM_Due_Msa() {
-    for (auto _cost_it: m_cost_map) {
+    for (auto _tt_it: m_link_tt_map) {
+        delete _tt_it.second;
+    }
+    m_link_tt_map.clear();
+    for (auto _cost_it: m_link_cost_map) {
         delete _cost_it.second;
     }
-    m_cost_map.clear();
+    m_link_cost_map.clear();
     delete m_base_dta;
 }
 
@@ -228,7 +233,8 @@ int MNM_Due_Msa::initialize() {
     // MNM::save_path_table(m_path_table, m_base_dta -> m_od_factory, true);
 
     for (auto _link_it : m_base_dta->m_link_factory->m_link_map) {
-        m_cost_map[_link_it.first] = new TFlt[m_total_loading_inter];
+        m_link_tt_map[_link_it.first] = new TFlt[m_total_loading_inter];
+        m_link_cost_map[_link_it.first] = new TFlt[m_total_loading_inter];
     }
     // switch(m_due_config -> get_int("init_demand_split")){
     //   case 0:
@@ -298,7 +304,7 @@ std::pair<MNM_Path *, TInt> MNM_Due_Msa::get_best_route(TInt o_node_ID,
     }
     IAssert(_cur_best_time >= 0);
     MNM_Path *_path = new MNM_Path();
-    tdsp_tree->get_tdsp(o_node_ID, _cur_best_time, m_cost_map, _path);
+    tdsp_tree->get_tdsp(o_node_ID, _cur_best_time, m_link_tt_map, _path);
     std::pair<MNM_Path *, TInt> _best = std::make_pair(_path, _cur_best_time);
     return _best;
 }
@@ -323,7 +329,7 @@ std::pair<MNM_Path *, TInt> MNM_Due_Msa::get_best_route_for_single_interval(
     }
     IAssert(_cur_best_time >= 0);
     MNM_Path *_path = new MNM_Path();
-    tdsp_tree->get_tdsp(o_node_ID, _cur_best_time, m_cost_map, _path);
+    tdsp_tree->get_tdsp(o_node_ID, _cur_best_time, m_link_tt_map, _path);
     std::pair<MNM_Path *, TInt> _best = std::make_pair(_path, _cur_best_time);
     return _best;
 }
@@ -348,7 +354,7 @@ int MNM_Due_Msa::update_path_table(MNM_Dta *dta, int iter) {
         MNM_TDSP_Tree *_tdsp_tree = new MNM_TDSP_Tree(_dest_node_ID, dta->m_graph, m_total_loading_inter);
         _tdsp_tree->initialize();
         // printf("111\n");
-        _tdsp_tree->update_tree(m_cost_map);
+        _tdsp_tree->update_tree(m_link_cost_map, m_link_tt_map);
         for (auto _map_it : dta->m_od_factory->m_origin_map) {
             _orig = _map_it.second;
             _orig_node_ID = _orig->m_origin_node->m_node_ID;
@@ -452,7 +458,7 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
 
         MNM_TDSP_Tree *_tdsp_tree = new MNM_TDSP_Tree(_dest_node_ID, dta->m_graph, m_total_loading_inter);
         _tdsp_tree->initialize();
-        _tdsp_tree->update_tree(m_cost_map);
+        _tdsp_tree->update_tree(m_link_cost_map, m_link_tt_map);
 
         for (auto _map_it : dta->m_od_factory->m_origin_map) {
             _orig = _map_it.second;
@@ -525,7 +531,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
 
         MNM_TDSP_Tree *_tdsp_tree = new MNM_TDSP_Tree(_dest_node_ID, dta->m_graph, m_total_loading_inter);
         _tdsp_tree->initialize();
-        _tdsp_tree->update_tree(m_cost_map);
+        _tdsp_tree->update_tree(m_link_cost_map, m_link_tt_map);
 
         for (auto _map_it : dta->m_od_factory->m_origin_map) {
             _orig = _map_it.second;

@@ -24,13 +24,17 @@ public:
   Tdsp_Api();
   ~Tdsp_Api();
   int initialize(const std::string &folder, int max_interval, int num_rows_link_file, int num_rows_node_file,
-                 const std::string &link_cost_file_name, const std::string &node_cost_file_name);
+                 const std::string &link_tt_file_name = "td_link_tt", const std::string &node_tt_file_name = "td_node_tt",
+                 const std::string &link_cost_file_name = "td_link_cost", const std::string &node_cost_file_name = "td_node_cost");
   int build_tdsp_tree(int dest_node_ID);
   py::array_t<double> extract_tdsp(int origin_node_ID, int timestamp);
 
   TInt m_num_rows_link_file, m_num_rows_node_file, m_dest_node_ID, m_max_interval;
   PNEGraph m_graph;
   MNM_TDSP_Tree *m_tdsp_tree;
+
+  std::unordered_map<TInt, TFlt*> m_td_link_tt;
+  std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_td_node_tt;
   std::unordered_map<TInt, TFlt*> m_td_link_cost;
   std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_td_node_cost;
 };
@@ -73,6 +77,7 @@ public:
   // std::unordered_map<MNM_Dlink*, int> m_link_map; 
   std::unordered_map<TInt, MNM_Path*> m_ID_path_mapping;
 
+  std::unordered_map<TInt, TFlt *> m_link_tt_map;
   std::unordered_map<TInt, TFlt *> m_link_cost_map;
   std::unordered_map<TInt, bool *> m_link_congested;
 };
@@ -147,6 +152,10 @@ public:
   std::vector<MNM_Path*> m_path_vec;
   std::set<MNM_Path*> m_path_set; 
   std::unordered_map<TInt, MNM_Path*> m_ID_path_mapping;
+
+  // time-varying link tt
+  std::unordered_map<TInt, TFlt *> m_link_tt_map;
+  std::unordered_map<TInt, TFlt *> m_link_tt_map_truck;
 
   // time-varying link cost
   std::unordered_map<TInt, TFlt *> m_link_cost_map;
@@ -268,7 +277,7 @@ public:
     py::array_t<int> node_seq_to_link_seq_driving(py::array_t<int>node_IDs);
     py::array_t<int> node_seq_to_link_seq_bustransit(py::array_t<int>node_IDs);
 
-    // with m_mmdue -> m_link_cost_map and m_mmdue -> m_transitlink_cost_map
+    // with m_mmdue -> m_link_tt_map and m_mmdue -> m_transitlink_tt_map
     py::array_t<double> get_passenger_path_cost_driving(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
     py::array_t<double> get_passenger_path_cost_bus(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
     py::array_t<double> get_passenger_path_cost_pnr(py::array_t<int>link_IDs_driving, py::array_t<int>link_IDs_bustransit,
@@ -277,10 +286,10 @@ public:
     py::array_t<double> get_path_tt_car(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
     py::array_t<double> get_path_tt_truck(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
 
-    // with m_mmdue -> m_link_cost_map_truck
+    // with m_mmdue -> m_link_tt_map_truck
     py::array_t<double> get_registered_path_tt_truck(py::array_t<double>start_intervals);
     
-    // with m_mmdue -> m_link_cost_map and m_mmdue -> m_transitlink_cost_map
+    // with m_mmdue -> m_link_tt_map and m_mmdue -> m_transitlink_tt_map
     py::array_t<double> get_registered_path_tt_driving(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_tt_bustransit(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_tt_pnr(py::array_t<double>start_intervals);
@@ -289,7 +298,7 @@ public:
     py::array_t<double> get_registered_path_distance_bustransit();
     py::array_t<double> get_registered_path_distance_pnr();
 
-    // with m_mmdue -> m_link_cost_map and m_mmdue -> m_transitlink_cost_map
+    // with m_mmdue -> m_link_tt_map and m_mmdue -> m_transitlink_cost_map
     py::array_t<double> get_registered_path_cost_driving(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_cost_bustransit(py::array_t<double>start_intervals);
     py::array_t<double> get_registered_path_cost_pnr(py::array_t<double>start_intervals);

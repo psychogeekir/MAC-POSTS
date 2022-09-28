@@ -3120,6 +3120,7 @@ int MNM_Dta_Multiclass::build_from_files()
 	MNM_IO_Multiclass::build_demand_multiclass(m_file_folder, m_config, m_od_factory);
 	MNM_IO_Multiclass::read_origin_car_label_ratio(m_file_folder, m_config, m_od_factory);
 	MNM_IO_Multiclass::read_origin_truck_label_ratio(m_file_folder, m_config, m_od_factory);
+	MNM_IO::build_link_toll(m_file_folder, m_config, m_link_factory);
 	// build_workzone();
 	m_workzone = nullptr;
 	set_statistics();

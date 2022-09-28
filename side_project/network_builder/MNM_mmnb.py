@@ -1217,6 +1217,8 @@ class MNM_config():
             'num_of_car_labels': np.int,
             'num_of_truck_labels': np.int,
 
+            'num_of_tolled_link': np.int,
+
             # STAT
             'rec_mode': str, 
             'rec_mode_para': str, 
@@ -1230,6 +1232,7 @@ class MNM_config():
             
             # FIXED, ADAPTIVE
             'route_frq': np.int,
+            # 'vot': np.float,
             # self.config.config_dict['FIXED']['buffer_length'] is the number of columns in driving_path_table_buffer
             # when this is a multiclass problem, this is equal to total number of car and truck columns
             # DIFFERENT FROM Wei's MULTICLASS

@@ -205,6 +205,7 @@ int MNM_Dta::build_from_files()
   m_graph = MNM_IO::build_graph(m_file_folder, m_config);
   MNM_IO::build_demand(m_file_folder, m_config, m_od_factory);
   MNM_IO::read_origin_vehicle_label_ratio(m_file_folder, m_config, m_od_factory);
+  MNM_IO::build_link_toll(m_file_folder, m_config, m_link_factory);
   build_workzone();
   set_statistics();
   printf("Start building routing\n");

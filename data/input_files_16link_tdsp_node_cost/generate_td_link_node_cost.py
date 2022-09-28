@@ -17,13 +17,17 @@ for n in G.nodes:
 
 num_interval = 100
 num_node_cost = 10
-td_link_cost = np.zeros((G.number_of_edges(), num_interval), dtype=float)
-td_node_cost = np.zeros((num_node_cost, num_interval), dtype=float)
 
-td_link_cost = np.random.randint(1, 10, td_link_cost.shape)
-td_node_cost = np.random.randint(1, 5, td_node_cost.shape)
+# cost
+td_link_cost = np.random.random_sample((G.number_of_edges(), num_interval)) * 10
+td_node_cost = np.random.random_sample((num_node_cost, num_interval)) * 5
+
+# travel time
+td_link_tt = np.random.randint(1, 10, td_link_cost.shape)
+td_node_tt = np.random.randint(1, 5, td_node_cost.shape)
 
 link_ID = np.array([e[2]['edge_ID'] for e in G.edges(data=True)], dtype=int)
+
 td_link_cost = np.concatenate((link_ID[:, np.newaxis], td_link_cost), axis=1)
 assert(td_link_cost.shape[1] == num_interval + 1)
 
@@ -36,8 +40,21 @@ f = open(folder + 'td_link_cost', 'w')
 f.writelines(log)
 f.close()
 
+td_link_tt = np.concatenate((link_ID[:, np.newaxis], td_link_tt), axis=1)
+assert(td_link_tt.shape[1] == num_interval + 1)
+
+np.savetxt(folder + 'td_link_tt', td_link_tt, fmt='%d ' + (num_interval-1)*'%f ' + '%f')
+f = open(folder + 'td_link_tt', 'r')
+log = f.readlines()
+f.close()
+log.insert(0, 'link_ID td_tt\n')
+f = open(folder + 'td_link_tt', 'w')
+f.writelines(log)
+f.close()
+
 ind = np.random.choice(len(node_movement), num_node_cost, replace=False)
 node_ID = np.array([node_movement[i] for i in ind], dtype=int)
+
 td_node_cost = np.concatenate((node_ID, td_node_cost), axis=1)
 assert(td_node_cost.shape[1] == num_interval + 3)
 
@@ -47,5 +64,17 @@ log = f.readlines()
 f.close()
 log.insert(0, 'node_ID in_link_ID out_link_ID td_cost\n')
 f = open(folder + 'td_node_cost', 'w')
+f.writelines(log)
+f.close()
+
+td_node_tt = np.concatenate((node_ID, td_node_tt), axis=1)
+assert(td_node_tt.shape[1] == num_interval + 3)
+
+np.savetxt(folder + 'td_node_tt', td_node_tt, fmt='%d %d %d ' + (num_interval-1)*'%f ' + '%f')
+f = open(folder + 'td_node_tt', 'r')
+log = f.readlines()
+f.close()
+log.insert(0, 'node_ID in_link_ID out_link_ID td_tt\n')
+f = open(folder + 'td_node_tt', 'w')
 f.writelines(log)
 f.close()

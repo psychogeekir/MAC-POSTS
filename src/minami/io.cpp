@@ -747,6 +747,48 @@ int MNM_IO::dump_cumulative_curve(const std::string& file_folder, MNM_Link_Facto
   return 0;
 }
 
+int MNM_IO::build_link_toll(const std::string& file_folder, MNM_ConfReader *conf_reader, MNM_Link_Factory *link_factory, const std::string& file_name)
+{
+  /* find file */
+  std::string _file_name = file_folder + "/" + file_name;
+  std::ifstream _file;
+  _file.open(_file_name, std::ios::in);  
+
+  std::string _line;
+  std::vector<std::string> _words;
+  TInt _link_ID;
+
+  if (_file.is_open())
+  { 
+    TInt _num_of_tolled_link = conf_reader -> get_int("num_of_tolled_link");
+    if (_num_of_tolled_link <= 0) {
+      _file.close();
+      printf("No tolled links.\n");
+      return 0;
+    }
+
+    printf("Start build link toll.\n");
+    std::getline(_file, _line); // #link_ID toll
+    for (int i=0; i < _num_of_tolled_link; ++i){
+      std::getline(_file, _line);
+      // std::cout << "Processing: " << _line << "\n";
+      
+      _words = split(_line, ' ');
+      if (TInt(_words.size()) == 2) {
+        _link_ID = TInt(std::stoi(trim(_words[0])));
+        link_factory -> get_link(_link_ID) -> m_toll = TFlt(std::stof(trim(_words[1])));
+      }
+      else{
+        printf("Something wrong in build_link_toll!\n");
+        exit(-1);
+      }
+    }
+    _file.close();
+    printf("Finish build link toll.\n");
+  }  
+  return 0;
+}
+
 std::vector<std::string> MNM_IO::split(const std::string &text, char sep) 
 {
   std::vector<std::string> tokens;
@@ -781,7 +823,7 @@ int MNM_IO::read_td_link_cost(const std::string& file_folder, std::unordered_map
 
   if (_file.is_open())
   {
-    printf("Start reading td link cost file.\n");
+    std::cout << "Start reading " << file_name << "\n";
     std::getline(_file,_line); // skip the header
     for (int i=0; i < num_rows; ++i){
       std::getline(_file,_line);
@@ -838,7 +880,7 @@ int MNM_IO::read_td_node_cost(const std::string& file_folder, std::unordered_map
 
   if (_file.is_open())
   {
-    printf("Start reading td node cost file.\n");
+    std::cout << "Start reading " << file_name << "\n";
     std::getline(_file,_line); // skip the header
     for (int i=0; i < num_rows; ++i){
       std::getline(_file,_line);

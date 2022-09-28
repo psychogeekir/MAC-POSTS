@@ -77,6 +77,7 @@ public:
 
   int install_cumulative_curve();
   int install_cumulative_curve_tree();
+
 // protected:
   DLink_type m_link_type;
   TInt m_link_ID;
@@ -93,6 +94,8 @@ public:
   TFlt m_last_valid_time = TFlt(-1);
   MNM_Tree_Cumulative_Curve *m_N_in_tree;
   MNM_Tree_Cumulative_Curve *m_N_out_tree;
+
+  TFlt m_toll = 0.;
 
 //protected:
   virtual int move_veh_queue(std::deque<MNM_Veh*> *from_queue, std::deque<MNM_Veh*> *to_queue, TInt number_tomove);

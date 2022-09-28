@@ -47,13 +47,14 @@ public:
     MNM_ConfReader *m_dta_config;
     MNM_ConfReader *m_due_config;
 
+    TFlt m_vot;
     TFlt m_early_rate;
     TFlt m_late_rate;
     TFlt m_target_time;
     TFlt m_step_size;
 
-
-    std::unordered_map<TInt, TFlt *> m_cost_map;
+    std::unordered_map<TInt, TFlt *> m_link_tt_map;
+    std::unordered_map<TInt, TFlt *> m_link_cost_map;
 
 };
 

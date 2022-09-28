@@ -282,7 +282,7 @@ int MNM_Statistics_Lrn::update_record(TInt timestamp)
     if ((timestamp) % m_n == 0 || timestamp == 0){
       for (auto _link_it : m_link_factory -> m_link_map){
         _link = _link_it.second;
-        _flow = _link -> get_link_tt();
+        _flow = _link -> get_link_tt();  // seconds
         m_load_interval_tt.find(_link -> m_link_ID) -> second = _flow;
         if (timestamp == 0) {
             m_record_interval_tt.find(_link -> m_link_ID) -> second = _flow;
@@ -297,7 +297,7 @@ int MNM_Statistics_Lrn::update_record(TInt timestamp)
     else{
       for (auto _link_it : m_link_factory -> m_link_map){
         _link = _link_it.second;
-        _flow = _link -> get_link_tt();
+        _flow = _link -> get_link_tt();  // seconds
         m_load_interval_tt.find(_link -> m_link_ID) -> second = _flow;
         m_to_be_tt.find(_link -> m_link_ID) -> second += _flow/TFlt(m_n);
       }      

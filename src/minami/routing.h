@@ -50,11 +50,14 @@ public:
                        MNM_OD_Factory *od_factory, MNM_Node_Factory *node_factory, MNM_Link_Factory *link_factory);
   virtual ~MNM_Routing_Adaptive() override;
   virtual int init_routing(Path_Table *path_table=nullptr) override;
+  int update_link_cost();
   virtual int update_routing(TInt timestamp) override;
 // private:
   MNM_Statistics* m_statistics;
+  std::unordered_map<TInt, TFlt> m_link_cost;
   Routing_Table *m_table;
   TInt m_routing_freq;
+  TFlt m_vot;
   MNM_ConfReader *m_self_config;
 };
 

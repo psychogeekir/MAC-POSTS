@@ -396,11 +396,12 @@ class MCDODE():
         # print("x_e", x_e, link_flow_array)
         if self.config['car_count_agg']:
             x_e = one_data_dict['car_count_agg_L'].dot(x_e)
-        grad = -np.nan_to_num(link_flow_array - x_e)
+        discrepancy = np.nan_to_num(link_flow_array - x_e)
+        grad = - discrepancy
         if self.config['car_count_agg']:
             grad = one_data_dict['car_count_agg_L'].T.dot(grad)
         # print("final link grad", grad)
-        assert(np.all(~np.isnan(grad)))
+        # assert(np.all(~np.isnan(grad)))
         return grad, x_e
   
     def _compute_grad_on_truck_link_flow(self, dta, one_data_dict):
@@ -409,10 +410,11 @@ class MCDODE():
                                         np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
         if self.config['truck_count_agg']:
             x_e = one_data_dict['truck_count_agg_L'].dot(x_e)
-        grad = -np.nan_to_num(link_flow_array - x_e)
+        discrepancy = np.nan_to_num(link_flow_array - x_e)
+        grad = - discrepancy
         if self.config['truck_count_agg']:
             grad = one_data_dict['truck_count_agg_L'].T.dot(grad)
-        assert(np.all(~np.isnan(grad)))
+        # assert(np.all(~np.isnan(grad)))
         return grad, x_e
 
     def _compute_grad_on_car_link_tt(self, dta, one_data_dict):
@@ -426,13 +428,14 @@ class MCDODE():
         # tt_o = one_data_dict['car_link_tt']
         # print('o-----', tt_o)
         # print('e-----', tt_e)
-        grad = -np.nan_to_num((tt_o - tt_e) /tt_o)
+        discrepancy = np.nan_to_num(tt_o - tt_e)
+        grad = - discrepancy
         # print('g-----', grad)
         # if self.config['car_count_agg']:
         #   grad = one_data_dict['car_count_agg_L'].T.dot(grad)
         # print(tt_e, tt_o)
         # print("car_grad", grad)
-        assert(np.all(~np.isnan(grad)))
+        # assert(np.all(~np.isnan(grad)))
         return grad, tt_e
 
     def _compute_grad_on_truck_link_tt(self, dta, one_data_dict):
@@ -443,11 +446,12 @@ class MCDODE():
         tt_free = np.tile(dta.get_truck_link_fftt(self.observed_links), (self.num_assign_interval))
         tt_e = np.maximum(tt_e, tt_free)
         tt_o = np.maximum(one_data_dict['truck_link_tt'], tt_free)
-        grad = -np.nan_to_num((tt_o - tt_e) /tt_o)
+        discrepancy = np.nan_to_num(tt_o - tt_e)
+        grad = - discrepancy
         # if self.config['truck_count_agg']:
         #   grad = one_data_dict['truck_count_agg_L'].T.dot(grad)
         # print("truck_grad", grad)
-        assert(np.all(~np.isnan(grad)))
+        # assert(np.all(~np.isnan(grad)))
         return grad, tt_e
 
     def _compute_grad_on_origin_vehicle_registration_data(self, one_data_dict, f_car, f_truck):
@@ -576,7 +580,7 @@ class MCDODE():
     def estimate_path_flow_pytorch(self, car_step_size=0.1, truck_step_size=0.1, 
                                     link_car_flow_weight=1, link_truck_flow_weight=1, 
                                     link_car_tt_weight=1, link_truck_tt_weight=1, origin_vehicle_registration_weight=1,
-                                    max_epoch=10, algo='NAdam',
+                                    max_epoch=10, algo='NAdam', normalized_by_scale = True,
                                     car_init_scale=10,
                                     truck_init_scale=1, 
                                     store_folder=None, 
@@ -621,10 +625,12 @@ class MCDODE():
             
             f_car, f_truck = best_f_car, best_f_truck
 
-        # f_car_tensor = torch.from_numpy(f_car / np.maximum(car_init_scale, 1e-6))
-        # f_truck_tensor = torch.from_numpy(f_truck / np.maximum(truck_init_scale, 1e-6))
-        f_car_tensor = torch.from_numpy(f_car)
-        f_truck_tensor = torch.from_numpy(f_truck)
+        if normalized_by_scale:
+            f_car_tensor = torch.from_numpy(f_car / np.maximum(car_init_scale, 1e-6))
+            f_truck_tensor = torch.from_numpy(f_truck / np.maximum(truck_init_scale, 1e-6))
+        else:
+            f_car_tensor = torch.from_numpy(f_car)
+            f_truck_tensor = torch.from_numpy(f_truck)
 
         f_car_tensor.requires_grad = True
         f_truck_tensor.requires_grad = True
@@ -668,20 +674,24 @@ class MCDODE():
 
                 optimizer.zero_grad()
 
-                # f_car_tensor.grad = torch.from_numpy(car_grad * car_init_scale)
-                # f_truck_tensor.grad = torch.from_numpy(truck_grad * truck_init_scale)
-                f_car_tensor.grad = torch.from_numpy(car_grad)
-                f_truck_tensor.grad = torch.from_numpy(truck_grad)
+                if normalized_by_scale:
+                    f_car_tensor.grad = torch.from_numpy(car_grad * car_init_scale)
+                    f_truck_tensor.grad = torch.from_numpy(truck_grad * truck_init_scale)
+                else:
+                    f_car_tensor.grad = torch.from_numpy(car_grad)
+                    f_truck_tensor.grad = torch.from_numpy(truck_grad)
 
                 optimizer.step()
 
                 car_grad, truck_grad = 0, 0
                 optimizer.zero_grad()
 
-                # f_car = f_car_tensor.data.cpu().numpy() * car_init_scale
-                # f_truck = f_truck_tensor.data.cpu().numpy() * truck_init_scale
-                f_car = f_car_tensor.data.cpu().numpy()
-                f_truck = f_truck_tensor.data.cpu().numpy()
+                if normalized_by_scale:
+                    f_car = f_car_tensor.data.cpu().numpy() * car_init_scale
+                    f_truck = f_truck_tensor.data.cpu().numpy() * truck_init_scale
+                else:
+                    f_car = f_car_tensor.data.cpu().numpy()
+                    f_truck = f_truck_tensor.data.cpu().numpy()
             
                 f_car = np.maximum(f_car, 1e-6)
                 f_truck = np.maximum(f_truck, 1e-6)

@@ -138,7 +138,7 @@ dta = dode._run_simulation(true_f_car, true_f_truck)
 # dta.print_simulation_results(os.path.join(data_folder, 'record'), 12)
 (true_dar_car, true_dar_truck) = dode.get_dar(dta, true_f_car, true_f_truck)
 
-noise_level = 0.1
+noise_level = 0.01
 # true time-dependent link flow
 true_car_x = true_dar_car.dot(true_f_car)
 true_truck_x = true_dar_truck.dot(true_f_truck)
@@ -227,7 +227,7 @@ dode.add_data(data_dict)
 #                                                          truck_init_scale = 10, adagrad = True)
 
 (f_car, f_truck, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand, loss_list) = \
-    dode.estimate_path_flow_pytorch(max_epoch = 50, algo='NAdam', 
+    dode.estimate_path_flow_pytorch(max_epoch = 50, algo='NAdam', normalized_by_scale = True,
                                     car_step_size = 2, truck_step_size = 1, 
                                     car_init_scale = 5, truck_init_scale = 2, 
                                     link_car_flow_weight=1, link_truck_flow_weight=1, 

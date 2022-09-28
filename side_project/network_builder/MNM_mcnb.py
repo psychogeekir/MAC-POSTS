@@ -622,6 +622,7 @@ class MNM_config():
             'init_demand_split': np.int, 
             'num_of_car_labels': np.int,
             'num_of_truck_labels': np.int,
+            'num_of_tolled_link': np.int,
 
             # STAT
             'rec_mode': str, 
@@ -636,6 +637,7 @@ class MNM_config():
 
             # FIXED, ADAPTIVE
             'route_frq': np.int, 
+            'vot': np.float,
             'path_file_name': str, 
             'num_path': np.int,
             'choice_portion': str, 

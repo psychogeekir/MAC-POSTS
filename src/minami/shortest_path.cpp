@@ -691,7 +691,7 @@ int MNM_TDSP_Tree::initialize() {
     return 0;
 }
 
-int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt *> &cost_map) {
+int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt *> &link_cost_map, const std::unordered_map<TInt, TFlt*>& link_tt_map) {
     // printf("Init in update tree\n");
     // init tree and cost
     
@@ -710,12 +710,12 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt *> &cost_map)
     // run last time interval
     // MNM_Shortest_Path::all_to_one_Dijkstra(m_dest_node_ID, m_graph, cost_map, m_dist, m_tree,
     //                                        m_max_interval - 1, m_max_interval - 1, m_max_interval - 1);
-    MNM_Shortest_Path::all_to_one_FIFO(m_dest_node_ID, m_graph, cost_map, m_dist, m_tree,
+    MNM_Shortest_Path::all_to_one_FIFO(m_dest_node_ID, m_graph, link_cost_map, m_dist, m_tree,
                                        m_max_interval - 1, m_max_interval - 1, m_max_interval - 1);
     // printf("Process M-2 to 0\n");
     // main loop for t = M-2 down to 0
     // construct m_dist and m_tree in a reverse time order
-    TFlt _temp_cost, _edge_cost;
+    TFlt _temp_cost, _edge_cost, _edge_tt;
     TInt _src_node, _dst_node;
     for (int t = m_max_interval - 2; t > -1; t--) {
         // printf("%d\n", t);
@@ -732,12 +732,12 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt *> &cost_map)
         for (auto _edge_it = m_graph->BegEI(); _edge_it < m_graph->EndEI(); _edge_it++) {
             _dst_node = _edge_it.GetDstNId();
             _src_node = _edge_it.GetSrcNId();
-            _edge_cost = cost_map.find(_edge_it.GetId()) -> second[t];
+            _edge_cost = link_cost_map.find(_edge_it.GetId()) -> second[t];
+            _edge_tt = link_tt_map.find(_edge_it.GetId()) -> second[t];
             if (std::isinf(_edge_cost)) {
                 continue;
             }
-            // _temp_cost = _edge_cost + get_distance_to_destination(_dst_node, TFlt(t) + _edge_cost);
-            _temp_cost = _edge_cost + get_distance_to_destination(_dst_node, t, _edge_cost, 1e-4);
+            _temp_cost = _edge_cost + get_distance_to_destination(_dst_node, t, _edge_tt, 1e-4);
             if (m_dist[_src_node][t] > _temp_cost) {
                 // printf("At time %d, src %d to des %d, m_dist is %f, _temp_cost is %f\n", t, _src_node(),
                 //        _edge_it.GetDstNId(), (float) m_dist[_src_node][t], (float) _temp_cost);
@@ -751,7 +751,9 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt *> &cost_map)
 }
 
 int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt*>& link_cost_map, 
-                               const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_cost_map) {
+                               const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_cost_map,
+                               const std::unordered_map<TInt, TFlt*>& link_tt_map, 
+                               const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_tt_map) {
     // printf("Init in update tree\n");
     // init tree and cost
     
@@ -773,7 +775,7 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt*>& link_cost_
     // printf("Process M-2 to 0\n");
     // main loop for t = M-2 down to 0
     // construct m_dist and m_tree in a reverse time order
-    TFlt _temp_cost, _edge_cost;
+    TFlt _temp_cost, _temp_tt, _edge_cost, _edge_tt;
     TInt _src_node, _dst_node;
     for (int t = m_max_interval - 2; t > -1; t--) {
         // printf("%d\n", t);
@@ -794,22 +796,22 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt*>& link_cost_
             _src_node = _edge_it.GetSrcNId();
             // _src_node -> _edge_cost -> _dst_node -> node_cost -> the beigining of next link after _dst_node
             _edge_cost = link_cost_map.find(_edge_it.GetId()) -> second[t];
+            _edge_tt = link_tt_map.find(_edge_it.GetId()) -> second[t];
             if (std::isinf(_edge_cost)) {
                 continue;
             }
             _temp_cost = _edge_cost;
+            _temp_tt = _edge_tt;
             if (_dst_node != m_dest_node_ID) {
-                // _out_edge_ID = m_tree[_dst_node][round_time(TFlt(t) + _temp_cost)];
-                _out_edge_ID = m_tree[_dst_node][round_time(t, _temp_cost)];
+                _out_edge_ID = m_tree[_dst_node][round_time(t, _temp_tt)];
                 if (_out_edge_ID != -1 &&
                     node_cost_map.find(_in_edge_ID) != node_cost_map.end() && 
                     node_cost_map.find(_in_edge_ID) -> second.find(_out_edge_ID) != node_cost_map.find(_in_edge_ID) -> second.end()) {
-                    // _temp_cost += node_cost_map.find(_in_edge_ID) -> second.find(_out_edge_ID) -> second[round_time(TFlt(t) + _temp_cost)];
-                    _temp_cost += node_cost_map.find(_in_edge_ID) -> second.find(_out_edge_ID) -> second[round_time(t, _temp_cost)];  // node cost can be zero
+                    _temp_cost += node_cost_map.find(_in_edge_ID) -> second.find(_out_edge_ID) -> second[round_time(t, _temp_tt)];  // node cost can be zero
+                    _temp_tt += node_tt_map.find(_in_edge_ID) -> second.find(_out_edge_ID) -> second[round_time(t, _temp_tt)];  // node tt can be zero
                 }
             }
-            // _temp_cost += get_distance_to_destination(_dst_node, TFlt(t) + _temp_cost);
-            _temp_cost += get_distance_to_destination(_dst_node, t, _temp_cost);
+            _temp_cost += get_distance_to_destination(_dst_node, t, _temp_tt);
             if (m_dist[_src_node][t] > _temp_cost) {
                 // printf("At time %d, src %d to des %d, m_dist is %f, _temp_cost is %f\n", t, _src_node(),
                 //        _edge_it.GetDstNId(), (float) m_dist[_src_node][t], (float) _temp_cost);
@@ -822,7 +824,7 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt*>& link_cost_
     return 0;
 }
 
-int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_map<TInt, TFlt *> &cost_map,
+int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_map<TInt, TFlt *> &link_tt_map,
                             MNM_Path *path) {
     TInt _cur_node_ID = src_node_ID;
     TInt _cur_link_ID;
@@ -838,8 +840,8 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_ma
             return -1;
         } 
         path->m_link_vec.push_back(_cur_link_ID);
-        // _cur_time += cost_map.find(_cur_link_ID) -> second[round_time(_cur_time)];
-        _cur_time = round_time(_cur_time, cost_map.find(_cur_link_ID) -> second[_cur_time]);
+        // _cur_time += link_tt_map.find(_cur_link_ID) -> second[round_time(_cur_time)];
+        _cur_time = round_time(_cur_time, link_tt_map.find(_cur_link_ID) -> second[_cur_time]);
         _cur_node_ID = m_graph->GetEI(_cur_link_ID).GetDstNId();
     }
     path->m_node_vec.push_back(m_dest_node_ID);
@@ -847,16 +849,14 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_ma
 }
 
 int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, 
-                            const std::unordered_map<TInt, TFlt *> &link_cost_map,
-                            const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &node_cost_map,
+                            const std::unordered_map<TInt, TFlt *> &link_tt_map,
+                            const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &node_tt_map,
                             MNM_Path *path) {
     TInt _cur_node_ID = src_node_ID;
     TInt _cur_link_ID;
-    // TFlt _cur_time = TFlt(time);
     int _cur_time = int(time) < (int)m_max_interval ? int(time) : (int)m_max_interval - 1;
     while (_cur_node_ID != m_dest_node_ID) {
         path->m_node_vec.push_back(_cur_node_ID);
-        // _cur_link_ID = m_tree[_cur_node_ID][round_time(_cur_time)];
         _cur_link_ID = m_tree[_cur_node_ID][_cur_time];
         if (_cur_link_ID == -1) {
             printf("No available path between node %d and node %d\n", src_node_ID(), m_dest_node_ID());
@@ -867,13 +867,13 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time,
         // first node cost, then link cost
         if (_cur_node_ID != src_node_ID &&
             path->m_link_vec.size() >= 2 &&
-            node_cost_map.find(path->m_link_vec[path->m_link_vec.size()-2]) != node_cost_map.end() &&
-            node_cost_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) != node_cost_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.end()) {
-            // _cur_time += node_cost_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[round_time(_cur_time)];
-            _cur_time += int(ceil(node_cost_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[_cur_time]));  // node cost can be zero
+            node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) != node_tt_map.end() &&
+            node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) != node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.end()) {
+            // _cur_time += node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[round_time(_cur_time)];
+            _cur_time += int(ceil(node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[_cur_time]));  // node tt can be zero
         }
-        // _cur_time += link_cost_map.find(_cur_link_ID) -> second[round_time(_cur_time)];
-        _cur_time = round_time(_cur_time, link_cost_map.find(_cur_link_ID) -> second[_cur_time]);  // link cost cannot be zero
+        // _cur_time += link_tt_map.find(_cur_link_ID) -> second[round_time(_cur_time)];
+        _cur_time = round_time(_cur_time, link_tt_map.find(_cur_link_ID) -> second[_cur_time]);  // link tt cannot be zero
         _cur_node_ID = m_graph->GetEI(_cur_link_ID).GetDstNId();
     }
     path->m_node_vec.push_back(m_dest_node_ID);
