@@ -192,16 +192,30 @@ namespace MNM_DTA_GRADIENT {
         return TFlt(_end_time - start_time);  // # of unit intervals
     }
 
-    TFlt get_path_travel_time(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map, TInt end_loading_timestamp){
+    TFlt get_path_travel_time(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_tt_map, TInt end_loading_timestamp){
         // start_time means the actual departure time
         if (path == nullptr) {
             throw std::runtime_error("Error, get_path_travel_time path is null");
         }
         int _cur_time = int(round(start_time));
         for (TInt _link_ID : path->m_link_vec) {
-            _cur_time += MNM_Ults::round_up_time(link_cost_map[_link_ID][_cur_time < (int)end_loading_timestamp ? _cur_time : (int)end_loading_timestamp - 1]);
+            _cur_time += MNM_Ults::round_up_time(link_tt_map[_link_ID][_cur_time < (int)end_loading_timestamp ? _cur_time : (int)end_loading_timestamp - 1]);
         }
         return TFlt(_cur_time - start_time);
+    }
+
+    TFlt get_path_travel_cost(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_tt_map, std::unordered_map<TInt, TFlt*> &link_cost_map, TInt end_loading_timestamp) {
+        // start_time means the actual departure time
+        if (path == nullptr) {
+            throw std::runtime_error("Error, get_path_travel_time path is null");
+        }
+        int _cur_time = int(round(start_time));
+        TFlt _cost = 0.;
+        for (TInt _link_ID : path->m_link_vec) {
+            _cost += link_cost_map[_link_ID][_cur_time < (int)end_loading_timestamp ? _cur_time : (int)end_loading_timestamp - 1];
+            _cur_time += MNM_Ults::round_up_time(link_tt_map[_link_ID][_cur_time < (int)end_loading_timestamp ? _cur_time : (int)end_loading_timestamp - 1]);
+        }
+        return _cost;
     }
 
     int add_dar_records(std::vector<dar_record *> &record, MNM_Dlink *link,

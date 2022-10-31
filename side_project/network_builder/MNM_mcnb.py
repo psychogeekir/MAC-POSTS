@@ -1006,3 +1006,73 @@ class MNM_network_builder():
     #     f[:, i] = path.route_portions * self.demand.demand_dict[self.od.O_dict.inv[path.origin_node]][self.od.D_dict.inv[path.destination_node]][0]
     #     f_truck[:, i] = path.truck_route_portions  * self.demand.demand_dict[self.od.O_dict.inv[path.origin_node]][self.od.D_dict.inv[path.destination_node]][1]
     #   return f.flatten(), f_truck.flatten()
+
+    def update_path_table(self, dta, start_intervals):
+        # start_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+
+        dta.update_tdsp_tree()  # dta.build_link_cost_map() should be called before this method
+
+        _reorder_flg = False
+        _path_result_rec_dict = dict()
+        for interval in start_intervals:
+
+            for (O_ID, D_ID) in self.demand.demand_list:
+                O_node_ID = self.od.O_dict[O_ID]
+                D_node_ID = self.od.D_dict[D_ID]
+                if (O_ID, D_ID) not in _path_result_rec_dict:
+                    _path_result_rec_dict[(O_ID, D_ID)] = list()
+                _path_result_rec = _path_result_rec_dict[(O_ID, D_ID)]
+
+                _path_result = dta.get_lowest_cost_path(interval, O_node_ID, D_node_ID)
+                
+                assert(_path_result.shape[0] == 4)
+                _exist = _path_result[0, 0]
+                if not _exist:
+                    _reorder_flg = True
+                    _add_flag = True
+                    if len(_path_result_rec) > 0:
+                        for _path_result_old in _path_result_rec:
+                            if len(_path_result_old.flatten()) == len(_path_result.flatten()):
+                                if np.sum(np.abs(_path_result_old - _path_result)) == 0:
+                                    _add_flag = False
+                                    break
+                    if _add_flag:
+                        _path_result_rec.append(_path_result)
+                assert(len(_path_result_rec_dict[(O_ID, D_ID)]) == len(_path_result_rec))
+        
+        if _reorder_flg:
+            for (O_ID, D_ID) in self.demand.demand_list:
+                O_node_ID = self.od.O_dict[O_ID]
+                D_node_ID = self.od.D_dict[D_ID]
+                _path_result_rec = _path_result_rec_dict[(O_ID, D_ID)]
+
+                if len(_path_result_rec) > 0:
+                    for _path_result in _path_result_rec:
+                        _node_vec_driving = _path_result[2, :]
+                        assert(np.min(_node_vec_driving) >= 0)
+                        _link_vec_driving = _path_result[3, :-1]
+                        path_tt_cost_car = dta.get_path_tt_car(_link_vec_driving, start_intervals)
+                        path_tt_cost_truck = dta.get_path_tt_truck(_link_vec_driving, start_intervals)
+                        assert(path_tt_cost_car.shape[0] == 2 and path_tt_cost_car.shape[1] == len(start_intervals) and path_tt_cost_truck.shape[0] == 2 and path_tt_cost_truck.shape[1] == len(start_intervals))
+
+                        id_max = np.max(np.array([i for i in self.path_table.ID2path.keys()], dtype=int))
+                        tmp_path = MNM_path(_node_vec_driving, id_max+1)
+                        tmp_path.create_route_choice_portions(len(start_intervals))
+                        tmp_path.path_cost_car = path_tt_cost_car[1, :]
+                        tmp_path.path_cost_truck = path_tt_cost_truck[1, :]
+                        self.path_table.path_dict[O_node_ID][D_node_ID].add_path(tmp_path)
+                        self.path_table.ID2path[id_max+1] = tmp_path
+                        
+
+            # reorder
+            self.config.config_dict['FIXED']['num_path'] = len(self.path_table.ID2path)
+
+            # driving
+            path_count = 0
+            new_ID2path = OrderedDict()
+            for k, v in enumerate(self.path_table.ID2path.values()):
+                new_ID2path[k + path_count] = v
+                v.path_ID = k + path_count
+            self.path_table.ID2path = new_ID2path
+
+            print("update_path_table")

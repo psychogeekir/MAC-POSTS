@@ -61,7 +61,7 @@ int main()
     tdsp_tree -> initialize();
     printf("Update tree\n");
     tdsp_tree -> update_tree(td_link_cost, td_node_cost, td_link_tt, td_node_tt);
-    TFlt tmp_cost;
+    TFlt tmp_cost, _tt;
     MNM_Path *_path;
     std::string _str;
     for (int i=0; i<max_interval; ++i){
@@ -69,7 +69,8 @@ int main()
         tmp_cost = tdsp_tree -> m_dist[ori_node_ID][i];
         printf("At time %d, minimum cost is %f\n", i, tmp_cost());
         _path = new MNM_Path();
-        tdsp_tree -> get_tdsp(ori_node_ID, i, td_link_tt, td_node_tt, _path);
+        _tt = tdsp_tree -> get_tdsp(ori_node_ID, i, td_link_tt, td_node_tt, _path);
+        printf("travel time: %f\n", _tt());
         printf("number of nodes %d\n", int(_path -> m_node_vec.size()));
         _str = _path -> node_vec_to_string();
         std::cout << "path: " << _str << "\n";

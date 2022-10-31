@@ -614,9 +614,9 @@ TFlt get_travel_time_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt uni
 TFlt get_travel_time_truck_robust(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials = TInt(10));
 
 TFlt get_path_travel_time_car(MNM_Path *path, TFlt start_time, MNM_Link_Factory* link_factory, TFlt unit_interval, TInt end_loading_timestamp);
-TFlt get_path_travel_time_car(MNM_Path *path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map_car, TInt end_loading_timestamp);
+TFlt get_path_travel_time_car(MNM_Path *path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_tt_map_car, TInt end_loading_timestamp);
 TFlt get_path_travel_time_truck(MNM_Path *path, TFlt start_time, MNM_Link_Factory* link_factory, TFlt unit_interval, TInt end_loading_timestamp);
-TFlt get_path_travel_time_truck(MNM_Path *path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map_truck, TInt end_loading_timestamp);
+TFlt get_path_travel_time_truck(MNM_Path *path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_tt_map_truck, TInt end_loading_timestamp);
 
 int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
                     std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time);
@@ -639,7 +639,7 @@ namespace MNM
 {
 int print_vehicle_statistics(MNM_Veh_Factory_Multiclass *veh_factory);
 Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, 
-                                     TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
+                                     TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt vot = 6., TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
 }
 
 /******************************************************************************************************************

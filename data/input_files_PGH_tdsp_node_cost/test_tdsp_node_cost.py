@@ -26,9 +26,10 @@ tdsp_api.build_tdsp_tree(dest_node_ID)
 # %%
 timestamp = 1000
 tdsp = tdsp_api.extract_tdsp(origin_node_ID, timestamp)
-# tdsp : number of nodes * 3
+# tdsp : number of nodes * 4
 # first col: node sequence
 # second col: link sequence with last element being -1
 # third col: first element being the travel cost
+# fourth col: first element being the travel time
 print(tdsp)
 # %%

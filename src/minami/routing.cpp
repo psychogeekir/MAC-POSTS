@@ -108,7 +108,7 @@ MNM_Routing_Adaptive::MNM_Routing_Adaptive(const std::string& file_folder, PNEGr
   catch (const std::invalid_argument& ia)
   {
     std::cout << "vot does not exist in config.conf/ADAPTIVE, use default value 2. instead\n";
-    m_vot = 2 / 3600.;
+    m_vot = 2. / 3600.;
   }
   
   m_table = new Routing_Table();

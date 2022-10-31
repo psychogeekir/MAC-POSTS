@@ -68,13 +68,13 @@ public:
   virtual bool is_in(MNM_Path* path);
 };
 
-// <O, <D, Pathset>>
+// <O_node_ID, <D_node_ID, Pathset>>
 typedef std::unordered_map<TInt, std::unordered_map<TInt, MNM_Pathset*>*> Path_Table;
 
 namespace MNM {
   MNM_Path *extract_path(TInt origin_ID, TInt dest_ID, std::unordered_map<TInt, TInt> &output_map, PNEGraph &graph);
   Path_Table *build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, 
-                            TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
+                            TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt vot = 3., TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
   int save_path_table(const std::string& file_folder, Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer= false);
   int print_path_table(Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer= false);
   Path_Table *build_shortest_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory);

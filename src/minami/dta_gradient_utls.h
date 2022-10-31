@@ -42,7 +42,8 @@ TFlt get_travel_time_from_FD(MNM_Dlink* link, TFlt start_time, TFlt unit_interva
 TFlt get_travel_time(MNM_Dlink* link, TFlt start_time, TFlt unit_interval, TInt end_loading_timestamp);
 TFlt get_travel_time_robust(MNM_Dlink* link, TFlt start_time, TFlt end_time, TFlt unit_interval, TInt end_loading_timestamp, TInt num_trials=TInt(10));
 TFlt get_path_travel_time(MNM_Path* path, TFlt start_time, MNM_Link_Factory* link_factory, TFlt unit_interval, TInt end_loading_timestamp);
-TFlt get_path_travel_time(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map, TInt end_loading_timestamp);
+TFlt get_path_travel_time(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_tt_map, TInt end_loading_timestamp);
+TFlt get_path_travel_cost(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_tt_map, std::unordered_map<TInt, TFlt*> &link_cost_map, TInt end_loading_timestamp);
 
 int add_dar_records(std::vector<dar_record*> &record, MNM_Dlink* link, 
                     std::unordered_map<MNM_Path*, int> path_map, TFlt start_time, TFlt end_time);

@@ -824,11 +824,11 @@ int MNM_TDSP_Tree::update_tree(const std::unordered_map<TInt, TFlt*>& link_cost_
     return 0;
 }
 
-int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_map<TInt, TFlt *> &link_tt_map,
+TFlt MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_map<TInt, TFlt *> &link_tt_map,
                             MNM_Path *path) {
     TInt _cur_node_ID = src_node_ID;
     TInt _cur_link_ID;
-    // TFlt _cur_time = TFlt(time);
+    TFlt _tt = 0.;
     int _cur_time = int(time) < (int)m_max_interval ? int(time) : (int)m_max_interval - 1;
     while (_cur_node_ID != m_dest_node_ID) {
         path->m_node_vec.push_back(_cur_node_ID);
@@ -840,20 +840,21 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, const std::unordered_ma
             return -1;
         } 
         path->m_link_vec.push_back(_cur_link_ID);
-        // _cur_time += link_tt_map.find(_cur_link_ID) -> second[round_time(_cur_time)];
+        _tt += link_tt_map.find(_cur_link_ID) -> second[_cur_time];
         _cur_time = round_time(_cur_time, link_tt_map.find(_cur_link_ID) -> second[_cur_time]);
         _cur_node_ID = m_graph->GetEI(_cur_link_ID).GetDstNId();
     }
     path->m_node_vec.push_back(m_dest_node_ID);
-    return 0;
+    return _tt;
 }
 
-int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, 
+TFlt MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time, 
                             const std::unordered_map<TInt, TFlt *> &link_tt_map,
                             const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &node_tt_map,
                             MNM_Path *path) {
     TInt _cur_node_ID = src_node_ID;
     TInt _cur_link_ID;
+    TFlt _tt = 0.;
     int _cur_time = int(time) < (int)m_max_interval ? int(time) : (int)m_max_interval - 1;
     while (_cur_node_ID != m_dest_node_ID) {
         path->m_node_vec.push_back(_cur_node_ID);
@@ -869,15 +870,15 @@ int MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time,
             path->m_link_vec.size() >= 2 &&
             node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) != node_tt_map.end() &&
             node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) != node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.end()) {
-            // _cur_time += node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[round_time(_cur_time)];
+            _tt += node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[_cur_time];
             _cur_time += int(ceil(node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[_cur_time]));  // node tt can be zero
         }
-        // _cur_time += link_tt_map.find(_cur_link_ID) -> second[round_time(_cur_time)];
+        _tt += link_tt_map.find(_cur_link_ID) -> second[_cur_time];
         _cur_time = round_time(_cur_time, link_tt_map.find(_cur_link_ID) -> second[_cur_time]);  // link tt cannot be zero
         _cur_node_ID = m_graph->GetEI(_cur_link_ID).GetDstNId();
     }
     path->m_node_vec.push_back(m_dest_node_ID);
-    return 0;
+    return _tt;
 }
 
 

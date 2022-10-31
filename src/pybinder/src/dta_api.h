@@ -47,7 +47,7 @@ public:
   ~Dta_Api();
   int initialize(const std::string &folder);
   bool check_input_files();
-  int generate_shortest_pathsets(const std::string &folder, int max_iter, double mid_scale, double heavy_scale, double min_path_tt=0.);
+  int generate_shortest_pathsets(const std::string &folder, int max_iter, double vot, double mid_scale, double heavy_scale, double min_path_tt=0.);
   int install_cc();
   int install_cc_tree();
   int run_whole(bool verbose=true);
@@ -90,7 +90,7 @@ public:
   ~Mcdta_Api();
   int initialize(const std::string &folder);
   bool check_input_files();
-  int generate_shortest_pathsets(const std::string &folder, int max_iter, double mid_scale, double heavy_scale, double min_path_tt=0.);
+  int generate_shortest_pathsets(const std::string &folder, int max_iter, double vot, double mid_scale, double heavy_scale, double min_path_tt=0.);
   int install_cc();
   int install_cc_tree();
   int run_whole(bool verbose=true);
@@ -101,6 +101,9 @@ public:
   int print_simulation_results(const std::string &folder, int cong_frequency = 180);
 
   int build_link_cost_map(bool with_congestion_indicator=false);
+  int get_link_queue_dissipated_time();
+  int update_tdsp_tree();
+  py::array_t<int> get_lowest_cost_path(int start_interval, int o_node_ID, int d_node_ID);
 
   py::array_t<double> get_car_link_fftt(py::array_t<int>link_IDs);
   py::array_t<double> get_truck_link_fftt(py::array_t<int>link_IDs);
@@ -141,11 +144,16 @@ public:
   py::array_t<double> get_waiting_time_at_intersections_car();
   py::array_t<double> get_waiting_time_at_intersections_truck();
   py::array_t<int> get_link_spillback();
-  py::array_t<double> get_path_tt_car(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
-  py::array_t<double> get_path_tt_truck(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
+  py::array_t<double> get_avg_link_on_path_tt_car(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
+  py::array_t<double> get_avg_link_on_path_tt_truck(py::array_t<int>link_IDs, py::array_t<double>start_intervals);
   // assume build_link_cost_map() is invoked before
+  py::array_t<double> get_path_tt_car(py::array_t<int>link_IDs, py::array_t<int>start_intervals);
+  py::array_t<double> get_path_tt_truck(py::array_t<int>link_IDs, py::array_t<int>start_intervals);
   py::array_t<double> get_registered_path_tt_car(py::array_t<int>start_intervals);
   py::array_t<double> get_registered_path_tt_truck(py::array_t<int>start_intervals);
+
+  py::array_t<double> get_car_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp);
+  py::array_t<double> get_truck_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp);
 
   MNM_Dta_Multiclass *m_mcdta;
   std::vector<MNM_Dlink_Multiclass*> m_link_vec;
@@ -164,6 +172,12 @@ public:
   // time-varying indicator
   std::unordered_map<TInt, bool *> m_link_congested_car;
   std::unordered_map<TInt, bool *> m_link_congested_truck;
+
+  // time-varying queue dissipated time
+  std::unordered_map<TInt, int *> m_queue_dissipated_time_car;
+  std::unordered_map<TInt, int *> m_queue_dissipated_time_truck;
+
+  std::unordered_map<TInt, MNM_TDSP_Tree*> m_tdsp_tree_map;
 };
 
 

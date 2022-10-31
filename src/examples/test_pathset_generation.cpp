@@ -24,6 +24,12 @@ int main()
   std::string m_file_folder = "/srv/data/qiling/Projects/Philly/input_files_philly";
 
   TInt buffer_length = 40;
+  TInt max_iter = 1;
+  TFlt vot = 2. / 3600.;
+  TFlt mid_scale = 2;
+  TFlt heavy_scale = 4;
+  TFlt min_path_length = 0;
+
 
   MNM_ConfReader *m_config;
   MNM_Node_Factory *m_node_factory;
@@ -41,6 +47,7 @@ int main()
   MNM_IO_Multiclass::build_od_factory(m_file_folder, m_config, m_od_factory, m_node_factory);
   MNM_IO_Multiclass::build_demand_multiclass(m_file_folder, m_config, m_od_factory);
   m_graph = MNM_IO_Multiclass::build_graph(m_file_folder, m_config);
+  MNM_IO::build_link_toll(m_file_folder, m_config, m_link_factory);
   printf("3\n");
   // std::map<TInt, TFlt> cost_map = std::map<TInt, TFlt>();
   // for (auto _it = m_link_factory -> m_link_map.begin(); _it != m_link_factory -> m_link_map.end(); ++_it){
@@ -53,7 +60,7 @@ int main()
 
   // printf("node:%d, link:%d\n", p -> m_node_vec.size(),p -> m_link_vec.size());
 
-  Path_Table *path_table = MNM::build_pathset_multiclass(m_graph, m_od_factory, m_link_factory, 0, 1, -1, 6, buffer_length);
+  Path_Table *path_table = MNM::build_pathset_multiclass(m_graph, m_od_factory, m_link_factory, min_path_length, max_iter, vot, mid_scale, heavy_scale, buffer_length);
   printf("Finish running\n");
   // MNM_Path *p;
   // for (size_t i = 0; i< path_table -> find(1) -> second -> find(5) -> second -> m_path_vec.size(); ++i){

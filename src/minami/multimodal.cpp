@@ -9082,6 +9082,7 @@ Passenger_Path_Table *build_shortest_passenger_pathset(std::vector<MMDue_mode> &
     MNM_Path *_transit_path;
     MNM_PnR_Path *_pnr_path;
 
+    // TODO: use link cost instead of link travel time
     for (auto _link_it : link_factory -> m_link_map){
         _free_cost_map_driving.insert(std::pair<TInt, TFlt>(_link_it.first, _link_it.second -> get_link_tt() / mmdue->m_unit_time));
     }
@@ -9422,6 +9423,7 @@ Path_Table *build_shortest_driving_pathset(PNEGraph &graph, MNM_OD_Factory *od_f
     std::unordered_map<TInt, TFlt> _free_cost_map = std::unordered_map<TInt, TFlt>();
     std::unordered_map<TInt, TInt> _free_shortest_path_tree = std::unordered_map<TInt, TInt>();
     MNM_Path *_path;
+    // TODO: use link cost instead of link travel time
     for (auto _link_it = link_factory->m_link_map.begin(); _link_it != link_factory->m_link_map.end(); _link_it++) {
         _free_cost_map.insert(std::pair<TInt, TFlt>(_link_it->first, _link_it->second->get_link_tt()));
     }
@@ -9462,6 +9464,7 @@ Path_Table *build_shortest_driving_pathset(PNEGraph &graph, MNM_OD_Factory *od_f
                 for (auto &_path : _d_it.second->m_path_vec) {
                     for (auto &_link_ID : _path -> m_link_vec) {
                         _link = link_factory->get_link(_link_ID);
+                        // TODO: use link cost instead of link travel time
                         _mid_cost_map.find(_link_ID)->second = _link->get_link_tt() * Mid_Scale;
                         _heavy_cost_map.find(_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
                     }
@@ -9566,6 +9569,7 @@ Path_Table *build_shortest_bustransit_pathset(PNEGraph &graph, MNM_OD_Factory *o
     std::unordered_map<TInt, TFlt> _free_cost_map = std::unordered_map<TInt, TFlt>();
     std::unordered_map<TInt, TInt> _free_shortest_path_tree = std::unordered_map<TInt, TInt>();
     MNM_Path *_path;
+    // TODO: use link cost instead of link travel time
     for (auto _link_it : link_factory->m_transit_link_map) {
         _free_cost_map.insert(std::pair<TInt, TFlt>(_link_it.first, _link_it.second->m_fftt));
     }
@@ -9611,6 +9615,7 @@ Path_Table *build_shortest_bustransit_pathset(PNEGraph &graph, MNM_OD_Factory *o
                 for (auto &_path : _d_it.second->m_path_vec) {
                     for (auto &_link_ID : _path -> m_link_vec) {
                         _link = link_factory->get_transit_link(_link_ID);
+                        // TODO: use link cost instead of link travel time
                         _mid_cost_map.find(_link_ID)->second = _link->m_fftt * Mid_Scale;
                         _heavy_cost_map.find(_link_ID)->second = _link->m_fftt * Heavy_Scale;
                     }
@@ -9725,7 +9730,7 @@ PnR_Path_Table *build_shortest_pnr_pathset(PNEGraph &driving_graph, PNEGraph &bu
     MNM_Path *_driving_path;
     MNM_Path *_transit_path;
     MNM_PnR_Path *_pnr_path;
-
+    // TODO: use link cost instead of link travel time
     for (auto _link_it : link_factory -> m_link_map){
         _free_cost_map_driving.insert(std::pair<TInt, TFlt>(_link_it.first, _link_it.second -> get_link_tt()));
     }
@@ -9837,11 +9842,13 @@ PnR_Path_Table *build_shortest_pnr_pathset(PNEGraph &driving_graph, PNEGraph &bu
                 for (auto &_path : _d_it.second->m_path_vec) {
                     for (auto &_link_ID : dynamic_cast<MNM_PnR_Path*>(_path) -> m_driving_path -> m_link_vec) {
                         _link = link_factory->get_link(_link_ID);
+                        // TODO: use link cost instead of link travel time
                         _mid_cost_map_driving.find(_link_ID)->second = _link->get_link_tt() * Mid_Scale;
                         _heavy_cost_map_driving.find(_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
                     }
                     for (auto &_link_ID : dynamic_cast<MNM_PnR_Path*>(_path) -> m_transit_path -> m_link_vec) {
                         _transit_link = bus_transitlink_factory->get_transit_link(_link_ID);
+                        // TODO: use link cost instead of link travel time
                         _mid_cost_map_bustransit.find(_link_ID)->second = _transit_link->m_fftt * Mid_Scale;
                         _heavy_cost_map_bustransit.find(_link_ID)->second = _transit_link->m_fftt * Heavy_Scale;
                     }
@@ -12915,7 +12922,10 @@ MNM_MM_Due::get_best_driving_path(TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree, MNM_
     MNM_Parking_Lot *_parking_lot = dynamic_cast<MNM_Destination_Multimodal*>(((MNM_DMDND*)m_mmdta -> m_node_factory -> get_node(tdsp_tree -> m_dest_node_ID)) -> m_dest) -> m_parking_lot;
 
     for (int i = 0; i < tdsp_tree->m_max_interval; ++i) {  // tdsp_tree -> m_max_interval = total_loading_interval
-        _tmp_tt = tdsp_tree -> m_dist[o_node_ID][i < (int)tdsp_tree->m_max_interval ? i : (int)tdsp_tree->m_max_interval - 1];
+        _path = new MNM_Path();
+        _tmp_tt = tdsp_tree->get_tdsp(o_node_ID, i, m_link_tt_map, _path);
+        IAssert(_tmp_tt > 0); 
+
         if (_parking_lot != nullptr){
             _tmp_tt_parking = mmdta -> m_parkinglot_factory -> get_parking_lot(_parking_lot -> m_ID) -> get_cruise_time(TInt(i + _tmp_tt));
         }
@@ -12924,9 +12934,6 @@ MNM_MM_Due::get_best_driving_path(TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree, MNM_
         }
         std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt + _tmp_tt_parking <<"\n";
 
-        _path = new MNM_Path();
-        int _indicator = tdsp_tree->get_tdsp(o_node_ID, i, m_link_tt_map, _path);
-        IAssert(_indicator == 0); 
         _path -> eliminate_cycles();
         _p_path_driving = new MNM_Passenger_Path_Driving(driving, _path, m_vot, m_early_penalty,
                                                          m_late_penalty, m_target_time,
@@ -12970,16 +12977,16 @@ MNM_MM_Due::get_best_bus_path(TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree, MNM_Dta_
 
     // find a min cost route
     for (int i = 0; i < m_total_loading_inter; ++i) {
-        _tmp_tt = tdsp_tree-> m_dist[o_node_ID][i < (int)tdsp_tree -> m_max_interval ? i : (int)tdsp_tree -> m_max_interval - 1];
-        std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt <<"\n";
-
-        if (std::isinf(_tmp_tt)) {
+        _tmp_cost = tdsp_tree-> m_dist[o_node_ID][i < (int)tdsp_tree -> m_max_interval ? i : (int)tdsp_tree -> m_max_interval - 1];
+        if (std::isinf(_tmp_cost)) {
             continue;
         }
-
+        
         _path = new MNM_Path();
-        int _indicator = tdsp_tree->get_tdsp(o_node_ID, i, m_transitlink_tt_map, _path);
-        IAssert(_indicator == 0); 
+        _tmp_tt = tdsp_tree->get_tdsp(o_node_ID, i, m_transitlink_tt_map, _path);
+        IAssert(_tmp_tt > 0); 
+        std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt <<"\n";
+
         _path -> eliminate_cycles();
         _p_path_bus = new MNM_Passenger_Path_Bus(transit, _path, m_vot, m_early_penalty,
                                                  m_late_penalty, m_target_time,
@@ -13032,25 +13039,27 @@ MNM_MM_Due::get_best_pnr_path(TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree_bus, std:
 
             _tdsp_tree_driving = tdsp_tree_map_driving.find(_mid_dest_node_ID) -> second;
             IAssert(_tdsp_tree_driving != nullptr);
-            _tmp_tt_driving = _tdsp_tree_driving-> m_dist[o_node_ID][i < (int)_tdsp_tree_driving -> m_max_interval ? i : (int)_tdsp_tree_driving -> m_max_interval - 1];
+            // _tmp_cost = _tdsp_tree_driving-> m_dist[o_node_ID][i < (int)_tdsp_tree_driving -> m_max_interval ? i : (int)_tdsp_tree_driving -> m_max_interval - 1];
             _driving_path = new MNM_Path();
-            int _indicator = _tdsp_tree_driving->get_tdsp(o_node_ID, i, m_link_tt_map, _driving_path);
-            IAssert(_indicator == 0);
+            _tmp_tt_driving = _tdsp_tree_driving->get_tdsp(o_node_ID, i, m_link_tt_map, _driving_path);
+            IAssert(_tmp_tt_driving > 0);
             _driving_path -> eliminate_cycles();
 
             _tmp_tt_parking = mmdta -> m_parkinglot_factory -> get_parking_lot(_parking_lot -> m_ID) -> get_cruise_time(TInt(i+_tmp_tt_driving));
 
-            _tmp_tt_bustransit = tdsp_tree_bus-> m_dist[_mid_dest_node_ID][i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) < (int)tdsp_tree_bus -> m_max_interval ? i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) : (int)tdsp_tree_bus -> m_max_interval - 1];
-            std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt_driving + _tmp_tt_parking + _tmp_tt_bustransit <<"\n";
+            _tmp_cost = tdsp_tree_bus-> m_dist[_mid_dest_node_ID][i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) < (int)tdsp_tree_bus -> m_max_interval ? i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) : (int)tdsp_tree_bus -> m_max_interval - 1];
             
-            if (std::isinf(_tmp_tt_bustransit)) {
+            if (std::isinf(_tmp_cost)) {
                 delete _driving_path;
                 continue;
             }
             
             _bustransit_path = new MNM_Path();
-            _indicator = tdsp_tree_bus->get_tdsp(_mid_dest_node_ID, TInt(i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking))), m_transitlink_tt_map, _bustransit_path);
-            IAssert(_indicator == 0);
+            _tmp_tt_bustransit = tdsp_tree_bus->get_tdsp(_mid_dest_node_ID, TInt(i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking))), m_transitlink_tt_map, _bustransit_path);
+            IAssert(_tmp_tt_bustransit > 0);
+
+            std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt_driving + _tmp_tt_parking + _tmp_tt_bustransit <<"\n";
+
             _bustransit_path -> eliminate_cycles();
             // path_ID = -1 is arbitrary
             _pnr_path = new MNM_PnR_Path(-1, _parking_lot -> m_ID, _mid_dest_node_ID, _driving_path, _bustransit_path);
@@ -13390,7 +13399,11 @@ MNM_MM_Due::get_best_driving_path_for_single_interval(TInt interval, TInt o_node
     MNM_Parking_Lot *_parking_lot = dynamic_cast<MNM_Destination_Multimodal*>(((MNM_DMDND*)m_mmdta -> m_node_factory -> get_node(tdsp_tree -> m_dest_node_ID)) -> m_dest) -> m_parking_lot;
 
     for (int i = interval; i < interval + 1; ++i) {  // tdsp_tree -> m_max_interval = total_loading_interval
-        _tmp_tt = tdsp_tree -> m_dist[o_node_ID][i < (int)tdsp_tree -> m_max_interval ? i : (int)tdsp_tree -> m_max_interval - 1];
+        
+        _path = new MNM_Path();
+        _tmp_tt = tdsp_tree->get_tdsp(o_node_ID, i, m_link_tt_map, _path);
+        IAssert(_tmp_tt > 0);
+
         if (_parking_lot != nullptr){
             _tmp_tt_parking = mmdta -> m_parkinglot_factory -> get_parking_lot(_parking_lot -> m_ID) -> get_cruise_time(TInt(i + _tmp_tt));
         }
@@ -13399,9 +13412,6 @@ MNM_MM_Due::get_best_driving_path_for_single_interval(TInt interval, TInt o_node
         }
         std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt + _tmp_tt_parking <<"\n";
 
-        _path = new MNM_Path();
-        int _indicator = tdsp_tree->get_tdsp(o_node_ID, i, m_link_tt_map, _path);
-        IAssert(_indicator == 0);
         _path -> eliminate_cycles();
         _p_path_driving = new MNM_Passenger_Path_Driving(driving, _path, m_vot, m_early_penalty,
                                                          m_late_penalty, m_target_time,
@@ -13449,16 +13459,17 @@ MNM_MM_Due::get_best_bus_path_for_single_interval(TInt interval, TInt o_node_ID,
 
     // find a min cost route
     for (int i = interval; i < interval + 1; ++i) {
-        _tmp_tt = tdsp_tree -> m_dist[o_node_ID][i < (int)tdsp_tree -> m_max_interval ? i : (int)tdsp_tree -> m_max_interval - 1];
-        std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt <<"\n";
+        _tmp_cost = tdsp_tree -> m_dist[o_node_ID][i < (int)tdsp_tree -> m_max_interval ? i : (int)tdsp_tree -> m_max_interval - 1];
 
-        if (std::isinf(_tmp_tt)) {
+        if (std::isinf(_tmp_cost)) {
             continue;
         }
 
         _path = new MNM_Path();
-        int _indicator = tdsp_tree->get_tdsp(o_node_ID, i, m_transitlink_tt_map, _path);
-        IAssert(_indicator == 0);
+        _tmp_tt = tdsp_tree->get_tdsp(o_node_ID, i, m_transitlink_tt_map, _path);
+        IAssert(_tmp_tt > 0);
+        std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt <<"\n";
+
         _path -> eliminate_cycles();
         _p_path_bus = new MNM_Passenger_Path_Bus(transit, _path, m_vot, m_early_penalty,
                                                  m_late_penalty, m_target_time,
@@ -13515,18 +13526,17 @@ MNM_MM_Due::get_best_pnr_path_for_single_interval(TInt interval, TInt o_node_ID,
 
             _tdsp_tree_driving = tdsp_tree_map_driving.find(_mid_dest_node_ID) -> second;
             IAssert(_tdsp_tree_driving != nullptr);
-            _tmp_tt_driving = _tdsp_tree_driving-> m_dist[o_node_ID][i < (int)_tdsp_tree_driving -> m_max_interval ? i : (int)_tdsp_tree_driving -> m_max_interval - 1];
+            // _tmp_cost = _tdsp_tree_driving-> m_dist[o_node_ID][i < (int)_tdsp_tree_driving -> m_max_interval ? i : (int)_tdsp_tree_driving -> m_max_interval - 1];
             _driving_path = new MNM_Path();
-            int _indicator = _tdsp_tree_driving->get_tdsp(o_node_ID, i, m_link_tt_map, _driving_path);
-            IAssert(_indicator == 0);
+            _tmp_tt_driving = _tdsp_tree_driving->get_tdsp(o_node_ID, i, m_link_tt_map, _driving_path);
+            IAssert(_tmp_tt_driving > 0);
             _driving_path -> eliminate_cycles();
 
             _tmp_tt_parking = mmdta -> m_parkinglot_factory -> get_parking_lot(_parking_lot -> m_ID) -> get_cruise_time(TInt(i + _tmp_tt_driving));
 
-            _tmp_tt_bustransit = tdsp_tree_bus-> m_dist[_mid_dest_node_ID][i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) < (int)tdsp_tree_bus -> m_max_interval ? i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) : (int)tdsp_tree_bus -> m_max_interval - 1];
-            std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt_driving + _tmp_tt_parking + _tmp_tt_bustransit <<"\n";
+            _tmp_cost = tdsp_tree_bus-> m_dist[_mid_dest_node_ID][i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) < (int)tdsp_tree_bus -> m_max_interval ? i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking)) : (int)tdsp_tree_bus -> m_max_interval - 1];
 
-            if (std::isinf(_tmp_tt_bustransit)) {
+            if (std::isinf(_tmp_cost)) {
                 delete _driving_path;
                 continue;
             }
@@ -13534,8 +13544,11 @@ MNM_MM_Due::get_best_pnr_path_for_single_interval(TInt interval, TInt o_node_ID,
             // std::cout << _mid_dest_node_ID << "\n";
             // std::cout << "max interval: " << tdsp_tree_bus -> m_max_interval << " cur time: " << TInt(i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking))) << "\n";
             _bustransit_path = new MNM_Path();
-            _indicator = tdsp_tree_bus->get_tdsp(_mid_dest_node_ID, TInt(i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking))), m_transitlink_tt_map, _bustransit_path);
-            IAssert(_indicator == 0);
+            _tmp_tt_bustransit = tdsp_tree_bus->get_tdsp(_mid_dest_node_ID, TInt(i + int(ceil(_tmp_tt_driving)) + int(ceil(_tmp_tt_parking))), m_transitlink_tt_map, _bustransit_path);
+            IAssert(_tmp_tt_bustransit > 0);
+
+            std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt_driving + _tmp_tt_parking + _tmp_tt_bustransit <<"\n";
+
             _bustransit_path -> eliminate_cycles();
             // path_ID = -1 is arbitrary
             _pnr_path = new MNM_PnR_Path(-1, _parking_lot -> m_ID, _mid_dest_node_ID, _driving_path, _bustransit_path);

@@ -311,11 +311,11 @@ namespace MNM {
 
 
     Path_Table *
-    build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length) {
+    build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt vot, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length) {
         // printf("11\n");
         // MaxIter: maximum iteration to find alternative shortest path, when MaxIter = 0, just shortest path
         // Mid_Scale and Heavy_Scale are different penalties to the travel cost of links in existing paths
-
+        IAssert(vot > 0);
         /* initialize data structure */
         TInt _dest_node_ID, _origin_node_ID;
         Path_Table *_path_table = new Path_Table();
@@ -343,7 +343,7 @@ namespace MNM {
         std::unordered_map<TInt, TInt> _free_shortest_path_tree = std::unordered_map<TInt, TInt>();
         MNM_Path *_path;
         for (auto _link_it = link_factory->m_link_map.begin(); _link_it != link_factory->m_link_map.end(); _link_it++) {
-            _free_cost_map.insert(std::pair<TInt, TFlt>(_link_it->first, _link_it->second->get_link_tt()));
+            _free_cost_map.insert(std::pair<TInt, TFlt>(_link_it->first, vot * _link_it->second->get_link_tt() + _link_it->second->m_toll));
         }
         // printf("1111\n");
         for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
@@ -383,8 +383,8 @@ namespace MNM {
                     for (auto &_path : _d_it.second->m_path_vec) {
                         for (auto &_link_ID : _path -> m_link_vec) {
                             _link = link_factory->get_link(_link_ID);
-                            _mid_cost_map.find(_link_ID)->second = _link->get_link_tt() * Mid_Scale;
-                            _heavy_cost_map.find(_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
+                            _mid_cost_map.find(_link_ID)->second = vot * _link->get_link_tt() * Mid_Scale + _link -> m_toll;
+                            _heavy_cost_map.find(_link_ID)->second = vot * _link->get_link_tt() * Heavy_Scale + _link -> m_toll;
                         }
                     }
                 }

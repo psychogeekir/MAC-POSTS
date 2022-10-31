@@ -346,40 +346,108 @@ class MCDODE():
         # print('finish converting', time.time())
         return mat    
 
+    def get_ltg(self, dta):
+        car_ltg_matrix = csr_matrix((self.num_assign_interval * len(self.observed_links), 
+                                             self.num_assign_interval * len(self.paths_list)))
+     
+        truck_ltg_matrix = csr_matrix((self.num_assign_interval * len(self.observed_links), 
+                                               self.num_assign_interval * len(self.paths_list)))
+
+        if self.config['use_car_link_tt']:
+            car_ltg_matrix = self._compute_link_tt_grad_on_path_flow_car(dta)
+            if car_ltg_matrix.max() == 0.:
+                print("car_ltg_matrix is empty!")
+            
+        if self.config['use_truck_link_tt']:
+            truck_ltg_matrix = self._compute_link_tt_grad_on_path_flow_truck(dta)
+            if truck_ltg_matrix.max() == 0.:
+                print("truck_ltg_matrix is empty!")
+
+        return car_ltg_matrix, truck_ltg_matrix
+
+    def init_demand_vector(self, num_assign_interval, num_col, scale=1):
+        # uniform
+        d = np.random.rand(num_assign_interval * num_col) * scale
+
+        # Kaiming initialization (not working)
+        # d = np.random.normal(0, 1, num_assign_interval * num_col) * scale
+        # d *= np.sqrt(2 / len(d))
+        # d = np.abs(d)
+
+        # Xavier initialization
+        # x = torch.Tensor(num_assign_interval * num_col, 1)
+        # d = torch.abs(nn.init.xavier_uniform_(x)).squeeze().data.numpy() * scale
+        # d = d.astype(float)
+        return d
+
     def init_path_flow(self, car_scale=1, truck_scale=0.1):
-        f_car = np.random.rand(self.num_assign_interval * self.num_path) * car_scale
-        f_truck = np.random.rand(self.num_assign_interval * self.num_path) * truck_scale
+        f_car = self.init_demand_vector(self.num_assign_interval, self.num_path, car_scale) 
+        f_truck = self.init_demand_vector(self.num_assign_interval, self.num_path, truck_scale) 
         return f_car, f_truck
 
     def compute_path_flow_grad_and_loss(self, one_data_dict, f_car, f_truck, counter=0):
         # print("Running simulation", time.time())
         dta = self._run_simulation(f_car, f_truck, counter, show_loading=True)
+
+        if self.config['use_car_link_tt'] or self.config['use_truck_link_tt']:
+            dta.build_link_cost_map(True)
+            # # TODO: C++
+            # dta.get_link_queue_dissipated_time()
+            # # TODO: unfinished
+            # car_ltg_matrix, truck_ltg_matrix = self.get_ltg(dta)
+
         # print("Getting DAR", time.time())
         (car_dar, truck_dar) = self.get_dar(dta, f_car, f_truck)
 
-        # print("Evaluating grad", time.time())
-        car_grad = np.zeros(len(self.observed_links) * self.num_assign_interval)
-        truck_grad = np.zeros(len(self.observed_links) * self.num_assign_interval)
-
         x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand_est = None, None, None, None, None
 
+        # print("Evaluating grad", time.time())
+        # Count
+        car_grad = np.zeros(len(self.observed_links) * self.num_assign_interval)
+        truck_grad = np.zeros(len(self.observed_links) * self.num_assign_interval)
         if self.config['use_car_link_flow']:
             # print("car link flow", time.time())
-            grad, x_e_car = self._compute_grad_on_car_link_flow(dta, one_data_dict)
+            grad, x_e_car = self._compute_count_loss_grad_on_car_link_flow(dta, one_data_dict)
             car_grad += self.config['link_car_flow_weight'] * grad
         if self.config['use_truck_link_flow']:
-            grad, x_e_truck = self._compute_grad_on_truck_link_flow(dta, one_data_dict)
+            grad, x_e_truck = self._compute_count_loss_grad_on_truck_link_flow(dta, one_data_dict)
             truck_grad += self.config['link_truck_flow_weight'] * grad
-        if self.config['use_car_link_tt']:
-            grad, tt_e_car = self._compute_grad_on_car_link_tt(dta, one_data_dict)
-            car_grad += self.config['link_car_tt_weight'] * grad
-        if self.config['use_truck_link_tt']:
-            grad, tt_e_truck = self._compute_grad_on_truck_link_tt(dta, one_data_dict)
-            truck_grad += self.config['link_truck_tt_weight'] * grad
 
         f_car_grad = car_dar.T.dot(car_grad)
         f_truck_grad = truck_dar.T.dot(truck_grad)
 
+        # Travel time
+        car_grad = np.zeros(len(self.observed_links) * self.num_assign_interval)
+        truck_grad = np.zeros(len(self.observed_links) * self.num_assign_interval)
+        if self.config['use_car_link_tt']:
+            grad, tt_e_car = self._compute_tt_loss_grad_on_car_link_tt(dta, one_data_dict)
+            car_grad += self.config['link_car_tt_weight'] * grad
+
+            ## Original Wei's method
+            # f_car_grad += car_dar.T.dot(car_grad)
+
+            ## MCDODE's method
+            _tt_loss_grad_on_car_link_flow = self._compute_tt_loss_grad_on_car_link_flow(dta, car_grad)
+            f_car_grad += car_dar.T.dot(_tt_loss_grad_on_car_link_flow)
+
+            ## IPMC method
+            # f_car_grad += car_ltg_matrix.T.dot(car_grad)
+
+        if self.config['use_truck_link_tt']:
+            grad, tt_e_truck = self._compute_tt_loss_grad_on_truck_link_tt(dta, one_data_dict)
+            truck_grad += self.config['link_truck_tt_weight'] * grad
+
+            ## Original Wei's method
+            # f_car_grad += car_dar.T.dot(truck_grad)
+
+            ## MCDODE's method
+            _tt_loss_grad_on_truck_link_flow = self._compute_tt_loss_grad_on_truck_link_flow(dta, truck_grad)
+            f_truck_grad += truck_dar.T.dot(_tt_loss_grad_on_truck_link_flow)
+
+            ## IPMC method
+            # f_truck_grad += truck_ltg_matrix.T.dot(truck_grad)
+
+        # Origin vehicle registration data
         if self.config['use_origin_vehicle_registration_data']:
             f_car_grad_add, f_truck_grad_add, O_demand_est = self._compute_grad_on_origin_vehicle_registration_data(one_data_dict, f_car, f_truck)
             f_car_grad += self.config['origin_vehicle_registration_weight'] * f_car_grad_add
@@ -387,9 +455,9 @@ class MCDODE():
 
         # print("Getting Loss", time.time())
         total_loss, loss_dict = self._get_loss(one_data_dict, dta, f_car, f_truck)
-        return f_car_grad, f_truck_grad, total_loss, loss_dict, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand_est
+        return f_car_grad, f_truck_grad, total_loss, loss_dict, dta, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand_est
 
-    def _compute_grad_on_car_link_flow(self, dta, one_data_dict):
+    def _compute_count_loss_grad_on_car_link_flow(self, dta, one_data_dict):
         link_flow_array = one_data_dict['car_link_flow']
         x_e = dta.get_link_car_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
                                       np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
@@ -404,7 +472,7 @@ class MCDODE():
         # assert(np.all(~np.isnan(grad)))
         return grad, x_e
   
-    def _compute_grad_on_truck_link_flow(self, dta, one_data_dict):
+    def _compute_count_loss_grad_on_truck_link_flow(self, dta, one_data_dict):
         link_flow_array = one_data_dict['truck_link_flow']
         x_e = dta.get_link_truck_inflow(np.arange(0, self.num_loading_interval, self.ass_freq), 
                                         np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq).flatten(order='F')
@@ -417,7 +485,7 @@ class MCDODE():
         # assert(np.all(~np.isnan(grad)))
         return grad, x_e
 
-    def _compute_grad_on_car_link_tt(self, dta, one_data_dict):
+    def _compute_tt_loss_grad_on_car_link_tt(self, dta, one_data_dict):
         # tt_e = dta.get_car_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
         #                                   np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq, self.ass_freq, False).flatten(order='F')
         tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq), False).flatten(order='F')
@@ -428,6 +496,12 @@ class MCDODE():
         # tt_o = one_data_dict['car_link_tt']
         # print('o-----', tt_o)
         # print('e-----', tt_e)
+
+        # don't use inf value
+        # ind = (np.isinf(tt_e) + np.isinf(tt_o))
+        # tt_e[ind] = 0
+        # tt_o[ind] = 0
+
         discrepancy = np.nan_to_num(tt_o - tt_e)
         grad = - discrepancy
         # print('g-----', grad)
@@ -436,9 +510,11 @@ class MCDODE():
         # print(tt_e, tt_o)
         # print("car_grad", grad)
         # assert(np.all(~np.isnan(grad)))
+
+        # tt_e[ind] = np.inf
         return grad, tt_e
 
-    def _compute_grad_on_truck_link_tt(self, dta, one_data_dict):
+    def _compute_tt_loss_grad_on_truck_link_tt(self, dta, one_data_dict):
         # tt_e = dta.get_truck_link_tt_robust(np.arange(0, self.num_loading_interval, self.ass_freq),
         #                                     np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq, self.ass_freq, False).flatten(order='F')
         tt_e = dta.get_truck_link_tt(np.arange(0, self.num_loading_interval, self.ass_freq), False).flatten(order='F')
@@ -446,13 +522,294 @@ class MCDODE():
         tt_free = np.tile(dta.get_truck_link_fftt(self.observed_links), (self.num_assign_interval))
         tt_e = np.maximum(tt_e, tt_free)
         tt_o = np.maximum(one_data_dict['truck_link_tt'], tt_free)
+
+        # don't use inf value
+        # ind = (np.isinf(tt_e) + np.isinf(tt_o))
+        # tt_e[ind] = 0
+        # tt_o[ind] = 0
+
         discrepancy = np.nan_to_num(tt_o - tt_e)
         grad = - discrepancy
         # if self.config['truck_count_agg']:
         #   grad = one_data_dict['truck_count_agg_L'].T.dot(grad)
         # print("truck_grad", grad)
         # assert(np.all(~np.isnan(grad)))
+
+        # tt_e[ind] = np.inf
         return grad, tt_e
+
+    def _compute_tt_loss_grad_on_car_link_flow(self, dta, tt_loss_grad_on_car_link_tt):
+        _link_tt_grad_on_link_flow_car = self._compute_link_tt_grad_on_link_flow_car(dta)
+        grad = _link_tt_grad_on_link_flow_car.dot(tt_loss_grad_on_car_link_tt)
+        grad = grad / (np.linalg.norm(grad) + 1e-7)
+        return grad
+
+    def _compute_tt_loss_grad_on_truck_link_flow(self, dta, tt_loss_grad_on_truck_link_tt):
+        _link_tt_grad_on_link_flow_truck = self._compute_link_tt_grad_on_link_flow_truck(dta)
+        grad = _link_tt_grad_on_link_flow_truck.dot(tt_loss_grad_on_truck_link_tt)
+        grad = grad / (np.linalg.norm(grad) + 1e-7)
+        return grad
+
+    def _compute_link_tt_grad_on_link_flow_car(self, dta):
+        assign_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        num_assign_intervals = len(assign_intervals)
+        num_links = len(self.observed_links)
+
+        car_link_out_cc = dict()
+        for link_ID in self.observed_links:
+            car_link_out_cc[link_ID] = dta.get_car_link_out_cc(link_ID)
+
+        # tt_e = dta.get_car_link_tt(np.arange(assign_intervals[-1] + self.ass_freq))
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == assign_intervals[-1] + self.ass_freq)
+        # # average link travel time
+        # tt_e = np.stack(list(map(lambda i : np.mean(tt_e[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == num_assign_intervals)
+
+        # tt_e = dta.get_car_link_tt(np.arange(0, self.num_loading_interval))
+
+        # tt_e = dta.get_car_link_tt(assign_intervals, False)
+        tt_e = dta.get_car_link_tt_robust(assign_intervals, assign_intervals + self.ass_freq, self.ass_freq, False)
+
+        # tt_free = np.array(list(map(lambda x: self.nb.get_link_driving(x).get_car_fft(), self.observed_links)))
+        tt_free = dta.get_car_link_fftt(self.observed_links)
+        mask = tt_e > tt_free[:, np.newaxis]
+
+        # no congestions
+        if np.sum(mask) == 0:
+            return csr_matrix((num_assign_intervals * num_links, 
+                               num_assign_intervals * num_links))
+            # return eye(num_assign_intervals * num_links)
+
+        # cc = np.zeros((num_links, num_assign_intervals + 1), dtype=np.float)
+        # for j, link_ID in enumerate(self.observed_links):
+        #     cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, car_link_out_cc[link_ID]), 
+        #                                  np.concatenate((assign_intervals, np.array([assign_intervals[-1] + self.ass_freq]))))))
+
+        # outflow_rate = np.diff(cc, axis=1) / self.ass_freq / self.nb.config.config_dict['DTA']['unit_time']
+
+        cc = np.zeros((num_links, assign_intervals[-1] + self.ass_freq + 1), dtype=np.float)
+        for j, link_ID in enumerate(self.observed_links):
+            cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, car_link_out_cc[link_ID]), 
+                                         np.arange(assign_intervals[-1] + self.ass_freq + 1))))
+
+        outflow_rate = np.diff(cc, axis=1) / self.nb.config.config_dict['DTA']['unit_time']
+        # outflow_rate = outflow_rate[:, assign_intervals]
+
+        if mask.shape[1] == outflow_rate.shape[1]:
+            outflow_rate *= mask
+        
+        if outflow_rate.shape[1] == num_assign_intervals:
+            outflow_avg_rate = outflow_rate
+        else:
+            outflow_avg_rate = np.stack(list(map(lambda i : np.mean(outflow_rate[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+            if mask.shape[1] == outflow_avg_rate.shape[1]:
+                outflow_avg_rate *= mask
+        assert(outflow_avg_rate.shape[0] == num_links and outflow_avg_rate.shape[1] == num_assign_intervals)
+
+        val = list()
+        row = list()
+        col = list()
+
+        for i, assign_interval in enumerate(assign_intervals):
+            for j, link_ID in enumerate(self.observed_links):
+                _tmp = outflow_avg_rate[j, i]
+
+                if _tmp > 0:
+                    _tmp = 1 / _tmp
+                else:
+                    _tmp = 1
+
+                # if mask[j, i]:
+                #     if _tmp > 0:
+                #         # in case 1 / c is very big
+                #         # _tmp = np.minimum(1 / _tmp, 1)  # seconds
+                #         _tmp = 1 / _tmp
+                #     else:
+                #         _tmp = 1
+                # else:
+                #     # help retain the sign of - (tt_o - tt_e)
+                #     _tmp = 1
+                
+                val.append(_tmp)
+                row.append(j + num_links * i)
+                col.append(j + num_links * i)
+                        
+
+        grad = coo_matrix((val, (row, col)), 
+                           shape=(num_links * num_assign_intervals, num_links * num_assign_intervals)).tocsr()
+        
+        # grad = grad / (scipy.sparse.linalg.norm(grad) + 1e-7)
+        return grad
+
+    def _compute_link_tt_grad_on_link_flow_truck(self, dta):
+        assign_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        num_assign_intervals = len(assign_intervals)
+        num_links = len(self.observed_links)
+
+        truck_link_out_cc = dict()
+        for link_ID in self.observed_links:
+            truck_link_out_cc[link_ID] = dta.get_truck_link_out_cc(link_ID)
+
+        # tt_e = dta.get_truck_link_tt(np.arange(assign_intervals[-1] + self.ass_freq))
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == assign_intervals[-1] + self.ass_freq)
+        # # average link travel time
+        # tt_e = np.stack(list(map(lambda i : np.mean(tt_e[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+        # assert(tt_e.shape[0] == num_links and tt_e.shape[1] == num_assign_intervals)
+
+        # tt_e = dta.get_truck_link_tt(assign_intervals, False)
+        tt_e = dta.get_truck_link_tt_robust(assign_intervals, assign_intervals + self.ass_freq, self.ass_freq, False)
+
+        # tt_free = np.array(list(map(lambda x: self.nb.get_link_driving(x).get_truck_fft(), self.observed_links)))
+        tt_free = dta.get_truck_link_fftt(self.observed_links)
+        mask = tt_e > tt_free[:, np.newaxis]
+
+        # no congestions
+        if np.sum(mask) == 0:
+            return csr_matrix((num_assign_intervals * num_links, 
+                               num_assign_intervals * num_links))
+            # return eye(num_assign_intervals * num_links)
+
+        # cc = np.zeros((num_links, num_assign_intervals + 1), dtype=np.float)
+        # for j, link_ID in enumerate(self.observed_links):
+        #     cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, truck_link_out_cc[link_ID]), 
+        #                                  np.concatenate((assign_intervals, np.array([assign_intervals[-1] + self.ass_freq]))))))
+
+        # outflow_rate = np.diff(cc, axis=1) / self.ass_freq / self.nb.config.config_dict['DTA']['unit_time']
+
+        cc = np.zeros((num_links, assign_intervals[-1] + self.ass_freq + 1), dtype=np.float)
+        for j, link_ID in enumerate(self.observed_links):
+            cc[j, :] = np.array(list(map(lambda timestamp : self._get_flow_from_cc(timestamp, truck_link_out_cc[link_ID]), 
+                                         np.arange(assign_intervals[-1] + self.ass_freq + 1))))
+
+        outflow_rate = np.diff(cc, axis=1) / self.nb.config.config_dict['DTA']['unit_time']
+        # outflow_rate = outflow_rate[:, assign_intervals]
+        
+        if mask.shape[1] == outflow_rate.shape[1]:
+            outflow_rate *= mask
+        
+        if outflow_rate.shape[1] == num_assign_intervals:
+            outflow_avg_rate = outflow_rate
+        else:
+            outflow_avg_rate = np.stack(list(map(lambda i : np.mean(outflow_rate[:, i : i+self.ass_freq], axis=1), assign_intervals)), axis=1)
+            if mask.shape[1] == outflow_avg_rate.shape[1]:
+                outflow_avg_rate *= mask
+        assert(outflow_avg_rate.shape[0] == num_links and outflow_avg_rate.shape[1] == num_assign_intervals)
+
+        val = list()
+        row = list()
+        col = list()
+
+        for i, assign_interval in enumerate(assign_intervals):
+            for j, link_ID in enumerate(self.observed_links):
+                _tmp = outflow_avg_rate[j, i]
+
+                if _tmp > 0:
+                    _tmp = 1 / _tmp
+                else:
+                    _tmp = 1
+
+                # if mask[j, i]:
+                #     if _tmp > 0:
+                #         # in case 1 / c is very big
+                #         # _tmp = np.minimum(1 / _tmp, 1)  # seconds
+                #         _tmp = 1 / _tmp
+                #     else:
+                #         _tmp = 1
+                # else:
+                #     # help retain the sign of - (tt_o - tt_e)
+                #     _tmp = 1
+                
+                val.append(_tmp)
+                row.append(j + num_links * i)
+                col.append(j + num_links * i)
+
+        grad = coo_matrix((val, (row, col)), 
+                           shape=(num_links * num_assign_intervals, num_links * num_assign_intervals)).tocsr()
+        
+        # grad = grad / (scipy.sparse.linalg.norm(grad) + 1e-7)
+        return grad
+
+    def _compute_link_tt_grad_on_path_flow_car(self, dta):
+        # dta.build_link_cost_map() is invoked already
+        assign_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        num_assign_intervals = len(assign_intervals)
+
+        release_freq = 60
+        # this is in terms of 5-s intervals
+        release_intervals = np.arange(0, self.num_loading_interval, release_freq // self.nb.config.config_dict['DTA']['unit_time'])
+
+        raw_ltg = dta.get_car_ltg_matrix(release_intervals, self.num_loading_interval)
+
+        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list, self.observed_links)
+        return ltg
+
+    def _compute_link_tt_grad_on_path_flow_truck(self, dta):
+        # dta.build_link_cost_map() is invoked already
+        assign_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        num_assign_intervals = len(assign_intervals)
+
+        release_freq = 60
+        # this is in terms of 5-s intervals
+        release_intervals = np.arange(0, self.num_loading_interval, release_freq // self.nb.config.config_dict['DTA']['unit_time'])
+
+        raw_ltg = dta.get_truck_ltg_matrix(release_intervals, self.num_loading_interval)
+
+        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list, self.observed_links)
+        return ltg
+
+    def _massage_raw_ltg(self, raw_ltg, ass_freq, num_assign_interval, paths_list, observed_links):
+        assert(raw_ltg.shape[1] == 5)
+        if raw_ltg.shape[0] == 0:
+            print("No ltg. No congestion.")
+            return csr_matrix((num_assign_interval * len(observed_links), 
+                               num_assign_interval * len(paths_list)))
+
+        num_e_path = len(paths_list)
+        num_e_link = len(observed_links)
+        # 15 min
+        small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
+
+        raw_ltg = raw_ltg[(raw_ltg[:, 1] < self.num_loading_interval) & (raw_ltg[:, 3] < self.num_loading_interval), :]
+
+        # raw_ltg[:, 0]: path no.
+        # raw_ltg[:, 1]: the count of 1 min interval in terms of 5s intervals
+                
+        if type(paths_list) == np.ndarray:
+            # with mp.Pool(5) as p:
+            #     pp = p.map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_ltg[:, 0].astype(int))
+            ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_ltg[:, 0].astype(int)))).astype(bool)
+            assert(np.sum(ind) == len(ind))
+            path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_ltg[ind, 0].astype(int))))
+                        + (raw_ltg[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+        elif type(paths_list) == list:
+            ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_ltg[:, 0].astype(int)))).astype(bool)
+            assert(np.sum(ind) == len(ind))
+            path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_ltg[ind, 0].astype(int))))
+                        + (raw_ltg[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+
+        # raw_ltg[:, 2]: link no.
+        # raw_ltg[:, 3]: the count of unit time interval (5s)
+        if type(observed_links) == np.ndarray:
+            # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
+            link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_ltg[ind, 2].astype(int))))
+                        + (raw_ltg[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+        elif type(observed_links) == list:
+            link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_ltg[ind, 2].astype(int))))
+                        + (raw_ltg[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+                    
+        # print(path_seq)
+        # raw_ltg[:, 4]: gradient, to be averaged for each large assign interval 
+        p = raw_ltg[ind, 4] / (ass_freq * small_assign_freq)
+        
+        # print("Creating the coo matrix", time.time()), coo_matrix permits duplicate entries
+        mat = coo_matrix((p, (link_seq, path_seq)), shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))
+        # pickle.dump((p, link_seq, path_seq), open('test.pickle', 'wb'))
+        # print('converting the csr', time.time())
+        
+        # sum duplicate entries in coo_matrix
+        mat = mat.tocsr()
+        # print('finish converting', time.time())
+        return mat
 
     def _compute_grad_on_origin_vehicle_registration_data(self, one_data_dict, f_car, f_truck):
         # reshape car_flow and truck_flow into ndarrays with dimensions of intervals x number of total paths
@@ -585,7 +942,12 @@ class MCDODE():
                                     truck_init_scale=1, 
                                     store_folder=None, 
                                     use_file_as_init=None,
-                                    starting_epoch=0):
+                                    starting_epoch=0,
+                                    column_generation=False):
+
+        if np.isscalar(column_generation):
+            column_generation = np.ones(max_epoch, dtype=int) * column_generation
+        assert(len(column_generation) == max_epoch)
     
         if np.isscalar(link_car_flow_weight):
             link_car_flow_weight = np.ones(max_epoch, dtype=bool) * link_car_flow_weight
@@ -669,8 +1031,11 @@ class MCDODE():
 
             for j in seq:
                 one_data_dict = self._get_one_data(j)
-                car_grad, truck_grad, tmp_loss, tmp_loss_dict, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
+                car_grad, truck_grad, tmp_loss, tmp_loss_dict, dta, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
                 # print("gradient", car_grad, truck_grad)
+
+                if ~column_generation[i]:
+                    dta = 0
 
                 optimizer.zero_grad()
 
@@ -692,9 +1057,37 @@ class MCDODE():
                 else:
                     f_car = f_car_tensor.data.cpu().numpy()
                     f_truck = f_truck_tensor.data.cpu().numpy()
+
+                if column_generation[i]:
+                    print("***************** generate new paths *****************")
+                    if not self.config['use_car_link_tt'] and not self.config['use_truck_link_tt']:
+                        # if any of these is true, dta.build_link_cost_map(True) is already invoked in compute_path_flow_grad_and_loss()
+                        dta.build_link_cost_map(False)
+                    
+                    self.update_path_table(dta)
+                    f_car, f_truck = self.update_path_flow(f_car, f_truck, car_init_scale, truck_init_scale)
+                    dta = 0
             
                 f_car = np.maximum(f_car, 1e-6)
                 f_truck = np.maximum(f_truck, 1e-6)
+
+                if column_generation[i]:
+                    if normalized_by_scale:
+                        f_car_tensor = torch.from_numpy(f_car / np.maximum(car_init_scale, 1e-6))
+                        f_truck_tensor = torch.from_numpy(f_truck / np.maximum(truck_init_scale, 1e-6))
+                    else:
+                        f_car_tensor = torch.from_numpy(f_car)
+                        f_truck_tensor = torch.from_numpy(f_truck)
+
+                    f_car_tensor.requires_grad = True
+                    f_truck_tensor.requires_grad = True
+
+                    params = [
+                        {'params': f_car_tensor, 'lr': car_step_size},
+                        {'params': f_truck_tensor, 'lr': truck_step_size}
+                    ]
+
+                    optimizer = algo_dict[algo](params)
 
                 loss += tmp_loss / np.float(self.num_data)
                 for loss_type, loss_value in tmp_loss_dict.items():
@@ -786,7 +1179,7 @@ class MCDODE():
 
             for j in seq:
                 one_data_dict = self._get_one_data(j)
-                car_grad, truck_grad, tmp_loss, tmp_loss_dict, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
+                car_grad, truck_grad, tmp_loss, tmp_loss_dict, dta, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
                 # print("gradient", car_grad, truck_grad)
                 if adagrad:
                     sum_g_square_car = sum_g_square_car + np.power(car_grad, 2)
@@ -881,7 +1274,7 @@ class MCDODE():
 
             for j in seq:
                 one_data_dict = self._get_one_data(j)
-                car_grad, truck_grad, tmp_loss, tmp_loss_dict, x_e_car, x_e_truck, tt_e_car, tt_e_truck = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
+                car_grad, truck_grad, tmp_loss, tmp_loss_dict, dta, x_e_car, x_e_truck, tt_e_car, tt_e_truck = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
                 # print("gradient", car_grad, truck_grad)
             
                 grad_car_sum += car_grad
@@ -919,7 +1312,7 @@ class MCDODE():
         return best_f_car_driving, best_f_truck_driving, best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck, loss_list
 
     def compute_path_flow_grad_and_loss_mpwrapper(self, one_data_dict, f_car, f_truck, j, output):
-        car_grad, truck_grad, tmp_loss, tmp_loss_dict, x_e_car, x_e_truck, tt_e_car, tt_e_truck = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck, counter=j)
+        car_grad, truck_grad, tmp_loss, tmp_loss_dict, _, x_e_car, x_e_truck, tt_e_car, tt_e_truck = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck, counter=j)
         # print("finished original grad loss")
         output.put([car_grad, truck_grad, tmp_loss, tmp_loss_dict, x_e_car, x_e_truck, tt_e_car, tt_e_truck])
         # output.put(grad)
@@ -1048,6 +1441,42 @@ class MCDODE():
         for loss_type, loss_value in loss_dict.items():
             tmp_str += loss_type + ": " + str(np.round(loss_value, 2)) + "|"
         return tmp_str
+
+    def update_path_table(self, dta):
+        # dta.build_link_cost_map() should be called before this method
+
+        start_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
+        self.nb.update_path_table(dta, start_intervals)
+
+        self.num_path = self.nb.config.config_dict['FIXED']['num_path']
+
+        # observed path IDs, np.array
+        self.config['paths_list'] = np.array(list(self.nb.path_table.ID2path.keys()), dtype=int)
+        assert(len(np.unique(self.config['paths_list'])) == len(self.config['paths_list']))
+        self.paths_list = self.config['paths_list']
+        assert (len(self.paths_list) == self.num_path)
+
+    def update_path_flow(self, f_car, f_truck, car_init_scale=1, truck_init_scale=0.1):
+        max_interval = self.nb.config.config_dict['DTA']['max_interval']
+        # reshape path flow into ndarrays with dimensions of intervals x number of total paths
+        f_car = f_car.reshape(max_interval, -1)
+        f_truck = f_truck.reshape(max_interval, -1)
+
+        if len(self.nb.path_table.ID2path) > f_car.shape[1]:
+            _add_f = self.init_demand_vector(max_interval, len(self.nb.path_table.ID2path) - f_car.shape[1], car_init_scale)
+            _add_f = _add_f.reshape(max_interval, -1)
+            f_car = np.concatenate((f_car, _add_f), axis=1)
+            assert(f_car.shape[1] == len(self.nb.path_table.ID2path))
+
+            _add_f = self.init_demand_vector(max_interval, len(self.nb.path_table.ID2path) - f_truck.shape[1], truck_init_scale)
+            _add_f = _add_f.reshape(max_interval, -1)
+            f_truck = np.concatenate((f_truck, _add_f), axis=1)
+            assert(f_truck.shape[1] == len(self.nb.path_table.ID2path))
+
+        f_car = f_car.flatten(order='C')
+        f_truck = f_truck.flatten(order='C')
+
+        return f_car, f_truck
 
 
 # Simultaneous Perturbation Stochastic Approximation

@@ -3405,8 +3405,8 @@ TFlt get_path_travel_time_car(MNM_Path *path, TFlt start_time, MNM_Link_Factory 
 	return TFlt(_end_time - start_time);  // # of unit intervals
 }
 
-TFlt get_path_travel_time_car(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map_car, TInt end_loading_timestamp){
-	return get_path_travel_time(path, start_time, link_cost_map_car, end_loading_timestamp);
+TFlt get_path_travel_time_car(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_tt_map_car, TInt end_loading_timestamp){
+	return get_path_travel_time(path, start_time, link_tt_map_car, end_loading_timestamp);
 }
 
 TFlt get_path_travel_time_truck(MNM_Path *path, TFlt start_time, MNM_Link_Factory *link_factory, TFlt unit_interval, TInt end_loading_timestamp) {
@@ -3427,8 +3427,8 @@ TFlt get_path_travel_time_truck(MNM_Path *path, TFlt start_time, MNM_Link_Factor
 	return TFlt(_end_time - start_time);  // # of unit intervals
 }
 
-TFlt get_path_travel_time_truck(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_cost_map_truck, TInt end_loading_timestamp){
-	return get_path_travel_time(path, start_time, link_cost_map_truck, end_loading_timestamp);
+TFlt get_path_travel_time_truck(MNM_Path* path, TFlt start_time, std::unordered_map<TInt, TFlt*> &link_tt_map_truck, TInt end_loading_timestamp){
+	return get_path_travel_time(path, start_time, link_tt_map_truck, end_loading_timestamp);
 }
 
 int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
@@ -3670,11 +3670,11 @@ int print_vehicle_statistics(MNM_Veh_Factory_Multiclass *veh_factory)
 	return 0;
 }
 
-Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length) {
+Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt vot, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length) {
 	// printf("11\n");
 	// MaxIter: maximum iteration to find alternative shortest path, when MaxIter = 0, just shortest path
 	// Mid_Scale and Heavy_Scale are different penalties to the travel cost of links in existing paths
-
+	IAssert(vot > 0);
 	/* initialize data structure */
 	TInt _dest_node_ID, _origin_node_ID;
 	Path_Table *_path_table = new Path_Table();
@@ -3702,7 +3702,7 @@ Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory
 	std::unordered_map<TInt, TInt> _free_shortest_path_tree = std::unordered_map<TInt, TInt>();
 	MNM_Path *_path;
 	for (auto _link_it = link_factory->m_link_map.begin(); _link_it != link_factory->m_link_map.end(); _link_it++) {
-		_free_cost_map.insert(std::pair<TInt, TFlt>(_link_it->first, _link_it->second->get_link_tt()));
+		_free_cost_map.insert(std::pair<TInt, TFlt>(_link_it->first, vot * _link_it->second->get_link_tt() + _link_it -> second -> m_toll));
 	}
 	// printf("1111\n");
 	for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
@@ -3743,10 +3743,10 @@ Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory
 					for (auto &_link_ID : _path -> m_link_vec) {
 						_link = link_factory->get_link(_link_ID);
 						if (Mid_Scale > 1) {
-							_mid_cost_map.find(_link_ID)->second = _link->get_link_tt() * Mid_Scale;
+							_mid_cost_map.find(_link_ID)->second = vot * _link->get_link_tt() * Mid_Scale + _link -> m_toll;
 						}
 						if (Heavy_Scale > 1) {
-							_heavy_cost_map.find(_link_ID)->second = _link->get_link_tt() * Heavy_Scale;
+							_heavy_cost_map.find(_link_ID)->second = vot * _link->get_link_tt() * Heavy_Scale + _link -> m_toll;
 						}
 					}
 				}
