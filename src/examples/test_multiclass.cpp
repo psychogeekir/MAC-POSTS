@@ -63,7 +63,7 @@ int main()
         }
 	}
 
-    while (!test_dta -> finished_loading(_current_inter) || _assign_inter < test_dta -> m_total_assign_inter){
+    while (!test_dta -> finished_loading(_current_inter) || _assign_inter <= test_dta -> m_total_assign_inter){
         printf("\nCurrent loading interval: %d, Current assignment interval: %d\n", _current_inter(), _assign_inter());
 		test_dta -> load_once(_verbose, _current_inter, _assign_inter);
 		if (_current_inter % test_dta -> m_assign_freq == 0 || _current_inter == 0){

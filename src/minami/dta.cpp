@@ -472,7 +472,7 @@ int MNM_Dta::loading(bool verbose)
   TInt _assign_inter = m_start_assign_interval;
 
   // pre_loading();
-  while (!finished_loading(_cur_int)){
+  while (!finished_loading(_cur_int) || _assign_inter <= m_total_assign_inter){
     if (_cur_int==0) m_statistics -> update_record(_cur_int);
     if(verbose) printf("-------------------------------    Interval %d   ------------------------------ \n", (int)_cur_int);
     // step 1: Origin release vehicle (at origin node, generate vehicles for current assignment interval and put them in m_in_veh_queue)

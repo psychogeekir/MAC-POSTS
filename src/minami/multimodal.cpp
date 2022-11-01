@@ -7643,7 +7643,7 @@ int MNM_Dta_Multimodal::loading(bool verbose) {
     TInt _current_inter = 0;
     TInt _assign_inter = m_start_assign_interval;
 
-    while (!finished_loading(_current_inter)) {
+    while (!finished_loading(_current_inter) || _assign_inter <= m_total_assign_inter) {
         if (verbose) {
             printf("\nCurrent loading interval: %d, Current assignment interval: %d\n", _current_inter(), _assign_inter());
         }
@@ -14718,7 +14718,7 @@ MNM_Dta_Multimodal *MNM_MM_Due::run_mmdta_adaptive(bool verbose) {
     TInt _dta_assign_inter = mmdta -> m_start_assign_interval;
     TInt _due_assign_inter = mmdta -> m_start_assign_interval;
 
-    while (!mmdta -> finished_loading(_current_inter)) {
+    while (!mmdta -> finished_loading(_current_inter) || _dta_assign_inter <= mmdta -> m_total_assign_inter) {
 
         if ((_current_inter % m_mmdta_config -> get_int("assign_frq") == 0 || _current_inter == 0) && (_due_assign_inter < m_total_assign_inter)) {
             if (_current_inter == 0) mmdta -> m_statistics -> update_record(_current_inter);  // for other timestamps, this is called in load_once()

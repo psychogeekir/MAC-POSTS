@@ -1324,28 +1324,41 @@ int Mcdta_Api::build_link_cost_map(bool with_congestion_indicator)
     MNM_Dlink_Multiclass *_link;
     // TODO: what if not hybrid routing, better way to get vot
     TFlt _vot = dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_adaptive -> m_vot;
-    for (int i = 0; i < get_cur_loading_interval(); i++) {
-        std::cout << "********************** build_link_cost_map interval " << i << " **********************\n";
-        for (auto _link_it : m_mcdta->m_link_factory->m_link_map) {
-            // #pragma omp task 
-            _link = dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second);
+    for (auto _link_it : m_mcdta->m_link_factory->m_link_map) {
+        // #pragma omp task 
+        _link = dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second);
 
-            if (m_link_tt_map.find(_link_it.first) == m_link_tt_map.end()) {
-                m_link_tt_map[_link_it.first] = new TFlt[get_cur_loading_interval()];
+        if (m_link_tt_map.find(_link_it.first) == m_link_tt_map.end()) {
+            m_link_tt_map[_link_it.first] = new TFlt[get_cur_loading_interval()];
+        }
+        if (m_link_cost_map.find(_link_it.first) == m_link_cost_map.end()) {
+            m_link_cost_map[_link_it.first] = new TFlt[get_cur_loading_interval()];
+        }
+        if (m_link_tt_map_truck.find(_link_it.first) == m_link_tt_map_truck.end()) {
+            m_link_tt_map_truck[_link_it.first] = new TFlt[get_cur_loading_interval()];
+        }
+        if (m_link_cost_map_truck.find(_link_it.first) == m_link_cost_map_truck.end()) {
+            m_link_cost_map_truck[_link_it.first] = new TFlt[get_cur_loading_interval()];
+        }
+
+        if (with_congestion_indicator) {
+            if (m_link_congested_car.find(_link_it.first) == m_link_congested_car.end()) {
+                m_link_congested_car[_link_it.first] = new bool[get_cur_loading_interval()];
             }
+            if (m_link_congested_truck.find(_link_it.first) == m_link_congested_truck.end()) {
+                m_link_congested_truck[_link_it.first] = new bool[get_cur_loading_interval()];
+            }
+        }
+        
+        std::cout << "********************** build_link_cost_map link " << _link -> m_link_ID() << " **********************\n";
+        for (int i = 0; i < get_cur_loading_interval(); i++) {
+            
             m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(i+1), m_mcdta -> m_unit_time, get_cur_loading_interval());
-            if (m_link_cost_map.find(_link_it.first) == m_link_cost_map.end()) {
-                m_link_cost_map[_link_it.first] = new TFlt[get_cur_loading_interval()];
-            }
+            
             m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
 
-            if (m_link_tt_map_truck.find(_link_it.first) == m_link_tt_map_truck.end()) {
-                m_link_tt_map_truck[_link_it.first] = new TFlt[get_cur_loading_interval()];
-            }
             m_link_tt_map_truck[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_truck(_link, TFlt(i+1), m_mcdta -> m_unit_time, get_cur_loading_interval());
-            if (m_link_cost_map_truck.find(_link_it.first) == m_link_cost_map_truck.end()) {
-                m_link_cost_map_truck[_link_it.first] = new TFlt[get_cur_loading_interval()];
-            }
+            
             m_link_cost_map_truck[_link_it.first][i] = _vot * m_link_tt_map_truck[_link_it.first][i] + _link -> m_toll;
 
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << "\n";
@@ -1362,13 +1375,9 @@ int Mcdta_Api::build_link_cost_map(bool with_congestion_indicator)
                 // std::cout << "truck, interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map_truck[_link_it.first][i] << ", fftt: " << _link -> get_link_freeflow_tt_truck() / m_unit_time << "\n";
                 // std::cout << "car, interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << ", fftt: " << _link -> get_link_freeflow_tt_loading_car() << "\n";
                 // std::cout << "truck, interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map_truck[_link_it.first][i] << ", fftt: " << _link -> get_link_freeflow_tt_loading_truck() << "\n";
-                if (m_link_congested_car.find(_link_it.first) == m_link_congested_car.end()) {
-                    m_link_congested_car[_link_it.first] = new bool[get_cur_loading_interval()];
-                }
+                
                 m_link_congested_car[_link_it.first][i] = m_link_tt_map[_link_it.first][i] > _link -> get_link_freeflow_tt_loading_car();
-                if (m_link_congested_truck.find(_link_it.first) == m_link_congested_truck.end()) {
-                    m_link_congested_truck[_link_it.first] = new bool[get_cur_loading_interval()];
-                }
+                
                 m_link_congested_truck[_link_it.first][i] = m_link_tt_map_truck[_link_it.first][i] > _link -> get_link_freeflow_tt_loading_truck();
                 
                 // std::cout << "car, interval: " << i << ", link: " << _link_it.first << ", congested?: " << m_link_congested_car[_link_it.first][i] << "\n";
@@ -1856,8 +1865,10 @@ py::array_t<double> Mcdta_Api::get_path_tt_truck(py::array_t<int>link_IDs, py::a
         
     auto links_buf = link_IDs.request();
         
-    int new_shape [1] = { num_int }; 
-    // the output is an array with size of num_int, each element being the average path travel time departing at start_interval
+    int new_shape [2] = { 2, num_int }; 
+    // the output is an array with size of 2 * num_int
+    // in first row, each element being the average path travel time departing at start_interval,
+    // in second row, each element being the average path travel cost departing at start_interval,
     auto result = py::array_t<double>(new_shape);
     auto result_buf = result.request();
     double *result_prt = (double *) result_buf.ptr;
