@@ -115,6 +115,8 @@ int main()
     }
     test_dta -> m_current_loading_interval = _current_inter;
     test_dta -> m_emission -> output();
+    test_dta -> m_statistics -> post_record();
+    if (test_dta -> m_gridlock_recorder != nullptr) test_dta -> m_gridlock_recorder -> post_record();
 
     // Output vehicles' total count and travel time, before divided by flow_scalar
     _count_car = dynamic_cast<MNM_Veh_Factory_Multimodal*>(test_dta -> m_veh_factory) -> m_finished_car;

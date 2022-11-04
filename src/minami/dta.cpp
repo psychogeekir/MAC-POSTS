@@ -8,6 +8,7 @@ MNM_Dta::MNM_Dta(const std::string& file_folder)
   m_emission = nullptr;
   m_routing = nullptr;
   m_statistics = nullptr;
+  m_gridlock_recorder = nullptr;
   m_workzone = nullptr;
   m_veh_factory = nullptr;
   m_node_factory = nullptr;
@@ -42,6 +43,7 @@ MNM_Dta::~MNM_Dta()
 
   if (m_statistics != nullptr) delete m_statistics;
   // printf("m_statistics\n");
+  if (m_gridlock_recorder != nullptr) delete m_gridlock_recorder;
   if (m_workzone != nullptr) delete m_workzone;
   // printf("m_workzone\n");
   
@@ -82,6 +84,22 @@ int MNM_Dta::set_statistics()
                                           m_od_factory, m_node_factory, m_link_factory);
   }
   // printf("set_statistics finished\n");
+  return 0;
+}
+
+int MNM_Dta::set_gridlock_recorder()
+{
+  MNM_ConfReader *_record_config = new MNM_ConfReader(m_file_folder + "/config.conf", "STAT");
+  TInt _rec_gridlock;
+  try {
+    _rec_gridlock = _record_config -> get_int("rec_gridlock");
+  }
+  catch (const std::invalid_argument& ia) {
+    _rec_gridlock = 0;
+  }
+  if (_rec_gridlock > 0) {
+    m_gridlock_recorder = new MNM_Gridlock_Link_Recorder(m_file_folder, _record_config);
+  }
   return 0;
 }
 
@@ -208,6 +226,7 @@ int MNM_Dta::build_from_files()
   MNM_IO::build_link_toll(m_file_folder, m_config, m_link_factory);
   build_workzone();
   set_statistics();
+  set_gridlock_recorder();
   printf("Start building routing\n");
   set_routing();
   printf("Finish building routing\n");
@@ -335,6 +354,7 @@ int MNM_Dta::pre_loading()
   MNM_Dnode *_node;
   // printf("MNM: Prepare loading!\n");
   m_statistics -> init_record();
+  if (m_gridlock_recorder != nullptr) m_gridlock_recorder -> init_record();
   for (auto _node_it = m_node_factory -> m_node_map.begin(); _node_it != m_node_factory -> m_node_map.end(); _node_it++){
     _node = _node_it -> second;
     // printf("Node ID: %d\n", _node -> m_node_ID);
@@ -436,8 +456,11 @@ int MNM_Dta::load_once(bool verbose, TInt load_int, TInt assign_int)
     //       _link -> m_link_ID(), _link -> get_link_flow()(), (int)_link -> m_incoming_array.size(),  (int)_link -> m_finished_array.size());
     //   _link -> print_info();
     // }
-    // printf("link ID is %d\n", _link-> m_link_ID());
-    // _link -> print_info();
+    if ((m_gridlock_recorder != nullptr) && (
+        (m_config -> get_int("total_interval") <= 0 && load_int >= 1.5 * m_total_assign_inter * m_assign_freq) || 
+        (m_config -> get_int("total_interval") > 0 && load_int >= 0.95 * m_config ->get_int("total_interval")))) {
+        m_gridlock_recorder -> save_one_link(load_int, _link);
+    }
     _link -> clear_incoming_array(load_int);
     _link -> evolve(load_int);
   }
@@ -542,11 +565,12 @@ int MNM_Dta::loading(bool verbose)
     // step 4: move vehicles through link
     for (auto _link_it = m_link_factory -> m_link_map.begin(); _link_it != m_link_factory -> m_link_map.end(); _link_it++){
       _link = _link_it -> second;
-      // if (_link -> get_link_flow() >= 0){
-      //   printf("Current Link %d:, traffic flow %.4f, incoming %d, finished %d\n",
-      //       _link -> m_link_ID(), _link -> get_link_flow()(), (int)_link -> m_incoming_array.size(),  (int)_link -> m_finished_array.size());
-      //   _link -> print_info();
-      // }
+
+      if ((m_gridlock_recorder != nullptr) && (
+          (m_config -> get_int("total_interval") <= 0 && _cur_int >= 1.5 * m_total_assign_inter * m_assign_freq) || 
+          (m_config -> get_int("total_interval") > 0 && _cur_int >= 0.95 * m_config ->get_int("total_interval")))) {
+          m_gridlock_recorder -> save_one_link(_cur_int, _link);
+      }
       
       _link -> clear_incoming_array(_cur_int);
       // printf("finished clear link\n");
@@ -579,10 +603,10 @@ int MNM_Dta::loading(bool verbose)
   MNM::print_vehicle_statistics(m_veh_factory);
   // MNM_IO::dump_cumulative_curve(m_file_folder, m_link_factory);
   m_statistics -> post_record();
+  if (m_gridlock_recorder != nullptr) m_gridlock_recorder -> post_record();
   m_current_loading_interval = _cur_int;
   return 0;
 }
-
 
 int MNM_Dta::record_queue_vehicles()
 {

@@ -3124,6 +3124,7 @@ int MNM_Dta_Multiclass::build_from_files()
 	// build_workzone();
 	m_workzone = nullptr;
 	set_statistics();
+	set_gridlock_recorder();
 	set_routing();
 	return 0;
 }
@@ -3133,6 +3134,7 @@ int MNM_Dta_Multiclass::pre_loading()
 	MNM_Dnode *_node;
 	// printf("MNM: Prepare loading!\n");
 	m_statistics -> init_record();
+	if (m_gridlock_recorder != nullptr) m_gridlock_recorder -> init_record();
 	for (auto _node_it = m_node_factory -> m_node_map.begin(); _node_it != m_node_factory -> m_node_map.end(); _node_it++){
 		_node = _node_it -> second;
 		_node -> prepare_loading();

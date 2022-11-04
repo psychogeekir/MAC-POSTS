@@ -13,7 +13,7 @@
 #include "shortest_path.h"
 #include "pre_routing.h"
 #include "emission.h"
-
+#include "gridlock_checker.h"
 #include <string>
 
 class MNM_Dta
@@ -31,6 +31,7 @@ public:
 // private:
   virtual bool finished_loading(int cur_int);
   virtual int set_statistics();
+  virtual int set_gridlock_recorder();
   virtual int set_routing();
   int build_workzone();
   int check_origin_destination_connectivity();
@@ -53,6 +54,7 @@ public:
   MNM_OD_Factory *m_od_factory;
   PNEGraph m_graph;
   MNM_Statistics *m_statistics;
+  MNM_Gridlock_Link_Recorder *m_gridlock_recorder;
   MNM_Routing *m_routing;
   MNM_Workzone *m_workzone;
   TInt m_current_loading_interval;

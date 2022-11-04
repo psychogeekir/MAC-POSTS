@@ -21,3 +21,16 @@ public:
   PNEGraph m_full_graph;
   PNEGraph m_gridlock_graph;
 };
+
+class MNM_Gridlock_Link_Recorder
+{
+public:
+  MNM_Gridlock_Link_Recorder(const std::string& file_folder, MNM_ConfReader *record_config);
+  virtual ~MNM_Gridlock_Link_Recorder();
+  int init_record();
+  virtual int save_one_link(TInt loading_interval, MNM_Dlink *link);
+  int post_record();
+
+  MNM_ConfReader *m_config;
+  std::ofstream m_record_file;
+};

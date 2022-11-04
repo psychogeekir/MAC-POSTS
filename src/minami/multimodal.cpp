@@ -7060,6 +7060,7 @@ int MNM_Dta_Multimodal::build_from_files()
     m_workzone = nullptr;
     // record link volume and travel time in simulation
     set_statistics();
+    set_gridlock_recorder();
     // load path table and buffer
     set_routing();
     return 0;
@@ -7585,13 +7586,12 @@ int MNM_Dta_Multimodal::load_once(bool verbose, TInt load_int, TInt assign_int)
     // step 8: moving vehicles through driving links and boarding and alighting passengers
     for (auto _link_it : m_link_factory -> m_link_map){
         _link = _link_it.second;
-        // if (_link -> get_link_flow() > 0){
-        //   printf("Current Link %d:, traffic flow %.4f, incomming %d, finished %d\n",
-        //       _link -> m_link_ID(), _link -> get_link_flow()(), (int)_link -> m_incoming_array.size(),  (int)_link -> m_finished_array.size());
-        //   _link -> print_info();
-        // }
-        // printf("link ID is %d\n", _link-> m_link_ID());
-        // _link -> print_info();
+        
+        if ((m_gridlock_recorder != nullptr) && (
+            (m_config -> get_int("total_interval") <= 0 && load_int >= 1.5 * m_total_assign_inter * m_assign_freq) || 
+            (m_config -> get_int("total_interval") > 0 && load_int >= 0.95 * m_config ->get_int("total_interval")))) {
+            m_gridlock_recorder -> save_one_link(load_int, _link);
+        }
 
         _link -> clear_incoming_array(load_int);
         _link -> evolve(load_int);  // include board_and_alight()
@@ -7659,6 +7659,7 @@ int MNM_Dta_Multimodal::loading(bool verbose) {
         MNM::print_passenger_statistics(m_passenger_factory);
     }
     m_statistics -> post_record();
+    if (m_gridlock_recorder != nullptr) m_gridlock_recorder -> post_record();
     m_current_loading_interval = _current_inter;
     return _current_inter;  // total number of actual loading intervals = _current_inter)
 }

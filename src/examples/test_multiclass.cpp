@@ -90,6 +90,8 @@ int main()
 		_current_inter += 1;
 		// if (_current_inter > 200) break;
 	}
+	test_dta -> m_statistics -> post_record();
+  	if ( test_dta -> m_gridlock_recorder != nullptr) test_dta -> m_gridlock_recorder -> post_record();
 
 	// Output total travels and travel time, before divided by flow_scalar
 	TInt _count_car, _count_truck;
