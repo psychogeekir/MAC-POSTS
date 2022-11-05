@@ -430,7 +430,7 @@ class MNM_config():
                       'num_of_O': np.int, 'num_of_D': np.int, 'OD_pair': np.int,
                       'routing_type' : str, 'init_demand_split': np.int, 'num_of_tolled_link': np.int, 'rec_mode': str, 'rec_mode_para': str, 'rec_folder': str,
                       'rec_volume': np.int, 'volume_load_automatic_rec': np.int, 'volume_record_automatic_rec': np.int,
-                      'rec_tt': np.int, 'tt_load_automatic_rec':np.int, 'tt_record_automatic_rec':np.int,
+                      'rec_tt': np.int, 'tt_load_automatic_rec':np.int, 'tt_record_automatic_rec':np.int, 'rec_gridlock': np.int,
                       'route_frq': np.int, 'vot': np.float, 'path_file_name': str, 'num_path': np.int,
                       'choice_portion': str, 'route_frq': np.int, 'buffer_length':np.int}
 

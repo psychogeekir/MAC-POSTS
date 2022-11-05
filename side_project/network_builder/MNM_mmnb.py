@@ -1229,6 +1229,7 @@ class MNM_config():
             'rec_tt': np.int, 
             'tt_load_automatic_rec': np.int, 
             'tt_record_automatic_rec': np.int,
+            'rec_gridlock': np.int,
             
             # FIXED, ADAPTIVE
             'route_frq': np.int,
