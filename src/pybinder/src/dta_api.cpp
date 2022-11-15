@@ -84,6 +84,10 @@ Tdsp_Api::Tdsp_Api()
 
     m_num_rows_link_file = -1;
     m_num_rows_node_file = -1;
+
+    // Lindsay's request, unfinished
+    // m_td_link_attributes = std::unordered_map<std::string, std::unordered_map<TInt, TFlt*>> ();
+    // m_td_node_attributes = std::unordered_map<std::string, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>> ();
     
     m_graph = nullptr;
 }
@@ -116,6 +120,26 @@ Tdsp_Api::~Tdsp_Api()
     }
     m_td_node_cost.clear();
 
+    // Lindsay's request, unfinished
+    // for (auto _it: m_td_link_attributes) {
+    //     for (auto _it_it : _it.second) {
+    //         free(_it_it.second);
+    //     }
+    //     _it.second.clear();
+    // }
+    // m_td_link_attributes.clear();
+
+    // for (auto _it: m_td_node_attributes) {
+    //     for (auto _it_it : _it.second) {
+    //         for (auto _it_it_it: _it_it.second) {
+    //             free(_it_it_it.second);
+    //         }
+    //         _it_it.second.clear();
+    //     }
+    //     _it.second.clear();
+    // }
+    // m_td_node_attributes.clear();
+
     m_graph -> Clr();
 }
 
@@ -137,6 +161,25 @@ int Tdsp_Api::initialize(const std::string &folder, int max_interval, int num_ro
     
     MNM_ConfReader *conf_reader = new MNM_ConfReader(folder + "/config.conf", "Network");
     m_graph = MNM_IO::build_graph(folder, conf_reader);
+
+    // Lindsay's request, unfinished
+    // // other link attributes
+    // std::string _s = conf_reader -> get_string("link_attributes");
+    // std::vector<std::string> attributes = MNM_IO::split(_s, ',');
+    // for (size_t i = 0; i < attributes.size(); ++i) {
+    //     std::string _a = MNM_IO::trim(attributes[i]);
+    //     m_td_link_attributes.insert(std::make_pair(_a, std::unordered_map<TInt, TFlt*> ()));
+    //     MNM_IO::read_td_link_cost(folder, m_td_link_attributes[_a], m_num_rows_link_file, m_max_interval, "td_link_" + _a);
+    // }
+    // // other node attributes
+    // _s = conf_reader -> get_string("node_attributes");
+    // attributes = MNM_IO::split(_s, ',');
+    // for (size_t i = 0; i < attributes.size(); ++i) {
+    //     std::string _a = MNM_IO::trim(attributes[i]);
+    //     m_td_node_attributes.insert(std::make_pair(_a, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> ()));
+    //     MNM_IO::read_td_node_cost(folder, m_td_node_attributes[_a], m_num_rows_node_file, m_max_interval, "td_node_" + _a);
+    // }
+
     delete conf_reader;
     return 0;
 }
@@ -175,6 +218,11 @@ py::array_t<double> Tdsp_Api::extract_tdsp(int origin_node_ID, int timestamp)
     printf("number of nodes: %d\n", int(_path -> m_node_vec.size()));
     _str = _path -> node_vec_to_string();
     std::cout << "path: " << _str << "\n";
+
+    // Lindsay's request, unfinished
+    // for (auto _it : m_td_link_attributes) {
+    //     m_tdsp_tree -> get_tdsp_attribute(_path, timestamp, m_td_link_tt, m_td_node_tt, m_td_link_attributes[_it.first], m_td_node_attributes[_it.first]);
+    // }
 
     int new_shape [2] = { (int) _path -> m_node_vec.size(), 4}; 
     auto result = py::array_t<double>(new_shape);

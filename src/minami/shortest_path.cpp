@@ -872,6 +872,7 @@ TFlt MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time,
             node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) != node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.end()) {
             _tt += node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[_cur_time];
             _cur_time += int(ceil(node_tt_map.find(path->m_link_vec[path->m_link_vec.size()-2]) -> second.find(_cur_link_ID) -> second[_cur_time]));  // node tt can be zero
+            _cur_time = _cur_time < (int)m_max_interval ? _cur_time : (int)m_max_interval - 1;
         }
         _tt += link_tt_map.find(_cur_link_ID) -> second[_cur_time];
         _cur_time = round_time(_cur_time, link_tt_map.find(_cur_link_ID) -> second[_cur_time]);  // link tt cannot be zero
@@ -880,6 +881,37 @@ TFlt MNM_TDSP_Tree::get_tdsp(TInt src_node_ID, TInt time,
     path->m_node_vec.push_back(m_dest_node_ID);
     return _tt;
 }
+
+// Lindsay's request
+TFlt MNM_TDSP_Tree::get_tdsp_attribute(MNM_Path* path, TInt time, 
+               const std::unordered_map<TInt, TFlt*>& link_tt_map, 
+               const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_tt_map,
+               const std::unordered_map<TInt, TFlt*>& link_attribute_map, 
+               const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_attribute_map) {
+
+    TInt _cur_link_ID;
+    TFlt _tt = 0., _attribute_value = 0.;
+    int _cur_time = int(time) < (int)m_max_interval ? int(time) : (int)m_max_interval - 1;
+    for (size_t i=0; i < path -> m_link_vec.size(); ++i) {
+        _cur_link_ID = path -> m_link_vec[i];
+
+        // first node cost, then link cost
+        if (i > 0 &&
+            path->m_link_vec.size() >= 2 &&
+            node_tt_map.find(path->m_link_vec[i-1]) != node_tt_map.end() &&
+            node_tt_map.find(path->m_link_vec[i-1]) -> second.find(_cur_link_ID) != node_tt_map.find(path->m_link_vec[i-1]) -> second.end()) {
+            _tt += node_tt_map.find(path->m_link_vec[i-1]) -> second.find(_cur_link_ID) -> second[_cur_time];
+            _attribute_value += node_attribute_map.find(path->m_link_vec[i-1]) -> second.find(_cur_link_ID) -> second[_cur_time];
+            _cur_time += int(ceil(node_tt_map.find(path->m_link_vec[i-1]) -> second.find(_cur_link_ID) -> second[_cur_time]));  // node tt can be zero
+            _cur_time = _cur_time < (int)m_max_interval ? _cur_time : (int)m_max_interval - 1;
+        }
+        _tt += link_tt_map.find(_cur_link_ID) -> second[_cur_time];
+        _attribute_value += link_attribute_map.find(_cur_link_ID) -> second[_cur_time];
+        _cur_time = round_time(_cur_time, link_tt_map.find(_cur_link_ID) -> second[_cur_time]);  // link tt cannot be zero
+        
+    }
+    return _attribute_value;
+}   
 
 
 TFlt MNM_TDSP_Tree::get_distance_to_destination(TInt node_ID, TFlt time_stamp) {

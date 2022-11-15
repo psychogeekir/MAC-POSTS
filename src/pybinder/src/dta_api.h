@@ -37,6 +37,10 @@ public:
   std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_td_node_tt;
   std::unordered_map<TInt, TFlt*> m_td_link_cost;
   std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_td_node_cost;
+
+  // Lindsay's request, unfinished
+  // std::unordered_map<std::string, std::unordered_map<TInt, TFlt*>> m_td_link_attributes;
+  // std::unordered_map<std::string, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>> m_td_node_attributes;
 };
 
 

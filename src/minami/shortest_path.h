@@ -121,6 +121,12 @@ public:
                const std::unordered_map<TInt, TFlt*>& link_tt_map, 
                const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_tt_map,
                MNM_Path* path);
+  // Lindsay's request
+  TFlt get_tdsp_attribute(MNM_Path* path, TInt time, 
+               const std::unordered_map<TInt, TFlt*>& link_tt_map, 
+               const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_tt_map,
+               const std::unordered_map<TInt, TFlt*>& link_attribute_map, 
+               const std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>& node_attribute_map);
   int round_time(TFlt time_stamp);
   int round_time(int start_time_stamp, TFlt travel_time, float p = 1e-4);
   std::unordered_map<TInt, TFlt*> m_dist;
