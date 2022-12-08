@@ -54,6 +54,9 @@ public:
 	TFlt m_tot_wait_time_at_intersection_truck; // seconds
 	bool m_spill_back;
 
+	TFlt m_toll_car;
+	TFlt m_toll_truck;
+
 	// Two seperate N-curves for private cars and trucks
 	MNM_Cumulative_Curve *m_N_in_car;
   	MNM_Cumulative_Curve *m_N_out_car;
@@ -557,6 +560,9 @@ public:
 											MNM_OD_Factory *od_factory, const std::string& file_name = "MNM_origin_label_car");
 	static int read_origin_truck_label_ratio(const std::string& file_folder, MNM_ConfReader *conf_reader,
 											MNM_OD_Factory *od_factory, const std::string& file_name = "MNM_origin_label_truck");
+
+	static int build_link_toll_multiclass(const std::string& file_folder, MNM_ConfReader *conf_reader, MNM_Link_Factory *link_factory, 
+	                                      const std::string& file_name = "MNM_input_link_toll");
 };
 
 

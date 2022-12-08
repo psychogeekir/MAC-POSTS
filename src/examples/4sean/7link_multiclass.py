@@ -9,13 +9,12 @@ import sys
 import os
 import pickle
 
+macposts_dir = '/home/qiling/Documents/MAC-POSTS'
 
 # %%
-# MNM_nb_folder = os.path.join('..', '..', '..', 'side_project', 'network_builder') # MNM_nb, MNM_mcnb
-MNM_nb_folder = os.path.join('.', 'side_project', 'network_builder') # MNM_nb, MNM_mcnb
+MNM_nb_folder = os.path.join(macposts_dir, 'side_project', 'network_builder') # MNM_nb, MNM_mcnb
 sys.path.append(MNM_nb_folder)
-# python_lib_folder = os.path.join('..', '..', 'pylib') # covariance_tree and DODE, sDODE, mcDODE functions
-python_lib_folder = os.path.join('.', 'src', 'pylib') # covariance_tree and DODE, sDODE, mcDODE functions
+python_lib_folder = os.path.join(macposts_dir, 'src', 'pylib') # covariance_tree and DODE, sDODE, mcDODE functions
 sys.path.append(python_lib_folder)
 
 
@@ -28,7 +27,7 @@ from mcDODE import MCDODE, mcSPSA, PostProcessing
 # %%
 # /home/qiling/Documents/MAC-POSTS
 print(os.getcwd())
-data_folder = os.path.join('/home/qiling/Documents/MAC-POSTS/data/input_files_7link_multiclass_new')
+data_folder = os.path.join(macposts_dir, 'data/input_files_7link_multiclass_new')
 
 # %% [markdown]
 # ### Use of network builder
@@ -70,7 +69,7 @@ ml_truck = 5
 data_dict = dict()
 num_interval = nb.config.config_dict['DTA']['max_interval']
 
-# true time-dependen path flow
+# true time-dependent path flow
 true_f_car = np.random.rand(num_interval * nb.config.config_dict['FIXED']['num_path']) * 300
 true_f_truck = np.random.rand(num_interval * nb.config.config_dict['FIXED']['num_path']) * 30
 

@@ -31,6 +31,7 @@ link_ID = np.array([e[2]['edge_ID'] for e in G.edges(data=True)], dtype=int)
 td_link_cost = np.concatenate((link_ID[:, np.newaxis], td_link_cost), axis=1)
 assert(td_link_cost.shape[1] == num_interval + 1)
 
+# save as plain txt
 np.savetxt(folder + 'td_link_cost', td_link_cost, fmt='%d ' + (num_interval-1)*'%f ' + '%f')
 f = open(folder + 'td_link_cost', 'r')
 log = f.readlines()
@@ -40,9 +41,13 @@ f = open(folder + 'td_link_cost', 'w')
 f.writelines(log)
 f.close()
 
+# save as np array, no header line
+np.save(folder + 'td_link_cost', td_link_cost)
+
 td_link_tt = np.concatenate((link_ID[:, np.newaxis], td_link_tt), axis=1)
 assert(td_link_tt.shape[1] == num_interval + 1)
 
+# save as plain txt
 np.savetxt(folder + 'td_link_tt', td_link_tt, fmt='%d ' + (num_interval-1)*'%f ' + '%f')
 f = open(folder + 'td_link_tt', 'r')
 log = f.readlines()
@@ -52,12 +57,16 @@ f = open(folder + 'td_link_tt', 'w')
 f.writelines(log)
 f.close()
 
+# save as np array, no header line
+np.save(folder + 'td_link_tt', td_link_tt)
+
 ind = np.random.choice(len(node_movement), num_node_cost, replace=False)
 node_ID = np.array([node_movement[i] for i in ind], dtype=int)
 
 td_node_cost = np.concatenate((node_ID, td_node_cost), axis=1)
 assert(td_node_cost.shape[1] == num_interval + 3)
 
+# save as plain txt
 np.savetxt(folder + 'td_node_cost', td_node_cost, fmt='%d %d %d ' + (num_interval-1)*'%f ' + '%f')
 f = open(folder + 'td_node_cost', 'r')
 log = f.readlines()
@@ -66,6 +75,9 @@ log.insert(0, 'node_ID in_link_ID out_link_ID td_cost\n')
 f = open(folder + 'td_node_cost', 'w')
 f.writelines(log)
 f.close()
+
+# save as np array, no header line
+np.save(folder + 'td_node_cost', td_node_cost)
 
 td_node_tt = np.concatenate((node_ID, td_node_tt), axis=1)
 assert(td_node_tt.shape[1] == num_interval + 3)
@@ -78,3 +90,6 @@ log.insert(0, 'node_ID in_link_ID out_link_ID td_tt\n')
 f = open(folder + 'td_node_tt', 'w')
 f.writelines(log)
 f.close()
+
+# save as np array, no header line
+np.save(folder + 'td_node_tt', td_node_tt)

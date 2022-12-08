@@ -107,8 +107,8 @@ MNM_Routing_Adaptive::MNM_Routing_Adaptive(const std::string& file_folder, PNEGr
   }
   catch (const std::invalid_argument& ia)
   {
-    std::cout << "vot does not exist in config.conf/ADAPTIVE, use default value 2. instead\n";
-    m_vot = 2. / 3600.;
+    std::cout << "vot does not exist in config.conf/ADAPTIVE, use default value 20 usd/hour. instead\n";
+    m_vot = 20. / 3600.;  // usd/second
   }
   
   m_table = new Routing_Table();
@@ -148,7 +148,8 @@ int MNM_Routing_Adaptive::init_routing(Path_Table *path_table)
 int MNM_Routing_Adaptive::update_link_cost()
 {
   for (auto _it : m_statistics -> m_record_interval_tt ) {  // seconds
-    m_link_cost[_it.first] = _it.second * m_vot + m_link_factory -> get_link(_it.first) -> m_toll;
+      // for multiclass, m_toll is for car, see MNM_IO_Multiclass::build_link_toll_multiclass
+      m_link_cost[_it.first] = _it.second * m_vot + m_link_factory -> get_link(_it.first) -> m_toll;
   }
   return 0;
 }

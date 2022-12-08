@@ -25,7 +25,7 @@ int main()
 
   TInt buffer_length = 40;
   TInt max_iter = 1;
-  TFlt vot = 2. / 3600.;
+  TFlt vot = 20. / 3600.;
   TFlt mid_scale = 2;
   TFlt heavy_scale = 4;
   TFlt min_path_length = 0;
@@ -47,7 +47,7 @@ int main()
   MNM_IO_Multiclass::build_od_factory(m_file_folder, m_config, m_od_factory, m_node_factory);
   MNM_IO_Multiclass::build_demand_multiclass(m_file_folder, m_config, m_od_factory);
   m_graph = MNM_IO_Multiclass::build_graph(m_file_folder, m_config);
-  MNM_IO::build_link_toll(m_file_folder, m_config, m_link_factory);
+  MNM_IO_Multiclass::build_link_toll_multiclass(m_file_folder, m_config, m_link_factory);
   printf("3\n");
   // std::map<TInt, TFlt> cost_map = std::map<TInt, TFlt>();
   // for (auto _it = m_link_factory -> m_link_map.begin(); _it != m_link_factory -> m_link_map.end(); ++_it){

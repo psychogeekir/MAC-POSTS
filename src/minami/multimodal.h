@@ -1393,13 +1393,13 @@ namespace MNM {
                                                            MNM_MM_Due *mmdue);
 
     Path_Table *build_shortest_driving_pathset(PNEGraph &driving_graph, MNM_OD_Factory *od_factory, std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> &od_mode_connectivity,
-                                               MNM_Link_Factory *link_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length);
+                                               MNM_Link_Factory *link_factory, TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
 
     Path_Table *build_shortest_bustransit_pathset(PNEGraph &bustransit_graph, MNM_OD_Factory *od_factory, std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> &od_mode_connectivity,
-                                                  MNM_Transit_Link_Factory *bus_transitlink_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length);
+                                                  MNM_Transit_Link_Factory *bus_transitlink_factory, TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
 
     PnR_Path_Table *build_shortest_pnr_pathset(PNEGraph &driving_graph, PNEGraph &bustransit_graph, MNM_OD_Factory *od_factory, std::unordered_map<TInt, std::unordered_map<TInt, std::unordered_map<int, bool>>> &od_mode_connectivity,
-                                               MNM_Link_Factory *link_factory, MNM_Transit_Link_Factory *bus_transitlink_factory, TFlt min_path_length, size_t MaxIter, TFlt Mid_Scale, TFlt Heavy_Scale, TInt buffer_length);
+                                               MNM_Link_Factory *link_factory, MNM_Transit_Link_Factory *bus_transitlink_factory, TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
 
     int allocate_passenger_path_table_buffer(Passenger_Path_Table *path_table, TInt num);
 

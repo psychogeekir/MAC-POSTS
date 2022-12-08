@@ -84,10 +84,6 @@ Tdsp_Api::Tdsp_Api()
 
     m_num_rows_link_file = -1;
     m_num_rows_node_file = -1;
-
-    // Lindsay's request, unfinished
-    // m_td_link_attributes = std::unordered_map<std::string, std::unordered_map<TInt, TFlt*>> ();
-    // m_td_node_attributes = std::unordered_map<std::string, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>> ();
     
     m_graph = nullptr;
 }
@@ -120,67 +116,114 @@ Tdsp_Api::~Tdsp_Api()
     }
     m_td_node_cost.clear();
 
-    // Lindsay's request, unfinished
-    // for (auto _it: m_td_link_attributes) {
-    //     for (auto _it_it : _it.second) {
-    //         free(_it_it.second);
-    //     }
-    //     _it.second.clear();
-    // }
-    // m_td_link_attributes.clear();
-
-    // for (auto _it: m_td_node_attributes) {
-    //     for (auto _it_it : _it.second) {
-    //         for (auto _it_it_it: _it_it.second) {
-    //             free(_it_it_it.second);
-    //         }
-    //         _it_it.second.clear();
-    //     }
-    //     _it.second.clear();
-    // }
-    // m_td_node_attributes.clear();
-
     m_graph -> Clr();
 }
 
-int Tdsp_Api::initialize(const std::string &folder, int max_interval, int num_rows_link_file, int num_rows_node_file,
-                         const std::string &link_tt_file_name, const std::string &node_tt_file_name,
-                         const std::string &link_cost_file_name, const std::string &node_cost_file_name)
+int Tdsp_Api::initialize(const std::string &folder, int max_interval, int num_rows_link_file, int num_rows_node_file)
 {
     m_max_interval = max_interval;
 
     m_num_rows_link_file = num_rows_link_file;
     m_num_rows_node_file = num_rows_node_file;
-    // external input
-    MNM_IO::read_td_link_cost(folder, m_td_link_tt, m_num_rows_link_file, m_max_interval, link_tt_file_name);
-    MNM_IO::read_td_link_cost(folder, m_td_link_cost, m_num_rows_link_file, m_max_interval, link_cost_file_name);
-    if (m_num_rows_node_file != -1) {
-        MNM_IO::read_td_node_cost(folder, m_td_node_tt, m_num_rows_node_file, m_max_interval, node_tt_file_name);
-        MNM_IO::read_td_node_cost(folder, m_td_node_cost, m_num_rows_node_file, m_max_interval, node_cost_file_name);
-    }
     
     MNM_ConfReader *conf_reader = new MNM_ConfReader(folder + "/config.conf", "Network");
     m_graph = MNM_IO::build_graph(folder, conf_reader);
 
-    // Lindsay's request, unfinished
-    // // other link attributes
-    // std::string _s = conf_reader -> get_string("link_attributes");
-    // std::vector<std::string> attributes = MNM_IO::split(_s, ',');
-    // for (size_t i = 0; i < attributes.size(); ++i) {
-    //     std::string _a = MNM_IO::trim(attributes[i]);
-    //     m_td_link_attributes.insert(std::make_pair(_a, std::unordered_map<TInt, TFlt*> ()));
-    //     MNM_IO::read_td_link_cost(folder, m_td_link_attributes[_a], m_num_rows_link_file, m_max_interval, "td_link_" + _a);
-    // }
-    // // other node attributes
-    // _s = conf_reader -> get_string("node_attributes");
-    // attributes = MNM_IO::split(_s, ',');
-    // for (size_t i = 0; i < attributes.size(); ++i) {
-    //     std::string _a = MNM_IO::trim(attributes[i]);
-    //     m_td_node_attributes.insert(std::make_pair(_a, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> ()));
-    //     MNM_IO::read_td_node_cost(folder, m_td_node_attributes[_a], m_num_rows_node_file, m_max_interval, "td_node_" + _a);
-    // }
-
     delete conf_reader;
+    return 0;
+}
+
+int Tdsp_Api::read_td_cost_txt(const std::string &folder, 
+                           const std::string &link_tt_file_name, const std::string &node_tt_file_name,
+                           const std::string &link_cost_file_name, const std::string &node_cost_file_name)
+{
+    // external input with plain text
+    MNM_IO::read_td_link_cost(folder, m_td_link_tt, m_num_rows_link_file, m_max_interval, link_tt_file_name);
+    MNM_IO::read_td_link_cost(folder, m_td_link_cost, m_num_rows_link_file, m_max_interval, link_cost_file_name);
+    printf("Complete reading link cost\n");
+    if (m_num_rows_node_file != -1) {
+        MNM_IO::read_td_node_cost(folder, m_td_node_tt, m_num_rows_node_file, m_max_interval, node_tt_file_name);
+        MNM_IO::read_td_node_cost(folder, m_td_node_cost, m_num_rows_node_file, m_max_interval, node_cost_file_name);
+        printf("Complete reading node cost\n");
+    }
+    return 0;
+}
+
+int Tdsp_Api::read_td_cost_py(py::array_t<double>td_link_tt_py, py::array_t<double>td_link_cost_py, py::array_t<double>td_node_tt_py, py::array_t<double>td_node_cost_py)
+{
+    // external input with numpy array
+    read_td_link_cost(td_link_tt_py, m_td_link_tt);
+    read_td_link_cost(td_link_cost_py, m_td_link_cost);
+    printf("Complete reading link cost\n");
+    if (m_num_rows_node_file != -1) {
+        read_td_node_cost(td_node_tt_py, m_td_node_tt);
+        read_td_node_cost(td_node_cost_py, m_td_node_cost);
+        printf("Complete reading node cost\n");
+    }
+    return 0;
+}
+
+int Tdsp_Api::read_td_link_cost(py::array_t<double>td_link_cost_py, std::unordered_map<TInt, TFlt*> &td_link_cost)
+{
+    auto start_buf = td_link_cost_py.request();
+    if (start_buf.ndim != 2){
+        throw std::runtime_error("Error, Tdsp_Api::read_td_link_cost, input dimension must be 2");
+    }
+    if (start_buf.shape[0] != m_num_rows_link_file || start_buf.shape[1] != m_max_interval + 1){
+        throw std::runtime_error("Error, Tdsp_Api::read_td_link_cost, input length mismatch");
+    }
+    double *start_ptr = (double *) start_buf.ptr;
+
+    TInt _link_ID;
+    TFlt _cost;
+    TFlt *_cost_vector;
+    for (int i = 0; i < m_num_rows_link_file; ++i) {
+       _link_ID = TInt((int) start_ptr[i * (m_max_interval + 1)]);
+        if (td_link_cost.find(_link_ID) == td_link_cost.end()) {
+          TFlt* _cost_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_max_interval);
+          td_link_cost.insert(std::pair<TInt, TFlt*>(_link_ID, _cost_vector_tmp));
+        }
+        _cost_vector = td_link_cost.find(_link_ID) -> second;
+        for (int j=0; j < m_max_interval; ++j) {
+          _cost = TFlt(start_ptr[i * (m_max_interval + 1) + j + 1]);
+          _cost_vector[j] = _cost;
+        }
+    }
+
+    return 0;
+}
+
+int Tdsp_Api::read_td_node_cost(py::array_t<double>td_node_cost_py, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &td_node_cost)
+{
+    auto start_buf = td_node_cost_py.request();
+    if (start_buf.ndim != 2){
+        throw std::runtime_error("Error, Tdsp_Api::read_td_node_cost, input dimension must be 2");
+    }
+    if (start_buf.shape[0] != m_num_rows_node_file || start_buf.shape[1] != m_max_interval + 3){
+        throw std::runtime_error("Error, Tdsp_Api::read_td_node_cost, input length mismatch");
+    }
+    double *start_ptr = (double *) start_buf.ptr;
+
+    TInt _in_link_ID, _out_link_ID;
+    TFlt _cost;
+    TFlt *_cost_vector;
+    for (int i = 0; i < m_num_rows_node_file; ++i) {
+        _in_link_ID = TInt((int) start_ptr[i * (m_max_interval + 3) + 1]);
+        _out_link_ID = TInt((int) start_ptr[i * (m_max_interval + 3) + 2]);
+        if (td_node_cost.find(_in_link_ID) == td_node_cost.end()) {
+            td_node_cost.insert(std::pair<TInt, std::unordered_map<TInt, TFlt*>>(_in_link_ID, std::unordered_map<TInt, TFlt*>()));
+        }
+        if (td_node_cost.find(_in_link_ID) -> second.find(_out_link_ID) == td_node_cost.find(_in_link_ID) -> second.end()) {
+            TFlt* _cost_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_max_interval);
+            td_node_cost.find(_in_link_ID) -> second.insert(std::pair<TInt, TFlt*>(_out_link_ID, _cost_vector_tmp));
+        }
+        _cost_vector = td_node_cost.find(_in_link_ID) -> second.find(_out_link_ID) -> second;
+        for (int j=0; j < m_max_interval; ++j) {
+            _cost = TFlt(start_ptr[i * (m_max_interval + 3) + j + 3]);
+            _cost_vector[j] = _cost;
+        }
+    }
+
     return 0;
 }
 
@@ -218,11 +261,6 @@ py::array_t<double> Tdsp_Api::extract_tdsp(int origin_node_ID, int timestamp)
     printf("number of nodes: %d\n", int(_path -> m_node_vec.size()));
     _str = _path -> node_vec_to_string();
     std::cout << "path: " << _str << "\n";
-
-    // Lindsay's request, unfinished
-    // for (auto _it : m_td_link_attributes) {
-    //     m_tdsp_tree -> get_tdsp_attribute(_path, timestamp, m_td_link_tt, m_td_node_tt, m_td_link_attributes[_it.first], m_td_node_attributes[_it.first]);
-    // }
 
     int new_shape [2] = { (int) _path -> m_node_vec.size(), 4}; 
     auto result = py::array_t<double>(new_shape);
@@ -407,35 +445,38 @@ int Dta_Api::build_link_cost_map(bool with_congestion_indicator)
 {
     MNM_Dlink *_link;
     TFlt _vot = dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_adaptive -> m_vot;
-    for (int i = 0; i < get_cur_loading_interval(); i++) {
-        std::cout << "********************** build_link_cost_map interval " << i << " **********************\n";
-        for (auto _link_it : m_dta->m_link_factory->m_link_map) {
-            // #pragma omp task 
-            _link = _link_it.second;
-            if (m_link_tt_map.find(_link_it.first) == m_link_tt_map.end()) {
-                m_link_tt_map[_link_it.first] = new TFlt[get_cur_loading_interval()];
+    for (auto _link_it : m_dta->m_link_factory->m_link_map) {
+        // #pragma omp task 
+        _link = _link_it.second;
+        if (m_link_tt_map.find(_link_it.first) == m_link_tt_map.end()) {
+            m_link_tt_map[_link_it.first] = new TFlt[get_cur_loading_interval()];
+        }
+        if (m_link_cost_map.find(_link_it.first) == m_link_cost_map.end()) {
+            m_link_cost_map[_link_it.first] = new TFlt[get_cur_loading_interval()];
+        }
+        if (with_congestion_indicator) {
+            // std::cout << "car, interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << ", fftt: " << _link -> get_link_freeflow_tt_car() / m_unit_time << "\n";
+            if (m_link_congested.find(_link_it.first) == m_link_congested.end()) {
+                m_link_congested[_link_it.first] = new bool[get_cur_loading_interval()];
             }
+        }
+
+        std::cout << "********************** build_link_cost_map link " << _link -> m_link_ID() << " **********************\n";
+        for (int i = 0; i < get_cur_loading_interval(); i++) {
             m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_dta -> m_unit_time, get_cur_loading_interval());
-            if (m_link_cost_map.find(_link_it.first) == m_link_cost_map.end()) {
-                m_link_cost_map[_link_it.first] = new TFlt[get_cur_loading_interval()];
-            }
-            m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
+             m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << "\n";
             // std::cout << "car in" << "\n";
             // std::cout << _link -> m_N_in_car -> to_string() << "\n";
             // std::cout << "car out" << "\n";
             // std::cout << _link -> m_N_out_car -> to_string() << "\n";
             if (with_congestion_indicator) {
-                // std::cout << "car, interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << ", fftt: " << _link -> get_link_freeflow_tt_car() / m_unit_time << "\n";
-                if (m_link_congested.find(_link_it.first) == m_link_congested.end()) {
-                    m_link_congested[_link_it.first] = new bool[get_cur_loading_interval()];
-                }
                 m_link_congested[_link_it.first][i] = m_link_tt_map[_link_it.first][i] > _link -> get_link_freeflow_tt_loading();
-                
                 // std::cout << "car, interval: " << i << ", link: " << _link_it.first << ", congested?: " << m_link_congested[_link_it.first][i] << "\n";
             }
         }
     }
+    
     return 0;
 }
 
@@ -1012,6 +1053,14 @@ SparseMatrixR Dta_Api::get_complete_dar_matrix(py::array_t<int>start_intervals, 
   return mat;
 }
 
+int Dta_Api::delete_all_agents()
+{
+    // invoke it after simulation, may help save some memory
+    delete m_dta -> m_veh_factory;
+    m_dta -> m_veh_factory = nullptr;
+    return 0;
+}
+
 /**********************************************************************************************************
 ***********************************************************************************************************
                         Multiclass
@@ -1403,11 +1452,11 @@ int Mcdta_Api::build_link_cost_map(bool with_congestion_indicator)
             
             m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(i+1), m_mcdta -> m_unit_time, get_cur_loading_interval());
             
-            m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
+            m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll_car;
 
             m_link_tt_map_truck[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_truck(_link, TFlt(i+1), m_mcdta -> m_unit_time, get_cur_loading_interval());
             
-            m_link_cost_map_truck[_link_it.first][i] = _vot * m_link_tt_map_truck[_link_it.first][i] + _link -> m_toll;
+            m_link_cost_map_truck[_link_it.first][i] = _vot * m_link_tt_map_truck[_link_it.first][i] + _link -> m_toll_truck;
 
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << "\n";
             // std::cout << "car in" << "\n";
@@ -1445,14 +1494,17 @@ int Mcdta_Api::get_link_queue_dissipated_time()
 
     bool _flg;
     std::cout << "\n********************** Begin get_link_queue_dissipated_time **********************\n";
-    for (int i = 0; i < _total_loading_inter; i++) {
-        // std::cout << "********************** get_link_queue_dissipated_time interval " << i << " **********************\n";
-        for (auto _link_it : m_mcdta->m_link_factory->m_link_map) {
+    for (auto _link_it : m_mcdta->m_link_factory->m_link_map) {
+        if (m_queue_dissipated_time_car.find(_link_it.first) == m_queue_dissipated_time_car.end()) {
+            m_queue_dissipated_time_car[_link_it.first] = new int[_total_loading_inter];
+        }
+        if (m_queue_dissipated_time_truck.find(_link_it.first) == m_queue_dissipated_time_truck.end()) {
+            m_queue_dissipated_time_truck[_link_it.first] = new int[_total_loading_inter];
+        }
+        // std::cout << "********************** get_link_queue_dissipated_time link " << _link_it.first << " **********************\n";
+        for (int i = 0; i < _total_loading_inter; i++ ) {
 
             // ************************** car **************************
-            if (m_queue_dissipated_time_car.find(_link_it.first) == m_queue_dissipated_time_car.end()) {
-                m_queue_dissipated_time_car[_link_it.first] = new int[_total_loading_inter];
-            }
             if (m_link_congested_car[_link_it.first][i]) {
                 if (i == _total_loading_inter - 1) {
                     m_queue_dissipated_time_car[_link_it.first][i] = _total_loading_inter;
@@ -1528,9 +1580,6 @@ int Mcdta_Api::get_link_queue_dissipated_time()
             }
 
             // ************************** truck **************************
-            if (m_queue_dissipated_time_truck.find(_link_it.first) == m_queue_dissipated_time_truck.end()) {
-                m_queue_dissipated_time_truck[_link_it.first] = new int[_total_loading_inter];
-            }
             if (m_link_congested_truck[_link_it.first][i]) {
                 if (i == _total_loading_inter - 1) {
                     m_queue_dissipated_time_truck[_link_it.first][i] = _total_loading_inter;
@@ -3201,6 +3250,13 @@ py::array_t<double> Mcdta_Api::get_truck_ltg_matrix(py::array_t<int>start_interv
     return result;
 }
 
+int Mcdta_Api::delete_all_agents()
+{
+    // invoke it after simulation, may help save some memory
+    delete m_mcdta -> m_veh_factory;
+    m_mcdta -> m_veh_factory = nullptr;
+    return 0;
+}
 
 /**********************************************************************************************************
 ***********************************************************************************************************
@@ -8614,6 +8670,16 @@ py::array_t<double> Mmdta_Api::get_passenger_ltg_matrix_pnr(py::array_t<int>star
     return result;
 }
 
+int Mmdta_Api::delete_all_agents()
+{
+    // invoke it after simulation, may help save some memory
+    delete m_mmdta -> m_veh_factory;
+    delete m_mmdta -> m_passenger_factory;
+    m_mmdta -> m_veh_factory = nullptr;
+    m_mmdta -> m_passenger_factory = nullptr;
+    return 0;
+}
+
 /**********************************************************************************************************
 ***********************************************************************************************************
                         Pybind11
@@ -8656,6 +8722,8 @@ PYBIND11_MODULE(MNMAPI, m) {
     py::class_<Tdsp_Api> (m, "tdsp_api")
             .def(py::init<>())
             .def("initialize", &Tdsp_Api::initialize)
+            .def("read_td_cost_txt", &Tdsp_Api::read_td_cost_txt)
+            .def("read_td_cost_py", &Tdsp_Api::read_td_cost_py)
             .def("build_tdsp_tree", &Tdsp_Api::build_tdsp_tree)
             .def("extract_tdsp", &Tdsp_Api::extract_tdsp);
 
@@ -8678,7 +8746,8 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_link_in_cc", &Dta_Api::get_link_in_cc)
             .def("get_link_out_cc", &Dta_Api::get_link_out_cc)
             .def("get_dar_matrix", &Dta_Api::get_dar_matrix)
-            .def("get_complete_dar_matrix", &Dta_Api::get_complete_dar_matrix);
+            .def("get_complete_dar_matrix", &Dta_Api::get_complete_dar_matrix)
+            .def("delete_all_agents", &Dta_Api::delete_all_agents);
 
     py::class_<Mcdta_Api> (m, "mcdta_api")
             .def(py::init<>())
@@ -8738,7 +8807,9 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_registered_path_tt_truck", &Mcdta_Api::get_registered_path_tt_truck)
 
             .def("get_car_ltg_matrix", &Mcdta_Api::get_car_ltg_matrix)
-            .def("get_truck_ltg_matrix", &Mcdta_Api::get_truck_ltg_matrix);
+            .def("get_truck_ltg_matrix", &Mcdta_Api::get_truck_ltg_matrix)
+
+            .def("delete_all_agents", &Mcdta_Api::delete_all_agents);
 
     py::class_<Mmdta_Api> (m, "mmdta_api")
             .def(py::init<>())
@@ -8890,7 +8961,9 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_waiting_time_at_intersections", &Mmdta_Api::get_waiting_time_at_intersections)
             .def("get_waiting_time_at_intersections_car", &Mmdta_Api::get_waiting_time_at_intersections_car)
             .def("get_waiting_time_at_intersections_truck", &Mmdta_Api::get_waiting_time_at_intersections_truck)
-            .def("get_link_spillback", &Mmdta_Api::get_link_spillback);
+            .def("get_link_spillback", &Mmdta_Api::get_link_spillback)
+
+            .def("delete_all_agents", &Mmdta_Api::delete_all_agents);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;

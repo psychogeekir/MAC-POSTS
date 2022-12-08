@@ -23,10 +23,16 @@ class Tdsp_Api
 public:
   Tdsp_Api();
   ~Tdsp_Api();
-  int initialize(const std::string &folder, int max_interval, int num_rows_link_file, int num_rows_node_file,
-                 const std::string &link_tt_file_name = "td_link_tt", const std::string &node_tt_file_name = "td_node_tt",
-                 const std::string &link_cost_file_name = "td_link_cost", const std::string &node_cost_file_name = "td_node_cost");
+  int initialize(const std::string &folder, int max_interval, int num_rows_link_file, int num_rows_node_file);
+  int read_td_cost_txt(const std::string &folder, 
+                   const std::string &link_tt_file_name = "td_link_tt", const std::string &node_tt_file_name = "td_node_tt",
+                   const std::string &link_cost_file_name = "td_link_cost", const std::string &node_cost_file_name = "td_node_cost");
+  int read_td_cost_py(py::array_t<double>td_link_tt_py, py::array_t<double>td_link_cost_py, py::array_t<double>td_node_tt_py, py::array_t<double>td_node_cost_py);
+  int read_td_link_cost(py::array_t<double>td_link_cost_py, std::unordered_map<TInt, TFlt*> &td_link_cost);
+  int read_td_node_cost(py::array_t<double>td_node_cost_py, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> &td_node_cost);
+
   int build_tdsp_tree(int dest_node_ID);
+  
   py::array_t<double> extract_tdsp(int origin_node_ID, int timestamp);
 
   TInt m_num_rows_link_file, m_num_rows_node_file, m_dest_node_ID, m_max_interval;
@@ -37,10 +43,6 @@ public:
   std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_td_node_tt;
   std::unordered_map<TInt, TFlt*> m_td_link_cost;
   std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>> m_td_node_cost;
-
-  // Lindsay's request, unfinished
-  // std::unordered_map<std::string, std::unordered_map<TInt, TFlt*>> m_td_link_attributes;
-  // std::unordered_map<std::string, std::unordered_map<TInt, std::unordered_map<TInt, TFlt*>>> m_td_node_attributes;
 };
 
 
@@ -74,6 +76,9 @@ public:
   py::array_t<double> get_dar_matrix(py::array_t<int>link_start_intervals, py::array_t<int>link_end_intervals);
   SparseMatrixR get_complete_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
                                                 int num_intervals, py::array_t<double> f);
+
+  int delete_all_agents();
+
   MNM_Dta *m_dta;
   std::vector<MNM_Dlink*> m_link_vec;
   std::vector<MNM_Path*> m_path_vec;
@@ -158,6 +163,8 @@ public:
 
   py::array_t<double> get_car_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp);
   py::array_t<double> get_truck_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp);
+
+  int delete_all_agents();
 
   MNM_Dta_Multiclass *m_mcdta;
   std::vector<MNM_Dlink_Multiclass*> m_link_vec;
@@ -355,6 +362,8 @@ public:
     py::array_t<double> get_truck_ltg_matrix_driving(py::array_t<int>start_intervals, int threshold_timestamp);
     py::array_t<double> get_passenger_ltg_matrix_bustransit(py::array_t<int>start_intervals, int threshold_timestamp);
     py::array_t<double> get_passenger_ltg_matrix_pnr(py::array_t<int>start_intervals, int threshold_timestamp);
+
+    int delete_all_agents();
 
     MNM_MM_Due *m_mmdue;
     MNM_Dta_Multimodal *m_mmdta;

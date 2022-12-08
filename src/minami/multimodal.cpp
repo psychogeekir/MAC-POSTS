@@ -4678,7 +4678,7 @@ int MNM_Routing_Multimodal_Adaptive::init_routing()
 
 int MNM_Routing_Multimodal_Adaptive::update_link_cost() {
     for (auto _it : m_statistics -> m_record_interval_tt ) {  // seconds
-        m_driving_link_cost[_it.first] = _it.second * m_vot + m_link_factory -> get_link(_it.first) -> m_toll;
+        m_driving_link_cost[_it.first] = _it.second * m_vot + dynamic_cast<MNM_Dlink_Multiclass*>(m_link_factory -> get_link(_it.first)) -> m_toll_car;
     }
     for (auto _it : m_statistics -> m_record_interval_tt_bus_transit ) {  // seconds
         m_bustransit_link_cost[_it.first] = _it.second * m_vot;
@@ -7055,7 +7055,7 @@ int MNM_Dta_Multimodal::build_from_files()
         MNM_IO_Multimodal::build_bustransit_demand(m_file_folder, m_config, m_od_factory, "bustransit_demand");
     }
     MNM_IO_Multimodal::read_origin_vehicle_label_ratio(m_file_folder, m_config, m_od_factory, "Origin_vehicle_label");
-    MNM_IO::build_link_toll(m_file_folder, m_config, m_link_factory);
+    MNM_IO_Multiclass::build_link_toll_multiclass(m_file_folder, m_config, m_link_factory);
     // build_workzone();
     m_workzone = nullptr;
     // record link volume and travel time in simulation
@@ -8255,7 +8255,7 @@ TFlt MNM_Passenger_Path_Driving::get_amortized_parkingfee() {
 TFlt MNM_Passenger_Path_Driving::get_toll(MNM_Dta_Multimodal *mmdta) {
     TFlt _toll = 0.;
     for (auto _link_ID : m_path -> m_link_vec) {
-        _toll += mmdta -> m_link_factory -> get_link(_link_ID) -> m_toll;
+        _toll += dynamic_cast<MNM_Dlink_Multiclass*>(mmdta -> m_link_factory -> get_link(_link_ID)) -> m_toll_car;
     }
     return _toll;
 }
@@ -11808,7 +11808,7 @@ int MNM_MM_Due::build_link_cost_map_snapshot(MNM_Dta_Multimodal *mmdta, int star
             _tt = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(start_interval + 1), m_unit_time, mmdta -> m_current_loading_interval);
         }
         m_driving_link_tt_map_snapshot.insert(std::pair<TInt, TFlt>(_link_it.first, _tt));
-        m_driving_link_cost_map_snapshot.insert(std::pair<TInt, TFlt>(_link_it.first, m_vot * _tt + _link -> m_toll));
+        m_driving_link_cost_map_snapshot.insert(std::pair<TInt, TFlt>(_link_it.first, m_vot * _tt + _link -> m_toll_car));
         // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first] << "\n";
     }
     for (auto _link_it : mmdta->m_transitlink_factory->m_transit_link_map) {
@@ -12532,15 +12532,16 @@ int MNM_MM_Due::build_link_cost_map(MNM_Dta_Multimodal *mmdta, bool with_congest
     MNM_Dlink_Multiclass *_link;
     MNM_Transit_Link *_transitlink;
     std::cout << "\n********************** Begin build_link_cost_map  **********************\n";
-    for (int i = 0; i < m_total_loading_inter; i++) {
-        // std::cout << "********************** build_link_cost_map interval " << i << " **********************\n";
-        for (auto _link_it : mmdta->m_link_factory->m_link_map) {
-            // #pragma omp task 
-            _link = dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second);
+    
+    for (auto _link_it : mmdta->m_link_factory->m_link_map) {
+        // #pragma omp task 
+        _link = dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second);
+        // std::cout << "********************** build_link_cost_map driving link " << _link_it.first << " **********************\n";
+        for (int i = 0; i < m_total_loading_inter; i++) {
             m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(i+1), m_unit_time, m_total_loading_inter);
             m_link_tt_map_truck[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_truck(_link, TFlt(i+1), m_unit_time, m_total_loading_inter);
-            m_link_cost_map[_link_it.first][i] = m_vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
-            m_link_cost_map_truck[_link_it.first][i] = m_vot * m_link_tt_map_truck[_link_it.first][i] + _link -> m_toll;
+            m_link_cost_map[_link_it.first][i] = m_vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll_car;
+            m_link_cost_map_truck[_link_it.first][i] = m_vot * m_link_tt_map_truck[_link_it.first][i] + _link -> m_toll_truck;
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << "\n";
             // std::cout << "car in" << "\n";
             // std::cout << _link -> m_N_in_car -> to_string() << "\n";
@@ -12569,9 +12570,12 @@ int MNM_MM_Due::build_link_cost_map(MNM_Dta_Multimodal *mmdta, bool with_congest
                 // std::cout << "truck, interval: " << i << ", link: " << _link_it.first << ", congested?: " << m_link_congested_car[_link_it.first][i] << "\n";
             }
         }
-        for (auto _link_it : mmdta->m_transitlink_factory->m_transit_link_map) {
-            // #pragma omp task
-            _transitlink = _link_it.second;
+    }
+    for (auto _link_it : mmdta->m_transitlink_factory->m_transit_link_map) {
+        // #pragma omp task
+        _transitlink = _link_it.second;
+        // std::cout << "********************** build_link_cost_map bus transit link " << _link_it.first << " **********************\n";
+        for (int i = 0; i < m_total_loading_inter; i++) {
             if (_transitlink -> m_link_type == MNM_TYPE_WALKING_MULTIMODAL) {
                 m_transitlink_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transitlink), TFlt(i+1), m_unit_time, m_total_loading_inter);
             }
@@ -12597,6 +12601,7 @@ int MNM_MM_Due::build_link_cost_map(MNM_Dta_Multimodal *mmdta, bool with_congest
             }
         }
     }
+    
     std::cout << "********************** End build_link_cost_map  **********************\n";
     return 0;
 }

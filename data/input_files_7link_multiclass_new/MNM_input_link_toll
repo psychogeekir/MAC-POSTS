@@ -1,4 +1,4 @@
-link_ID toll
-2 10
-4 10
-5 3
+link_ID toll_car toll_truck
+2 5 10
+4 5 10
+5 3 15

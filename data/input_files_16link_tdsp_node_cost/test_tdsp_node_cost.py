@@ -3,10 +3,10 @@ import MNMAPI
 import numpy as np
 import os
 
-folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_PGH_tdsp_node_cost"
-max_interval = 5000
-num_rows_link_file = 12976
-num_rows_node_file = 10000
+folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_16link_tdsp_node_cost"
+max_interval = 100
+num_rows_link_file = 23
+num_rows_node_file = 10
 
 link_tt_file_name = "td_link_tt"
 node_tt_file_name = "td_node_tt"
@@ -14,8 +14,8 @@ node_tt_file_name = "td_node_tt"
 link_cost_file_name = "td_link_cost"
 node_cost_file_name = "td_node_cost"
 
-dest_node_ID = 150361
-origin_node_ID = 100264
+dest_node_ID = 13
+origin_node_ID = 1
 
 # %%
 tdsp_api = MNMAPI.tdsp_api()
@@ -38,7 +38,7 @@ tdsp_api.read_td_cost_py(td_link_tt, td_link_cost, td_node_tt, td_node_cost)
 tdsp_api.build_tdsp_tree(dest_node_ID)
 
 # %%
-timestamp = 1000
+timestamp = 5
 tdsp = tdsp_api.extract_tdsp(origin_node_ID, timestamp)
 # tdsp : number of nodes * 4
 # first col: node sequence

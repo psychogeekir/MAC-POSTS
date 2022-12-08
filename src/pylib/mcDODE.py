@@ -297,6 +297,8 @@ class MCDODE():
         # delete new_folder and all files and subdirectories below it.
         shutil.rmtree(new_folder)
 
+        a.delete_all_agents()
+
         return a
 
     def get_dar(self, dta, f_car, f_truck):

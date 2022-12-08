@@ -43,6 +43,9 @@ MNM_Dlink_Multiclass::MNM_Dlink_Multiclass(TInt ID,
 	// flag of spill back on this link
 	m_spill_back = false; // if spill back happens during simulation, then set to true
 
+	m_toll_car = 0;
+	m_toll_truck = 0;
+
 	install_cumulative_curve_multiclass();
 
 	// !!! Close cc_tree if only doing loading to save a lot of memory !!!
@@ -3048,6 +3051,51 @@ int MNM_IO_Multiclass::read_origin_truck_label_ratio(const std::string& file_fol
 	return 0;
 }
 
+int MNM_IO_Multiclass::build_link_toll_multiclass(const std::string& file_folder, MNM_ConfReader *conf_reader, MNM_Link_Factory *link_factory, 
+	                                              const std::string& file_name)
+{
+	/* find file */
+	std::string _file_name = file_folder + "/" + file_name;
+	std::ifstream _file;
+	_file.open(_file_name, std::ios::in);  
+
+	std::string _line;
+	std::vector<std::string> _words;
+	TInt _link_ID;
+
+	if (_file.is_open())
+	{ 
+		TInt _num_of_tolled_link = conf_reader -> get_int("num_of_tolled_link");
+		if (_num_of_tolled_link <= 0) {
+		_file.close();
+		printf("No tolled links.\n");
+		return 0;
+		}
+
+		printf("Start build link toll.\n");
+		std::getline(_file, _line); // #link_ID toll
+		for (int i=0; i < _num_of_tolled_link; ++i){
+		std::getline(_file, _line);
+		// std::cout << "Processing: " << _line << "\n";
+		
+		_words = split(_line, ' ');
+		if (TInt(_words.size()) == 3) {
+			_link_ID = TInt(std::stoi(trim(_words[0])));
+			link_factory -> get_link(_link_ID) -> m_toll = TFlt(std::stof(trim(_words[1])));
+			dynamic_cast<MNM_Dlink_Multiclass*>(link_factory -> get_link(_link_ID)) -> m_toll_car = TFlt(std::stof(trim(_words[1])));
+			dynamic_cast<MNM_Dlink_Multiclass*>(link_factory -> get_link(_link_ID)) -> m_toll_truck = TFlt(std::stof(trim(_words[2])));
+		}
+		else{
+			printf("Something wrong in build_link_toll_multiclass!\n");
+			exit(-1);
+		}
+		}
+		_file.close();
+		printf("Finish build link toll.\n");
+	}  
+	return 0;
+}
+
 
 /******************************************************************************************************************
 *******************************************************************************************************************
@@ -3120,7 +3168,7 @@ int MNM_Dta_Multiclass::build_from_files()
 	MNM_IO_Multiclass::build_demand_multiclass(m_file_folder, m_config, m_od_factory);
 	MNM_IO_Multiclass::read_origin_car_label_ratio(m_file_folder, m_config, m_od_factory);
 	MNM_IO_Multiclass::read_origin_truck_label_ratio(m_file_folder, m_config, m_od_factory);
-	MNM_IO::build_link_toll(m_file_folder, m_config, m_link_factory);
+	MNM_IO_Multiclass::build_link_toll_multiclass(m_file_folder, m_config, m_link_factory);
 	// build_workzone();
 	m_workzone = nullptr;
 	set_statistics();
