@@ -382,7 +382,10 @@ int MNM_Shortest_Path::all_to_one_FIFO(TInt dest_node_ID,
             // for multigraph
             _in_link_ID = _node_it.GetInEId(e);
             IAssert(graph->GetEI(_in_link_ID).GetSrcNId() == _in_node_ID);
+            // printf("MNM_Shortest_Path::all_to_one_FIFO, debug 1, %d, %d\n", (int) cost_position, (int) cost_map.size());
+            // printf("MNM_Shortest_Path::all_to_one_FIFO, debug 1, %d, %f\n", (int) cost_position, (float) cost_map.find(_in_link_ID) -> second[0]);
             _alt = _tmp_dist + cost_map.find(_in_link_ID) -> second[cost_position];
+            // printf("MNM_Shortest_Path::all_to_one_FIFO, debug 2\n");
             // printf("Current alternative distance is %.4f\n", _alt());
             if (_alt < dist_to_dest[_in_node_ID][dist_position]) {
                 // m_Q.push_back(m_Q_support.find(_in_node_ID) -> second);

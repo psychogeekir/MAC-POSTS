@@ -139,12 +139,14 @@ int Tdsp_Api::read_td_cost_txt(const std::string &folder,
 {
     // external input with plain text
     MNM_IO::read_td_link_cost(folder, m_td_link_tt, m_num_rows_link_file, m_max_interval, link_tt_file_name);
+    printf("Complete reading link tt, size: %d\n", (int) m_td_link_tt.size());
     MNM_IO::read_td_link_cost(folder, m_td_link_cost, m_num_rows_link_file, m_max_interval, link_cost_file_name);
-    printf("Complete reading link cost\n");
+    printf("Complete reading link cost, size: %d\n", (int) m_td_link_cost.size());
     if (m_num_rows_node_file != -1) {
         MNM_IO::read_td_node_cost(folder, m_td_node_tt, m_num_rows_node_file, m_max_interval, node_tt_file_name);
+        printf("Complete reading node tt, size: %d\n", (int) m_td_node_tt.size());
         MNM_IO::read_td_node_cost(folder, m_td_node_cost, m_num_rows_node_file, m_max_interval, node_cost_file_name);
-        printf("Complete reading node cost\n");
+        printf("Complete reading node cost, size: %d\n", (int) m_td_node_cost.size());
     }
     return 0;
 }
@@ -153,12 +155,14 @@ int Tdsp_Api::read_td_cost_py(py::array_t<double>td_link_tt_py, py::array_t<doub
 {
     // external input with numpy array
     read_td_link_cost(td_link_tt_py, m_td_link_tt);
+    printf("Complete reading link tt, size: %d\n", (int) m_td_link_tt.size());
     read_td_link_cost(td_link_cost_py, m_td_link_cost);
-    printf("Complete reading link cost\n");
+    printf("Complete reading link cost, size: %d\n", (int) m_td_link_cost.size());
     if (m_num_rows_node_file != -1) {
         read_td_node_cost(td_node_tt_py, m_td_node_tt);
+        printf("Complete reading node tt, size: %d\n", (int) m_td_node_tt.size());
         read_td_node_cost(td_node_cost_py, m_td_node_cost);
-        printf("Complete reading node cost\n");
+        printf("Complete reading node cost, size: %d\n", (int) m_td_node_cost.size());
     }
     return 0;
 }
@@ -178,15 +182,16 @@ int Tdsp_Api::read_td_link_cost(py::array_t<double>td_link_cost_py, std::unorder
     TFlt _cost;
     TFlt *_cost_vector;
     for (int i = 0; i < m_num_rows_link_file; ++i) {
-       _link_ID = TInt((int) start_ptr[i * (m_max_interval + 1)]);
+        _link_ID = TInt((int) start_ptr[i * (m_max_interval + 1)]);
         if (td_link_cost.find(_link_ID) == td_link_cost.end()) {
-          TFlt* _cost_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_max_interval);
-          td_link_cost.insert(std::pair<TInt, TFlt*>(_link_ID, _cost_vector_tmp));
+            TFlt* _cost_vector_tmp = (TFlt*) malloc(sizeof(TFlt) * m_max_interval);
+            td_link_cost.insert(std::pair<TInt, TFlt*>(_link_ID, _cost_vector_tmp));
         }
         _cost_vector = td_link_cost.find(_link_ID) -> second;
         for (int j=0; j < m_max_interval; ++j) {
-          _cost = TFlt(start_ptr[i * (m_max_interval + 1) + j + 1]);
-          _cost_vector[j] = _cost;
+            _cost = TFlt(start_ptr[i * (m_max_interval + 1) + j + 1]);
+            // printf("Tdsp_Api::read_td_link_cost, %d, %f\n", j, _cost());
+            _cost_vector[j] = _cost;
         }
     }
 
@@ -238,7 +243,12 @@ int Tdsp_Api::build_tdsp_tree(int dest_node_ID)
     printf("Init TDSP tree\n");
     m_tdsp_tree -> initialize();
     printf("Update tree\n");
-    m_tdsp_tree -> update_tree(m_td_link_cost, m_td_node_cost, m_td_link_tt, m_td_node_tt);
+    if (m_num_rows_node_file != -1) {
+        m_tdsp_tree -> update_tree(m_td_link_cost, m_td_node_cost, m_td_link_tt, m_td_node_tt);
+    }
+    else {
+        m_tdsp_tree -> update_tree(m_td_link_cost, m_td_link_tt);
+    }
     return 0;
 }
 
@@ -256,7 +266,13 @@ py::array_t<double> Tdsp_Api::extract_tdsp(int origin_node_ID, int timestamp)
     tmp_cost = m_tdsp_tree -> m_dist[origin_node_ID][timestamp < m_tdsp_tree -> m_max_interval ? timestamp : m_tdsp_tree -> m_max_interval - 1];
     printf("At time %d, minimum cost is %f\n", timestamp, tmp_cost());
     _path = new MNM_Path();
-    TFlt _tt = m_tdsp_tree -> get_tdsp(origin_node_ID, timestamp, m_td_link_tt, m_td_node_tt, _path);
+    TFlt _tt;
+    if (m_num_rows_node_file != -1) {
+        _tt = m_tdsp_tree -> get_tdsp(origin_node_ID, timestamp, m_td_link_tt, m_td_node_tt, _path);
+    }
+    else {
+        _tt = m_tdsp_tree -> get_tdsp(origin_node_ID, timestamp, m_td_link_tt, _path);
+    }
     printf("travel time: %f\n", _tt());
     printf("number of nodes: %d\n", int(_path -> m_node_vec.size()));
     _str = _path -> node_vec_to_string();
