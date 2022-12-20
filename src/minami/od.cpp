@@ -105,7 +105,9 @@ int MNM_Origin::release_one_interval(TInt current_interval, MNM_Veh_Factory* veh
       }
       _veh -> set_destination(_demand_it -> first);
       _veh -> set_origin(this);
-      _veh -> m_assign_interval = assign_interval;
+      // _veh -> m_assign_interval = assign_interval;
+      // in case the multiclass modeling has 1-min release interval as the "assign" interval
+      _veh -> m_assign_interval = int(current_interval / m_frequency);
       _veh -> m_label = generate_label(_veh -> get_class());
       // printf("Pushing vehil, %d\n", m_origin_node -> m_node_ID());
       m_origin_node -> m_in_veh_queue.push_back(_veh);

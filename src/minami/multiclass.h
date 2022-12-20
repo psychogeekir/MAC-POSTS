@@ -633,11 +633,35 @@ int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* 
 int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* link, 
                     std::set<TInt> pathID_set, TFlt start_time, TFlt end_time);
 
+int add_dar_records_eigen_car(std::vector<Eigen::Triplet<double>> &record, MNM_Dlink_Multiclass* link, 
+                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time,
+                    int link_ind, int interval_ind, int num_of_minute, int num_e_link, int num_e_path,
+                    const double *f_ptr);
+
+int add_dar_records_eigen_car(Eigen::SparseMatrix<double, Eigen::RowMajor> &mat, MNM_Dlink_Multiclass* link, 
+                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time,
+                    int link_ind, int interval_ind, int num_of_minute, int num_e_link, int num_e_path,
+                    const double *f_ptr);
+
+int add_dar_records_eigen_truck(std::vector<Eigen::Triplet<double>> &record, MNM_Dlink_Multiclass* link, 
+                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time,
+                    int link_ind, int interval_ind, int num_of_minute, int num_e_link, int num_e_path,
+                    const double *f_ptr);	
+
+int add_dar_records_eigen_truck(Eigen::SparseMatrix<double, Eigen::RowMajor> &mat, MNM_Dlink_Multiclass* link, 
+                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time,
+                    int link_ind, int interval_ind, int num_of_minute, int num_e_link, int num_e_path,
+                    const double *f_ptr);					
+
 TFlt get_departure_cc_slope_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time);
 TFlt get_departure_cc_slope_truck(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time);
 
 int add_ltg_records_veh(std::vector<ltg_record*> &record, MNM_Dlink_Multiclass *link,
 						MNM_Path* path, int depart_time, int start_time, TFlt gradient);
+
+int add_ltg_records_eigen_veh(std::vector<Eigen::Triplet<double>> &record,
+						MNM_Path* path, int depart_time, int start_time, int link_ind, 
+						int assign_interval, int num_e_link, int num_e_path, TFlt gradient);
 
 };
 

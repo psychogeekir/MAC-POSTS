@@ -257,10 +257,10 @@ namespace MNM_DTA_GRADIENT {
                               int link_ind, int interval_ind, int num_e_link, int num_e_path,
                               const double *f_ptr) {
         if (link == nullptr) {
-            throw std::runtime_error("Error, add_dar_records link is null");
+            throw std::runtime_error("Error, add_dar_records_eigen link is null");
         }
         if (link->m_N_in_tree == nullptr) {
-            throw std::runtime_error("Error, add_dar_records link cumulative curve tree is not installed");
+            throw std::runtime_error("Error, add_dar_records_eigen link cumulative curve tree is not installed");
         }
         MNM_Path *_path;
         int _x, _y;

@@ -38,8 +38,8 @@ class CMakeBuild(build_ext):
                       '-DPYTHON_EXECUTABLE=' + sys.executable]
         # setup.cfg
         # print("Build in Debug mode?: ", self.debug)
-        cfg = 'Debug' if self.debug else 'Release'
-        # cfg = 'Release'
+        # cfg = 'Debug' if self.debug else 'Release'
+        cfg = 'Release'
         build_args = ['--config', cfg]
 
         if platform.system() == "Windows":

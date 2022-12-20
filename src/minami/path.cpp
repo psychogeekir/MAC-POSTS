@@ -581,10 +581,12 @@ namespace MNM {
 
 
     int get_ID_path_mapping(std::unordered_map<TInt, MNM_Path *> &dict, Path_Table *path_table) {
-        for (auto _it : *path_table) {
-            for (auto _it_it : *(_it.second)) {
-                for (MNM_Path *_path : _it_it.second->m_path_vec) {
-                    dict[_path->m_path_ID] = _path;
+        if (path_table != nullptr && !path_table -> empty()) {
+            for (auto _it : *path_table) {
+                for (auto _it_it : *(_it.second)) {
+                    for (MNM_Path *_path : _it_it.second->m_path_vec) {
+                        dict[_path->m_path_ID] = _path;
+                    }
                 }
             }
         }

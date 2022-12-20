@@ -2269,7 +2269,9 @@ int MNM_Origin_Multiclass::release_one_interval(TInt current_interval,
 			}
 			_veh -> set_destination(_demand_it -> first);
 			_veh -> set_origin(this);
-			_veh -> m_assign_interval = assign_interval;
+			// _veh -> m_assign_interval = assign_interval;
+			// in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
 			_veh -> m_label = generate_label(_veh -> get_class());
 			m_origin_node -> m_in_veh_queue.push_back(_veh);
 		}
@@ -2295,7 +2297,9 @@ int MNM_Origin_Multiclass::release_one_interval(TInt current_interval,
 			}
 			_veh -> set_destination(_demand_it -> first);
 			_veh -> set_origin(this);
-			_veh -> m_assign_interval = assign_interval;
+			// _veh -> m_assign_interval = assign_interval;
+			// in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
 			_veh -> m_label = generate_label(_veh -> get_class());
 			m_origin_node -> m_in_veh_queue.push_back(_veh);
 		}
@@ -2336,7 +2340,9 @@ int MNM_Origin_Multiclass::release_one_interval_biclass(TInt current_interval,
 			}
 			_veh -> set_destination(_demand_it -> first);
 			_veh -> set_origin(this);
-			_veh -> m_assign_interval = assign_interval;
+			// _veh -> m_assign_interval = assign_interval;
+			// in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
 			_veh -> m_label = generate_label(_veh -> get_class());
 			m_origin_node -> m_in_veh_queue.push_back(_veh);
 		}
@@ -2362,7 +2368,9 @@ int MNM_Origin_Multiclass::release_one_interval_biclass(TInt current_interval,
 			}
 			_veh -> set_destination(_demand_it -> first);
 			_veh -> set_origin(this);
-			_veh -> m_assign_interval = assign_interval;
+			// _veh -> m_assign_interval = assign_interval;
+			// in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
 			_veh -> m_label = generate_label(_veh -> get_class());
 			m_origin_node -> m_in_veh_queue.push_back(_veh);
 		}
@@ -3067,28 +3075,28 @@ int MNM_IO_Multiclass::build_link_toll_multiclass(const std::string& file_folder
 	{ 
 		TInt _num_of_tolled_link = conf_reader -> get_int("num_of_tolled_link");
 		if (_num_of_tolled_link <= 0) {
-		_file.close();
-		printf("No tolled links.\n");
-		return 0;
+			_file.close();
+			printf("No tolled links.\n");
+			return 0;
 		}
 
 		printf("Start build link toll.\n");
-		std::getline(_file, _line); // #link_ID toll
+		std::getline(_file, _line); // #link_ID toll_car toll_truck
 		for (int i=0; i < _num_of_tolled_link; ++i){
-		std::getline(_file, _line);
-		// std::cout << "Processing: " << _line << "\n";
-		
-		_words = split(_line, ' ');
-		if (TInt(_words.size()) == 3) {
-			_link_ID = TInt(std::stoi(trim(_words[0])));
-			link_factory -> get_link(_link_ID) -> m_toll = TFlt(std::stof(trim(_words[1])));
-			dynamic_cast<MNM_Dlink_Multiclass*>(link_factory -> get_link(_link_ID)) -> m_toll_car = TFlt(std::stof(trim(_words[1])));
-			dynamic_cast<MNM_Dlink_Multiclass*>(link_factory -> get_link(_link_ID)) -> m_toll_truck = TFlt(std::stof(trim(_words[2])));
-		}
-		else{
-			printf("Something wrong in build_link_toll_multiclass!\n");
-			exit(-1);
-		}
+			std::getline(_file, _line);
+			// std::cout << "Processing: " << _line << "\n";
+			
+			_words = split(_line, ' ');
+			if (TInt(_words.size()) == 3) {
+				_link_ID = TInt(std::stoi(trim(_words[0])));
+				link_factory -> get_link(_link_ID) -> m_toll = TFlt(std::stof(trim(_words[1])));
+				dynamic_cast<MNM_Dlink_Multiclass*>(link_factory -> get_link(_link_ID)) -> m_toll_car = TFlt(std::stof(trim(_words[1])));
+				dynamic_cast<MNM_Dlink_Multiclass*>(link_factory -> get_link(_link_ID)) -> m_toll_truck = TFlt(std::stof(trim(_words[2])));
+			}
+			else{
+				printf("Something wrong in build_link_toll_multiclass!\n");
+				exit(-1);
+			}
 		}
 		_file.close();
 		printf("Finish build link toll.\n");
@@ -3619,6 +3627,168 @@ int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass
   return 0;
 }
 
+int add_dar_records_eigen_car(std::vector<Eigen::Triplet<double>> &record, MNM_Dlink_Multiclass* link, 
+                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time,
+                    int link_ind, int interval_ind, int num_of_minute, int num_e_link, int num_e_path,
+                    const double *f_ptr)
+{	
+	if (link == nullptr) {
+		throw std::runtime_error("Error, add_dar_records_eigen_car link is null");
+	}
+	if (link->m_N_in_tree_car == nullptr) {
+		throw std::runtime_error("Error, add_dar_records_eigen_car link cumulative curve tree is not installed");
+	}
+	MNM_Path *_path;
+	int _x, _y;
+	for (const auto& path_it : link->m_N_in_tree_car->m_record) {
+		_path = path_it.first;
+		// !!! assume all paths recorded in veh -> m_path are in pathset, even for adaptive users, they use a nominal path in pathset
+		// if (pathset.find(_path) != pathset.end()) {
+			for (auto depart_it : path_it.second) {
+				TFlt tmp_flow = depart_it.second->get_result(end_time) - depart_it.second->get_result(start_time);
+				if (tmp_flow > DBL_EPSILON) {
+					_x = link_ind + num_e_link * interval_ind; // # of links * # of intervals
+					// !!! this assumes that m_path_ID starts from zero and is sorted, which is usually done in python
+					// _y = _path -> m_path_ID + num_e_path * int(depart_it.first / num_of_minute); // # of paths * # of intervals
+					// if release_one_interval_biclass already set the correct assign interval for vehicle
+					_y = _path -> m_path_ID + num_e_path * depart_it.first; // # of paths * # of intervals
+					// printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(),
+					//     new_record -> link_ID(), (float)new_record -> link_start_int(), (float) new_record -> flow());
+
+					// https://eigen.tuxfamily.org/dox/classEigen_1_1Triplet.html
+					// https://eigen.tuxfamily.org/dox/SparseUtil_8h_source.html
+					// (row index, col index, value)
+					// 0 in f is set to small value in python
+					record.push_back(Eigen::Triplet<double>((double) _x, (double) _y, tmp_flow() / f_ptr[_y]));
+				}
+			}
+		// }
+	}
+	return 0;
+}
+
+int add_dar_records_eigen_car(Eigen::SparseMatrix<double, Eigen::RowMajor> &mat, MNM_Dlink_Multiclass* link, 
+                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time,
+                    int link_ind, int interval_ind, int num_of_minute, int num_e_link, int num_e_path,
+                    const double *f_ptr)
+{	
+	if (link == nullptr) {
+		throw std::runtime_error("Error, add_dar_records_eigen_car link is null");
+	}
+	if (link->m_N_in_tree_car == nullptr) {
+		throw std::runtime_error("Error, add_dar_records_eigen_car link cumulative curve tree is not installed");
+	}
+	MNM_Path *_path;
+	int _x, _y;
+	for (const auto& path_it : link->m_N_in_tree_car->m_record) {
+		_path = path_it.first;
+		// !!! assume all paths recorded in veh -> m_path are in pathset, even for adaptive users, they use a nominal path in pathset
+		// if (pathset.find(_path) != pathset.end()) {
+			for (auto depart_it : path_it.second) {
+				TFlt tmp_flow = depart_it.second->get_result(end_time) - depart_it.second->get_result(start_time);
+				if (tmp_flow > DBL_EPSILON) {
+					_x = link_ind + num_e_link * interval_ind; // # of links * # of intervals
+					// !!! this assumes that m_path_ID starts from zero and is sorted, which is usually done in python
+					// _y = _path -> m_path_ID + num_e_path * int(depart_it.first / num_of_minute); // # of paths * # of intervals
+					// if release_one_interval_biclass already set the correct assign interval for vehicle
+					_y = _path -> m_path_ID + num_e_path * depart_it.first; // # of paths * # of intervals
+					// printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(),
+					//     new_record -> link_ID(), (float)new_record -> link_start_int(), (float) new_record -> flow());
+
+					// https://stackoverflow.com/questions/18154027/sparsematrix-construction-in-eigen
+					// http://eigen.tuxfamily.org/dox/group__TutorialSparse.html#title3
+					// insert() does not allow duplicates
+					// coeffRef(i,j) allows duplicates, but slower
+					// 0 in f is set to small value in python
+					mat.insert(_x, _y) = tmp_flow() / f_ptr[_y];
+				}
+			}
+		// }
+	}
+	return 0;
+}
+
+int add_dar_records_eigen_truck(std::vector<Eigen::Triplet<double>> &record, MNM_Dlink_Multiclass* link, 
+                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time,
+                    int link_ind, int interval_ind, int num_of_minute, int num_e_link, int num_e_path,
+                    const double *f_ptr)
+{	
+	if (link == nullptr) {
+		throw std::runtime_error("Error, add_dar_records_eigen_truck link is null");
+	}
+	if (link->m_N_in_tree_truck == nullptr) {
+		throw std::runtime_error("Error, add_dar_records_eigen_truck link cumulative curve tree is not installed");
+	}
+	MNM_Path *_path;
+	int _x, _y;
+	for (const auto& path_it : link->m_N_in_tree_truck->m_record) {
+		_path = path_it.first;
+		// !!! assume all paths recorded in veh -> m_path are in pathset, even for adaptive users, they use a nominal path in pathset
+		// if (pathset.find(_path) != pathset.end()) {
+			for (auto depart_it : path_it.second) {
+				TFlt tmp_flow = depart_it.second->get_result(end_time) - depart_it.second->get_result(start_time);
+				if (tmp_flow > DBL_EPSILON) {
+					_x = link_ind + num_e_link * interval_ind; // # of links * # of intervals
+					// !!! this assumes that m_path_ID starts from zero and is sorted, which is usually done in python
+					// _y = _path -> m_path_ID + num_e_path * int(depart_it.first / num_of_minute); // # of paths * # of intervals
+					// if release_one_interval_biclass already set the correct assign interval for vehicle
+					_y = _path -> m_path_ID + num_e_path * depart_it.first; // # of paths * # of intervals
+					// printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(),
+					//     new_record -> link_ID(), (float)new_record -> link_start_int(), (float) new_record -> flow());
+
+					// https://eigen.tuxfamily.org/dox/classEigen_1_1Triplet.html
+					// https://eigen.tuxfamily.org/dox/SparseUtil_8h_source.html
+					// (row index, col index, value)
+					// 0 in f is set to small value in python
+					record.push_back(Eigen::Triplet<double>((double) _x, (double) _y, tmp_flow() / f_ptr[_y]));
+				}
+			}
+		// }
+	}
+	return 0;
+}
+
+int add_dar_records_eigen_truck(Eigen::SparseMatrix<double, Eigen::RowMajor> &mat, MNM_Dlink_Multiclass* link, 
+                    std::set<MNM_Path*> pathset, TFlt start_time, TFlt end_time,
+                    int link_ind, int interval_ind, int num_of_minute, int num_e_link, int num_e_path,
+                    const double *f_ptr)
+{	
+	if (link == nullptr) {
+		throw std::runtime_error("Error, add_dar_records_eigen_truck link is null");
+	}
+	if (link->m_N_in_tree_truck == nullptr) {
+		throw std::runtime_error("Error, add_dar_records_eigen_truck link cumulative curve tree is not installed");
+	}
+	MNM_Path *_path;
+	int _x, _y;
+	for (const auto& path_it : link->m_N_in_tree_truck->m_record) {
+		_path = path_it.first;
+		// !!! assume all paths recorded in veh -> m_path are in pathset, even for adaptive users, they use a nominal path in pathset
+		// if (pathset.find(_path) != pathset.end()) {
+			for (auto depart_it : path_it.second) {
+				TFlt tmp_flow = depart_it.second->get_result(end_time) - depart_it.second->get_result(start_time);
+				if (tmp_flow > DBL_EPSILON) {
+					_x = link_ind + num_e_link * interval_ind; // # of links * # of intervals
+					// !!! this assumes that m_path_ID starts from zero and is sorted, which is usually done in python
+					// _y = _path -> m_path_ID + num_e_path * int(depart_it.first / num_of_minute); // # of paths * # of intervals
+					// if release_one_interval_biclass already set the correct assign interval for vehicle
+					_y = _path -> m_path_ID + num_e_path * depart_it.first; // # of paths * # of intervals
+					// printf("Adding record, %d, %d, %d, %f, %f\n", new_record -> path_ID(), new_record -> assign_int(),
+					//     new_record -> link_ID(), (float)new_record -> link_start_int(), (float) new_record -> flow());
+
+					// https://stackoverflow.com/questions/18154027/sparsematrix-construction-in-eigen
+					// http://eigen.tuxfamily.org/dox/group__TutorialSparse.html#title3
+					// insert() does not allow duplicates
+					// coeffRef(i,j) allows duplicates, but slower
+					// 0 in f is set to small value in python
+					mat.insert(_x, _y) = tmp_flow() / f_ptr[_y];
+				}
+			}
+		// }
+	}
+	return 0;
+}	
+
 TFlt get_departure_cc_slope_car(MNM_Dlink_Multiclass* link, TFlt start_time, TFlt end_time)
 {
 	if (link == nullptr){
@@ -3694,6 +3864,18 @@ int add_ltg_records_veh(std::vector<ltg_record*> &record, MNM_Dlink_Multiclass *
 	// printf("Adding record, %d, %d, %d, %d, %f\n", new_record -> path_ID(), new_record -> assign_int, 
 	//         new_record -> link_ID(), new_record -> link_start_int, (float) new_record -> gradient());
 	record.push_back(new_record);
+	return 0;
+}
+
+int add_ltg_records_eigen_veh(std::vector<Eigen::Triplet<double>> &record,
+						      MNM_Path* path, int depart_time, int start_time, int link_ind, 
+						      int assign_interval, int num_e_link, int num_e_path, TFlt gradient)
+{	
+	int _x, _y;
+	_x = link_ind + num_e_link * int(start_time / assign_interval); // # of links * # of intervals
+	// !!! this assumes that m_path_ID starts from zero and is sorted, which is usually done in python
+	_y = path -> m_path_ID + num_e_path * int(depart_time / assign_interval); // # of paths * # of intervals
+	record.push_back(Eigen::Triplet<double>((double) _x, (double) _y, gradient));
 	return 0;
 }
 

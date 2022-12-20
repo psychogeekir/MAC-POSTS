@@ -16,6 +16,16 @@ from sklearn.metrics import r2_score
 
 import MNMAPI
 
+from numba import jit
+
+@jit(nopython=True)
+def find_first(vec, item):
+    for i, v in enumerate(vec):
+         if v == item: 
+            return i
+    return -1
+
+
 def tensor_to_numpy(x: torch.Tensor):
     return x.data.cpu().numpy()
 
@@ -140,7 +150,7 @@ class torch_pathflow_solver(nn.Module):
 
 
 class MCDODE():
-    def __init__(self, nb, config):
+    def __init__(self, nb, config, num_procs=1):
         self.config = config
         self.nb = nb
         self.num_assign_interval = nb.config.config_dict['DTA']['max_interval']
@@ -159,6 +169,8 @@ class MCDODE():
         self.car_count_agg_L_list = None
         self.truck_count_agg_L_list = None
         assert (len(self.paths_list) == self.num_path)
+
+        self.num_procs = num_procs
 
     def check_registered_links_covered_by_registered_paths(self, folder, add=False):
         self.save_simulation_input_files(folder)
@@ -301,6 +313,30 @@ class MCDODE():
 
         return a
 
+    def get_dar2(self, dta, f_car, f_truck):
+        car_dar = csr_matrix((self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
+        truck_dar = csr_matrix((self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
+        if self.config['use_car_link_flow'] or self.config['use_car_link_tt']:
+            # num_assign_interval * num_e_link, num_assign_interval * num_e_path
+            car_dar = dta.get_complete_car_dar_matrix(np.arange(0, self.num_loading_interval, self.ass_freq), 
+                                                      np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq,
+                                                      self.num_assign_interval,
+                                                      f_car)
+            if car_dar.max() == 0.:
+                print("car_dar is empty!")
+
+        if self.config['use_truck_link_flow'] or self.config['use_truck_link_tt']:
+            # num_assign_interval * num_e_link, num_assign_interval * num_e_path
+            truck_dar = dta.get_complete_truck_dar_matrix(np.arange(0, self.num_loading_interval, self.ass_freq), 
+                                                          np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq,
+                                                          self.num_assign_interval,
+                                                          f_truck)
+            if truck_dar.max() == 0.:
+                print("truck_dar is empty!")
+
+        # print("dar", car_dar, truck_dar)
+        return (car_dar, truck_dar)
+
     def get_dar(self, dta, f_car, f_truck):
         car_dar = csr_matrix((self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
         truck_dar = csr_matrix((self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
@@ -310,35 +346,121 @@ class MCDODE():
                                                 np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq)
             # print("raw car dar", raw_car_dar)
             # num_assign_interval * num_e_link, num_assign_interval * num_e_path
-            car_dar = self._massage_raw_dar(raw_car_dar, self.ass_freq, f_car, self.num_assign_interval)
+            car_dar = self._massage_raw_dar(raw_car_dar, self.ass_freq, f_car, self.num_assign_interval, self.paths_list, self.observed_links, self.num_procs)
+            if car_dar.max() == 0.:
+                print("car_dar is empty!")
+
         if self.config['use_truck_link_flow'] or self.config['use_truck_link_tt']:
             # (num_assign_timesteps x num_links x num_path x num_assign_timesteps) x 5
             raw_truck_dar = dta.get_truck_dar_matrix(np.arange(0, self.num_loading_interval, self.ass_freq), 
                                                     np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq)
             # num_assign_interval * num_e_link, num_assign_interval * num_e_path
-            truck_dar = self._massage_raw_dar(raw_truck_dar, self.ass_freq, f_truck, self.num_assign_interval)
+            truck_dar = self._massage_raw_dar(raw_truck_dar, self.ass_freq, f_truck, self.num_assign_interval, self.paths_list, self.observed_links, self.num_procs)
+            if truck_dar.max() == 0.:
+                print("truck_dar is empty!")
+
         # print("dar", car_dar, truck_dar)
         return (car_dar, truck_dar)
 
-    def _massage_raw_dar(self, raw_dar, ass_freq, f, num_assign_interval):
-        num_e_path = len(self.paths_list)
-        num_e_link = len(self.observed_links)
+    def _massage_raw_dar(self, raw_dar, ass_freq, f, num_assign_interval, paths_list, observed_links, num_procs=5):
+        assert(raw_dar.shape[1] == 5)
+        if raw_dar.shape[0] == 0:
+            print("No dar. Consider increase the demand values")
+            return csr_matrix((num_assign_interval * len(observed_links), 
+                               num_assign_interval * len(paths_list)))
+
+        num_e_path = len(paths_list)
+        num_e_link = len(observed_links)
         # 15 min
         small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
 
-        raw_dar = raw_dar[(raw_dar[:, 1] < self.num_assign_interval * small_assign_freq) & (raw_dar[:, 3] < self.num_loading_interval), :]
+        raw_dar = raw_dar[(raw_dar[:, 1] < num_assign_interval * small_assign_freq) & (raw_dar[:, 3] < self.num_loading_interval), :]
+        assert(set(raw_dar[:, 0]).issubset(set(paths_list)))
 
-        # raw_dar[:, 2]: link no.
-        # raw_dar[:, 3]: the count of unit time interval (5s)
-        # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
-        link_seq = (np.array(list(map(lambda x: self.observed_links.index(x), raw_dar[:, 2].astype(int))))
-                    + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
-        # raw_dar[:, 0]: path no.
-        # raw_dar[:, 1]: the count of 1 min interval
-        path_seq = (raw_dar[:, 0].astype(int) + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
-        # print(path_seq)
-        # raw_dar[:, 4]: flow
-        p = raw_dar[:, 4] / f[path_seq]
+        if num_procs > 1:
+            raw_dar = pd.DataFrame(data=raw_dar)
+
+            from pandarallel import pandarallel
+            pandarallel.initialize(progress_bar=True, nb_workers=num_procs)
+
+            # ind = raw_dar.loc[:, 0].parallel_apply(lambda x: True if x in set(paths_list) else False)
+            # assert(np.sum(ind) == len(ind))
+            
+            if type(paths_list) == list:
+                paths_list = np.array(paths_list)
+            elif type(paths_list) == np.ndarray:
+                pass
+            else:
+                raise Exception('Wrong data type of paths_list')
+
+            path_seq = (raw_dar.loc[:, 0].astype(int).parallel_apply(lambda x: np.nonzero(paths_list == x)[0][0]) 
+                        + (raw_dar.loc[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            
+            # path_seq = (raw_dar.loc[:, 0].astype(int).parallel_apply(lambda x: find_first(paths_list, x)) 
+            #             + (raw_dar.loc[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            
+            if type(observed_links) == list:
+                observed_links = np.array(observed_links)
+            elif type(observed_links) == np.ndarray:
+                pass
+            else:
+                raise Exception('Wrong data type of observed_links')
+
+            link_seq = (raw_dar.loc[:, 2].astype(int).parallel_apply(lambda x: np.nonzero(observed_links == x)[0][0])
+                        + (raw_dar.loc[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+
+            # link_seq = (raw_dar.loc[:, 2].astype(int).parallel_apply(lambda x: find_first(observed_links, x))
+            #             + (raw_dar.loc[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+
+            p = raw_dar.loc[:, 4] / f[path_seq]
+            
+        else:
+
+            # raw_dar[:, 0]: path no.
+            # raw_dar[:, 1]: the count of 1 min interval
+            # path_seq = (raw_dar[:, 0].astype(int) + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+
+            if type(paths_list) == np.ndarray:
+                # ind = np.array(list(map(lambda x: True if len(np.nonzero(paths_list == x)[0]) > 0 else False, raw_dar[:, 0].astype(int)))).astype(bool)
+                # assert(np.sum(ind) == len(ind))
+                # path_seq = (np.array(list(map(lambda x: np.nonzero(paths_list == x)[0][0], raw_dar[:, 0].astype(int))))
+                #             + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                path_seq = (np.array(list(map(lambda x: find_first(paths_list, x), raw_dar[:, 0].astype(int))))
+                            + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            elif type(paths_list) == list:
+                # ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_dar[:, 0].astype(int)))).astype(bool)
+                # assert(np.sum(ind) == len(ind))
+                # path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[:, 0].astype(int))))
+                #             + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                path_seq = (np.array(list(map(lambda x: find_first(paths_list, x), raw_dar[:, 0].astype(int))))
+                            + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            else:
+                raise Exception('Wrong data type of paths_list')
+
+            # raw_dar[:, 2]: link no.
+            # raw_dar[:, 3]: the count of unit time interval (5s)
+            # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
+            # link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_dar[:, 2].astype(int))))
+            #             + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            
+            if type(observed_links) == np.ndarray:
+                # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
+                # link_seq = (np.array(list(map(lambda x: np.nonzero(observed_links == x)[0][0], raw_dar[:, 2].astype(int))))
+                #             + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+                link_seq = (np.array(list(map(lambda x: find_first(observed_links, x), raw_dar[:, 2].astype(int))))
+                            + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            elif type(observed_links) == list:
+                # link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_dar[:, 2].astype(int))))
+                #             + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+                link_seq = (np.array(list(map(lambda x: find_first(observed_links, x), raw_dar[:, 2].astype(int))))
+                            + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            else:
+                raise Exception('Wrong data type of observed_links')
+
+            # print(path_seq)
+            # raw_dar[:, 4]: flow
+            p = raw_dar[:, 4] / f[path_seq]
+
         # print("Creating the coo matrix", time.time())
         mat = coo_matrix((p, (link_seq, path_seq)), 
                         shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))
@@ -346,7 +468,7 @@ class MCDODE():
         # print('converting the csr', time.time())
         mat = mat.tocsr()
         # print('finish converting', time.time())
-        return mat    
+        return mat   
 
     def get_ltg(self, dta):
         car_ltg_matrix = csr_matrix((self.num_assign_interval * len(self.observed_links), 
@@ -393,13 +515,17 @@ class MCDODE():
 
         if self.config['use_car_link_tt'] or self.config['use_truck_link_tt']:
             dta.build_link_cost_map(True)
-            # # TODO: C++
+            # # IPMC method for tt
             # dta.get_link_queue_dissipated_time()
-            # # TODO: unfinished
+            # print("********************** Begin get_ltg **********************")
             # car_ltg_matrix, truck_ltg_matrix = self.get_ltg(dta)
+            # print("********************** End get_ltg ************************")
 
         # print("Getting DAR", time.time())
-        (car_dar, truck_dar) = self.get_dar(dta, f_car, f_truck)
+        print("********************** Begin get_dar **********************")
+        # (car_dar, truck_dar) = self.get_dar(dta, f_car, f_truck)
+        (car_dar, truck_dar) = self.get_dar2(dta, f_car, f_truck)
+        print("********************** Begin get_dar **********************")
 
         x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand_est = None, None, None, None, None
 
@@ -426,11 +552,11 @@ class MCDODE():
             car_grad += self.config['link_car_tt_weight'] * grad
 
             ## Original Wei's method
-            # f_car_grad += car_dar.T.dot(car_grad)
+            f_car_grad += car_dar.T.dot(car_grad)
 
             ## MCDODE's method
-            _tt_loss_grad_on_car_link_flow = self._compute_tt_loss_grad_on_car_link_flow(dta, car_grad)
-            f_car_grad += car_dar.T.dot(_tt_loss_grad_on_car_link_flow)
+            # _tt_loss_grad_on_car_link_flow = self._compute_tt_loss_grad_on_car_link_flow(dta, car_grad)
+            # f_car_grad += car_dar.T.dot(_tt_loss_grad_on_car_link_flow)
 
             ## IPMC method
             # f_car_grad += car_ltg_matrix.T.dot(car_grad)
@@ -440,11 +566,11 @@ class MCDODE():
             truck_grad += self.config['link_truck_tt_weight'] * grad
 
             ## Original Wei's method
-            # f_car_grad += car_dar.T.dot(truck_grad)
+            f_truck_grad += truck_dar.T.dot(truck_grad)
 
             ## MCDODE's method
-            _tt_loss_grad_on_truck_link_flow = self._compute_tt_loss_grad_on_truck_link_flow(dta, truck_grad)
-            f_truck_grad += truck_dar.T.dot(_tt_loss_grad_on_truck_link_flow)
+            # _tt_loss_grad_on_truck_link_flow = self._compute_tt_loss_grad_on_truck_link_flow(dta, truck_grad)
+            # f_truck_grad += truck_dar.T.dot(_tt_loss_grad_on_truck_link_flow)
 
             ## IPMC method
             # f_truck_grad += truck_ltg_matrix.T.dot(truck_grad)
@@ -731,6 +857,15 @@ class MCDODE():
         # grad = grad / (scipy.sparse.linalg.norm(grad) + 1e-7)
         return grad
 
+    def _get_flow_from_cc(self, timestamp, cc):
+        # precision issue, consistent with C++
+        cc = np.around(cc, decimals=4)
+        if any(timestamp >= cc[:, 0]):
+            ind = np.nonzero(timestamp >= cc[:, 0])[0][-1]
+        else:
+            ind = 0
+        return cc[ind, 1]
+
     def _compute_link_tt_grad_on_path_flow_car(self, dta):
         # dta.build_link_cost_map() is invoked already
         assign_intervals = np.arange(0, self.num_loading_interval, self.ass_freq)
@@ -740,9 +875,13 @@ class MCDODE():
         # this is in terms of 5-s intervals
         release_intervals = np.arange(0, self.num_loading_interval, release_freq // self.nb.config.config_dict['DTA']['unit_time'])
 
-        raw_ltg = dta.get_car_ltg_matrix(release_intervals, self.num_loading_interval)
+        # # memory issue
+        # # raw_ltg = dta.get_car_ltg_matrix(release_intervals, self.num_loading_interval)
+        # raw_ltg = dta.get_car_ltg_matrix(assign_intervals, self.num_loading_interval)
 
-        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list, self.observed_links)
+        # ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list, self.observed_links, self.num_procs)
+
+        ltg = dta.get_complete_car_ltg_matrix(assign_intervals, self.num_loading_interval, num_assign_intervals)
         return ltg
 
     def _compute_link_tt_grad_on_path_flow_truck(self, dta):
@@ -754,12 +893,16 @@ class MCDODE():
         # this is in terms of 5-s intervals
         release_intervals = np.arange(0, self.num_loading_interval, release_freq // self.nb.config.config_dict['DTA']['unit_time'])
 
-        raw_ltg = dta.get_truck_ltg_matrix(release_intervals, self.num_loading_interval)
+        # # memory issue
+        # # raw_ltg = dta.get_truck_ltg_matrix(release_intervals, self.num_loading_interval)
+        # raw_ltg = dta.get_truck_ltg_matrix(assign_intervals, self.num_loading_interval)
 
-        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list, self.observed_links)
+        # ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list, self.observed_links, self.num_procs)
+
+        ltg = dta.get_complete_truck_ltg_matrix(assign_intervals, self.num_loading_interval, num_assign_intervals)
         return ltg
 
-    def _massage_raw_ltg(self, raw_ltg, ass_freq, num_assign_interval, paths_list, observed_links):
+    def _massage_raw_ltg(self, raw_ltg, ass_freq, num_assign_interval, paths_list, observed_links, num_procs=5):
         assert(raw_ltg.shape[1] == 5)
         if raw_ltg.shape[0] == 0:
             print("No ltg. No congestion.")
@@ -772,36 +915,84 @@ class MCDODE():
         small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
 
         raw_ltg = raw_ltg[(raw_ltg[:, 1] < self.num_loading_interval) & (raw_ltg[:, 3] < self.num_loading_interval), :]
+        assert(set(raw_ltg[:, 0]).issubset(set(paths_list)))
 
-        # raw_ltg[:, 0]: path no.
-        # raw_ltg[:, 1]: the count of 1 min interval in terms of 5s intervals
-                
-        if type(paths_list) == np.ndarray:
-            # with mp.Pool(5) as p:
-            #     pp = p.map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_ltg[:, 0].astype(int))
-            ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_ltg[:, 0].astype(int)))).astype(bool)
-            assert(np.sum(ind) == len(ind))
-            path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_ltg[ind, 0].astype(int))))
-                        + (raw_ltg[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
-        elif type(paths_list) == list:
-            ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_ltg[:, 0].astype(int)))).astype(bool)
-            assert(np.sum(ind) == len(ind))
-            path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_ltg[ind, 0].astype(int))))
-                        + (raw_ltg[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+        if num_procs > 1:
+            raw_ltg = pd.DataFrame(data=raw_ltg)
 
-        # raw_ltg[:, 2]: link no.
-        # raw_ltg[:, 3]: the count of unit time interval (5s)
-        if type(observed_links) == np.ndarray:
-            # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
-            link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_ltg[ind, 2].astype(int))))
-                        + (raw_ltg[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
-        elif type(observed_links) == list:
-            link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_ltg[ind, 2].astype(int))))
-                        + (raw_ltg[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            from pandarallel import pandarallel
+            pandarallel.initialize(progress_bar=True, nb_workers=num_procs)
+
+            # ind = raw_ltg.loc[:, 0].parallel_apply(lambda x: True if x in set(paths_list) else False)
+            # assert(np.sum(ind) == len(ind))
+            
+            if type(paths_list) == list:
+                paths_list = np.array(paths_list)
+            elif type(paths_list) == np.ndarray:
+                pass
+            else:
+                raise Exception('Wrong data type of paths_list')
+
+            path_seq = (raw_ltg.loc[:, 0].astype(int).parallel_apply(lambda x: np.nonzero(paths_list == x)[0][0]) 
+                        + (raw_ltg.loc[:, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+            # path_seq = (raw_ltg.loc[:, 0].astype(int).parallel_apply(lambda x: find_first(paths_list, x)) 
+            #             + (raw_ltg.loc[:, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+            
+            if type(observed_links) == list:
+                observed_links = np.array(observed_links)
+            elif type(observed_links) == np.ndarray:
+                pass
+            else:
+                raise Exception('Wrong data type of observed_links')
+
+            link_seq = (raw_ltg.loc[:, 2].astype(int).parallel_apply(lambda x: np.nonzero(observed_links == x)[0][0])
+                        + (raw_ltg.loc[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            # link_seq = (raw_ltg.loc[:, 2].astype(int).parallel_apply(lambda x: find_first(observed_links, x))
+            #             + (raw_ltg.loc[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+
+            p = raw_ltg.loc[:, 4] / (ass_freq * small_assign_freq)
+
+        else:
+
+            # raw_ltg[:, 0]: path no.
+            # raw_ltg[:, 1]: the count of 1 min interval in terms of 5s intervals
                     
-        # print(path_seq)
-        # raw_ltg[:, 4]: gradient, to be averaged for each large assign interval 
-        p = raw_ltg[ind, 4] / (ass_freq * small_assign_freq)
+            if type(paths_list) == np.ndarray:
+                # ind = np.array(list(map(lambda x: True if len(np.nonzero(paths_list == x)[0]) > 0 else False, raw_ltg[:, 0].astype(int)))).astype(bool)
+                # assert(np.sum(ind) == len(ind))
+                # path_seq = (np.array(list(map(lambda x: np.nonzero(paths_list == x)[0][0], raw_ltg[:, 0].astype(int))))
+                #             + (raw_ltg[:, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+                path_seq = (np.array(list(map(lambda x: find_first(paths_list, x), raw_ltg[:, 0].astype(int))))
+                            + (raw_ltg[:, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+            elif type(paths_list) == list:
+                # ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_ltg[:, 0].astype(int)))).astype(bool)
+                # assert(np.sum(ind) == len(ind))
+                # path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_ltg[:, 0].astype(int))))
+                #             + (raw_ltg[:, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+                path_seq = (np.array(list(map(lambda x: find_first(paths_list, x), raw_ltg[:, 0].astype(int))))
+                            + (raw_ltg[:, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+            else:
+                raise Exception('Wrong data type of paths_list')
+
+            # raw_ltg[:, 2]: link no.
+            # raw_ltg[:, 3]: the count of unit time interval (5s)
+            if type(observed_links) == np.ndarray:
+                # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
+                # link_seq = (np.array(list(map(lambda x: np.nonzero(observed_links == x)[0][0], raw_ltg[:, 2].astype(int))))
+                #             + (raw_ltg[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+                link_seq = (np.array(list(map(lambda x: find_first(observed_links, x), raw_ltg[:, 2].astype(int))))
+                            + (raw_ltg[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            elif type(observed_links) == list:
+                # link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_ltg[:, 2].astype(int))))
+                #             + (raw_ltg[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+                link_seq = (np.array(list(map(lambda x: find_first(observed_links, x), raw_ltg[:, 2].astype(int))))
+                            + (raw_ltg[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            else:
+                raise Exception('Wrong data type of observed_links')
+                        
+            # print(path_seq)
+            # raw_ltg[:, 4]: gradient, to be averaged for each large assign interval 
+            p = raw_ltg[:, 4] / (ass_freq * small_assign_freq)
         
         # print("Creating the coo matrix", time.time()), coo_matrix permits duplicate entries
         mat = coo_matrix((p, (link_seq, path_seq)), shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))
@@ -984,10 +1175,12 @@ class MCDODE():
                 _, _, _, _, _ = pickle.load(open(use_file_as_init, 'rb'))
             # best 
             use_file_as_init = os.path.join(store_folder, '{}_iteration.pickle'.format(best_epoch))
-            loss, loss_dict, loss_list, best_epoch, best_f_car, best_f_truck, \
+            _, _, _, _, best_f_car, best_f_truck, \
                 best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck, best_O_demand = pickle.load(open(use_file_as_init, 'rb'))
             
             f_car, f_truck = best_f_car, best_f_truck
+
+        assert((len(loss_list) >= best_epoch) and (starting_epoch >= best_epoch))
 
         if normalized_by_scale:
             f_car_tensor = torch.from_numpy(f_car / np.maximum(car_init_scale, 1e-6))
@@ -1036,7 +1229,7 @@ class MCDODE():
                 car_grad, truck_grad, tmp_loss, tmp_loss_dict, dta, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand = self.compute_path_flow_grad_and_loss(one_data_dict, f_car, f_truck)
                 # print("gradient", car_grad, truck_grad)
 
-                if ~column_generation[i]:
+                if column_generation[i] == 0:
                     dta = 0
 
                 optimizer.zero_grad()
@@ -1157,10 +1350,12 @@ class MCDODE():
                 _, _, _, _, _ = pickle.load(open(use_file_as_init, 'rb'))
             # best 
             use_file_as_init = os.path.join(store_folder, '{}_iteration.pickle'.format(best_epoch))
-            loss, loss_dict, loss_list, best_epoch, best_f_car, best_f_truck, \
+            _, _, _, _, best_f_car, best_f_truck, \
                 best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck, best_O_demand = pickle.load(open(use_file_as_init, 'rb'))
             
             f_car, f_truck = best_f_car, best_f_truck
+
+        assert((len(loss_list) >= best_epoch) and (starting_epoch >= best_epoch))
 
         for i in range(max_epoch):
             if adagrad:
@@ -1254,10 +1449,12 @@ class MCDODE():
                 _, _, _, _ = pickle.load(open(use_file_as_init, 'rb'))
             # best 
             use_file_as_init = os.path.join(store_folder, '{}_iteration.pickle'.format(best_epoch))
-            loss, loss_dict, loss_list, best_epoch, best_f_car, best_f_truck, \
+            _, _, _, _, best_f_car, best_f_truck, \
                 best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck = pickle.load(open(use_file_as_init, 'rb'))
             
             f_car, f_truck = best_f_car, best_f_truck
+
+        assert((len(loss_list) >= best_epoch) and (starting_epoch >= best_epoch))
 
         start_time = time.time()
         for i in range(max_epoch):
@@ -1358,10 +1555,12 @@ class MCDODE():
                 _, _, _, _ = pickle.load(open(use_file_as_init, 'rb'))
             # best 
             use_file_as_init = os.path.join(store_folder, '{}_iteration.pickle'.format(best_epoch))
-            loss, loss_dict, loss_list, best_epoch, best_f_car, best_f_truck, \
+            _, _, _, _, best_f_car, best_f_truck, \
                 best_x_e_car, best_x_e_truck, best_tt_e_car, best_tt_e_truck = pickle.load(open(use_file_as_init, 'rb'))
             
             f_car, f_truck = best_f_car, best_f_truck
+
+        assert((len(loss_list) >= best_epoch) and (starting_epoch >= best_epoch))
  
         # print("Start iteration", time.time())
         start_time = time.time()
@@ -1707,6 +1906,7 @@ class PostProcessing:
     def __init__(self, dode, dta=None, f_car=None, f_truck=None,
                  estimated_car_count=None, estimated_truck_count=None,
                  estimated_car_cost=None, estimated_truck_cost=None,
+                 link_length=None,
                  estimated_origin_demand=None,
                  result_folder=None):
         self.dode = dode
@@ -1727,6 +1927,11 @@ class PostProcessing:
         self.r2_car_cost, self.r2_truck_cost = "NA", "NA"
         self.true_car_cost, self.estimated_car_cost = None, estimated_car_cost
         self.true_truck_cost, self.estimated_truck_cost = None, estimated_truck_cost
+
+        self.r2_car_speed, self.r2_truck_speed = "NA", "NA"
+        self.link_length = link_length
+        self.true_car_speed, self.estimated_car_speed = None, None
+        self.true_truck_speed, self.estimated_truck_speed = None, None
 
         self.r2_origin_vehicle_registration = "NA"
         self.true_origin_vehicle_registration, self.estimated_origin_vehicle_registration = None, None
@@ -1839,20 +2044,37 @@ class PostProcessing:
         if self.dode.config['use_car_link_tt']:
             self.true_car_cost = self.one_data_dict['car_link_tt']
 
+            self.true_car_speed = self.link_length[np.newaxis, :] / self.true_car_cost.reshape(len(start_intervals), -1) * 3600 
+            self.true_car_speed = self.true_car_speed.flatten(order='C')
+            
             if self.estimated_car_cost is None:
                 # self.estimated_car_cost = self.dta.get_car_link_tt_robust(start_intervals, end_intervals, self.dode.ass_freq, True).flatten(order = 'F')
                 self.estimated_car_cost = self.dta.get_car_link_tt(start_intervals, False).flatten(order = 'F')
 
+            self.estimated_car_speed = self.link_length[np.newaxis, :] / self.estimated_car_cost.reshape(len(start_intervals), -1) * 3600 
+            self.estimated_car_speed = self.estimated_car_speed.flatten(order='C')
+
             self.true_car_cost, self.estimated_car_cost = self.true_car_cost[self.one_data_dict['mask_driving_link']], self.estimated_car_cost[self.one_data_dict['mask_driving_link']]
+
+            self.true_car_speed, self.estimated_car_speed = self.true_car_speed[self.one_data_dict['mask_driving_link']], self.estimated_car_speed[self.one_data_dict['mask_driving_link']]
+
 
         if self.dode.config['use_truck_link_tt']:
             self.true_truck_cost = self.one_data_dict['truck_link_tt']
 
+            self.true_truck_speed = self.link_length[np.newaxis, :] / self.true_truck_cost.reshape(len(start_intervals), -1) * 3600 
+            self.true_truck_speed = self.true_truck_speed.flatten(order='C')
+
             if self.estimated_truck_cost is None:
                 # self.estimated_truck_cost = self.dta.get_truck_link_tt_robust(start_intervals, end_intervals, self.dode.ass_freq, True).flatten(order = 'F')
                 self.estimated_truck_cost = self.dta.get_truck_link_tt(start_intervals, False).flatten(order = 'F')
+
+            self.estimated_truck_speed = self.link_length[np.newaxis, :] / self.estimated_truck_cost.reshape(len(start_intervals), -1) * 3600 
+            self.estimated_truck_speed = self.estimated_truck_speed.flatten(order='C')
             
             self.true_truck_cost, self.estimated_truck_cost = self.true_truck_cost[self.one_data_dict['mask_driving_link']], self.estimated_truck_cost[self.one_data_dict['mask_driving_link']]
+
+            self.true_truck_speed, self.estimated_truck_speed = self.true_truck_speed[self.one_data_dict['mask_driving_link']], self.estimated_truck_speed[self.one_data_dict['mask_driving_link']]
 
         # origin vehicle registration data
         if self.dode.config['use_origin_vehicle_registration_data']:
@@ -1911,7 +2133,7 @@ class PostProcessing:
                 self.r2_origin_vehicle_registration
                 ))
         
-        return self.r2_car_count, self.r2_truck_count
+        return self.r2_car_count, self.r2_truck_count, self.r2_origin_vehicle_registration
 
     def scatter_plot_count(self, fig_name =  'link_flow_scatterplot_pathflow.png'):
         if self.dode.config['use_car_link_flow'] + self.dode.config['use_truck_link_flow'] + self.dode.config['use_origin_vehicle_registration_data']:
@@ -1977,7 +2199,7 @@ class PostProcessing:
             print(self.true_car_cost)
             print(self.estimated_car_cost)
             print('----- car cost -----')
-            ind = ~(np.isinf(self.true_car_cost) + np.isinf(self.estimated_car_cost) + np.isnan(self.true_car_cost) + np.isnan(self.estimated_car_cost))
+            ind = ~(np.isinf(self.true_car_cost) + np.isinf(self.estimated_car_cost) + np.isnan(self.true_car_cost) + np.isnan(self.estimated_car_cost) + (self.estimated_car_cost > 3 * self.true_car_cost))
             self.r2_car_cost = r2_score(self.true_car_cost[ind], self.estimated_car_cost[ind])
 
         if self.dode.config['use_truck_link_tt']:
@@ -1985,7 +2207,7 @@ class PostProcessing:
             print(self.true_truck_cost)
             print(self.estimated_truck_cost)
             print('----- truck cost -----')
-            ind = ~(np.isinf(self.true_truck_cost) + np.isinf(self.estimated_truck_cost) + np.isnan(self.true_truck_cost) + np.isnan(self.estimated_truck_cost))
+            ind = ~(np.isinf(self.true_truck_cost) + np.isinf(self.estimated_truck_cost) + np.isnan(self.true_truck_cost) + np.isnan(self.estimated_truck_cost) + (self.estimated_truck_cost > 3 * self.true_truck_cost))
             self.r2_truck_cost = r2_score(self.true_truck_cost[ind], self.estimated_truck_cost[ind])
 
         print("r2 cost --- r2_car_cost: {}, r2_truck_cost: {}"
@@ -1995,6 +2217,33 @@ class PostProcessing:
                 ))
 
         return self.r2_car_cost, self.r2_truck_cost
+
+    def cal_r2_speed(self):
+        if self.dode.config['use_car_link_tt']:
+            print('----- car speed -----')
+            print(self.true_car_speed)
+            print(self.estimated_car_speed)
+            print('----- car speed -----')
+            ind = ~((self.true_car_speed > 90) + (self.estimated_car_speed > 90) + (self.true_car_speed < 10) + (self.estimated_car_speed < 10) + np.isnan(self.true_car_speed) + np.isnan(self.estimated_car_speed)
+                    + np.isinf(self.true_car_cost) + np.isinf(self.estimated_car_cost) + np.isnan(self.true_car_cost) + np.isnan(self.estimated_car_cost) + (self.estimated_car_cost > 3 * self.true_car_cost))
+            self.r2_car_speed = r2_score(self.true_car_speed[ind], self.estimated_car_speed[ind])
+
+        if self.dode.config['use_truck_link_tt']:
+            print('----- truck speed -----')
+            print(self.true_truck_speed)
+            print(self.estimated_truck_speed)
+            print('----- truck speed -----')
+            ind = ~((self.true_truck_speed > 90) + (self.estimated_truck_speed > 90) + (self.true_truck_speed < 10) + (self.estimated_truck_speed < 10) + np.isnan(self.true_truck_speed) + np.isnan(self.estimated_truck_speed)
+                    + np.isinf(self.true_truck_cost) + np.isinf(self.estimated_truck_cost) + np.isnan(self.true_truck_cost) + np.isnan(self.estimated_truck_cost) + (self.estimated_truck_cost > 3 * self.true_truck_cost))
+            self.r2_truck_speed = r2_score(self.true_truck_speed[ind], self.estimated_truck_speed[ind])
+
+        print("r2 speed --- r2_car_speed: {}, r2_truck_speed: {}"
+            .format(
+                self.r2_car_speed, 
+                self.r2_truck_speed
+                ))
+
+        return self.r2_car_speed, self.r2_truck_speed
 
     def scatter_plot_cost(self, fig_name = 'link_cost_scatterplot_pathflow.png'):
         if self.dode.config['use_car_link_tt'] + self.dode.config['use_truck_link_tt']:
@@ -2006,7 +2255,7 @@ class PostProcessing:
             i = 0
 
             if self.dode.config['use_car_link_tt']:
-                ind = ~(np.isinf(self.true_car_cost) + np.isinf(self.estimated_car_cost) + np.isnan(self.true_car_cost) + np.isnan(self.estimated_car_cost))
+                ind = ~(np.isinf(self.true_car_cost) + np.isinf(self.estimated_car_cost) + np.isnan(self.true_car_cost) + np.isnan(self.estimated_car_cost) + (self.estimated_car_cost > 3 * self.true_car_cost))
                 car_tt_min = np.min((np.min(self.true_car_cost[ind]), np.min(self.estimated_car_cost[ind]))) - 1
                 car_tt_max = np.max((np.max(self.true_car_cost[ind]), np.max(self.estimated_car_cost[ind]))) + 1
                 axes[0, i].scatter(self.true_car_cost[ind], self.estimated_car_cost[ind], color = self.color_list[i], marker = self.marker_list[i], s = 100)
@@ -2023,7 +2272,7 @@ class PostProcessing:
             i += self.dode.config['use_car_link_tt']
 
             if self.dode.config['use_truck_link_tt']:
-                ind = ~(np.isinf(self.true_truck_cost) + np.isinf(self.estimated_truck_cost) + np.isnan(self.true_truck_cost) + np.isnan(self.estimated_truck_cost))
+                ind = ~(np.isinf(self.true_truck_cost) + np.isinf(self.estimated_truck_cost) + np.isnan(self.true_truck_cost) + np.isnan(self.estimated_truck_cost) + (self.estimated_truck_cost > 3 * self.true_truck_cost))
                 truck_tt_min = np.min((np.min(self.true_truck_cost[ind]), np.min(self.estimated_truck_cost[ind]))) - 1
                 truck_tt_max = np.max((np.max(self.true_truck_cost[ind]), np.max(self.estimated_truck_cost[ind]))) + 1
                 axes[0, i].scatter(self.true_truck_cost[ind], self.estimated_truck_cost[ind], color = self.color_list[i], marker = self.marker_list[i], s = 100)
@@ -2033,6 +2282,56 @@ class PostProcessing:
                 axes[0, i].set_xlim([truck_tt_min, truck_tt_max])
                 axes[0, i].set_ylim([truck_tt_min, truck_tt_max])
                 axes[0, i].text(0, 1, 'r2 = {}'.format(self.r2_truck_cost),
+                            horizontalalignment='left',
+                            verticalalignment='top',
+                            transform=axes[0, i].transAxes)
+
+            plt.savefig(os.path.join(self.result_folder, fig_name))
+
+            plt.show()
+
+    def scatter_plot_speed(self, fig_name = 'link_speed_scatterplot_pathflow.png'):
+
+        if self.dode.config['use_car_link_tt'] + self.dode.config['use_truck_link_tt']:
+
+            fig, axes = plt.subplots(1, 
+                                    self.dode.config['use_car_link_tt'] + self.dode.config['use_truck_link_tt'], 
+                                    figsize=(36, 9), dpi=300, squeeze=False)
+            
+            i = 0
+
+            if self.dode.config['use_car_link_tt']:
+                ind = ~((self.true_car_speed > 90) + (self.estimated_car_speed > 90) + (self.true_car_speed < 10) + (self.estimated_car_speed < 10) + np.isnan(self.true_car_speed) + np.isnan(self.estimated_car_speed)
+                         + np.isinf(self.true_car_cost) + np.isinf(self.estimated_car_cost) + np.isnan(self.true_car_cost) + np.isnan(self.estimated_car_cost) + (self.estimated_car_cost > 3 * self.true_car_cost))
+            
+                car_speed_min = np.min((np.min(self.true_car_speed[ind]), np.min(self.estimated_car_speed[ind]))) - 1
+                car_speed_max = np.max((np.max(self.true_car_speed[ind]), np.max(self.estimated_car_speed[ind]))) + 1
+                axes[0, i].scatter(self.true_car_speed[ind], self.estimated_car_speed[ind], color = self.color_list[i], marker = self.marker_list[i], s = 100)
+                axes[0, i].plot(np.linspace(car_speed_min, car_speed_max, 20), np.linspace(car_speed_min, car_speed_max, 20), color = 'gray')
+                axes[0, i].set_ylabel('Estimated observed link speed for car')
+                axes[0, i].set_xlabel('True observed link speed for car')
+                axes[0, i].set_xlim([car_speed_min, car_speed_max])
+                axes[0, i].set_ylim([car_speed_min, car_speed_max])
+                axes[0, i].text(0, 1, 'r2 = {}'.format(self.r2_car_speed),
+                            horizontalalignment='left',
+                            verticalalignment='top',
+                            transform=axes[0, i].transAxes)
+
+            i += self.dode.config['use_car_link_tt']
+
+            if self.dode.config['use_truck_link_tt']:
+                ind = ~((self.true_truck_speed > 90) + (self.estimated_truck_speed > 90) + (self.true_truck_speed < 10) + (self.estimated_truck_speed < 10) + np.isnan(self.true_truck_speed) + np.isnan(self.estimated_truck_speed)
+                        + np.isinf(self.true_truck_cost) + np.isinf(self.estimated_truck_cost) + np.isnan(self.true_truck_cost) + np.isnan(self.estimated_truck_cost) + (self.estimated_truck_cost > 3 * self.true_truck_cost))
+            
+                truck_speed_min = np.min((np.min(self.true_truck_speed[ind]), np.min(self.estimated_truck_speed[ind]))) - 1
+                truck_speed_max = np.max((np.max(self.true_truck_speed[ind]), np.max(self.estimated_truck_speed[ind]))) + 1
+                axes[0, i].scatter(self.true_truck_speed[ind], self.estimated_truck_speed[ind], color = self.color_list[i], marker = self.marker_list[i], s = 100)
+                axes[0, i].plot(np.linspace(truck_speed_min, truck_speed_max, 20), np.linspace(truck_speed_min, truck_speed_max, 20), color = 'gray')
+                axes[0, i].set_ylabel('Estimated observed link speed for truck')
+                axes[0, i].set_xlabel('True observed link speed for truck')
+                axes[0, i].set_xlim([truck_speed_min, truck_speed_max])
+                axes[0, i].set_ylim([truck_speed_min, truck_speed_max])
+                axes[0, i].text(0, 1, 'r2 = {}'.format(self.r2_truck_speed),
                             horizontalalignment='left',
                             verticalalignment='top',
                             transform=axes[0, i].transAxes)

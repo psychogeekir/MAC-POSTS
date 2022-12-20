@@ -13,6 +13,7 @@ import multiprocessing as mp
 from typing import Union
 import torch
 import torch.nn as nn
+import pandas as pd
 # from sklearn.metrics import r2_score
 
 import MNMAPI
@@ -218,10 +219,10 @@ class torch_pathflow_solver(nn.Module):
         #     threshold=0.15, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08, verbose=False)
 
 class MMDODE:
-    def __init__(self, nb, config):
-        self.reinitialize(nb, config)
+    def __init__(self, nb, config, num_procs=1):
+        self.reinitialize(nb, config, num_procs)
 
-    def reinitialize(self, nb, config):
+    def reinitialize(self, nb, config, num_procs=1):
         self.config = config
         self.nb = nb
 
@@ -284,6 +285,8 @@ class MMDODE:
         self.bus_driving_link_relation = None
         if self.config['use_bus_link_flow'] or self.config['use_bus_link_tt']:
             self.register_links_overlapped_bus_driving(self.nb.folder_path)
+
+        self.num_procs = num_procs
 
     def register_links_overlapped_bus_driving(self, folder):
         a = MNMAPI.mmdta_api()
@@ -534,6 +537,9 @@ class MMDODE:
         a.print_emission_stats()
 
         shutil.rmtree(new_folder)
+
+        a.delete_all_agents()
+
         return a  
 
     def get_car_dar_matrix_driving(self, dta, f):
@@ -541,7 +547,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_car_dar_matrix_driving(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_driving, self.observed_links_driving)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_driving, self.observed_links_driving, self.num_procs)
         return dar
 
     def get_truck_dar_matrix_driving(self, dta, f):
@@ -549,7 +555,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_truck_dar_matrix_driving(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_driving, self.observed_links_driving)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_driving, self.observed_links_driving, self.num_procs)
         return dar
 
     def get_car_dar_matrix_pnr(self, dta, f):
@@ -557,7 +563,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_car_dar_matrix_pnr(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_pnr, self.observed_links_driving)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_pnr, self.observed_links_driving, self.num_procs)
         return dar
 
     def get_bus_dar_matrix_bustransit_link(self, dta, f):
@@ -565,7 +571,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_bus_dar_matrix_bustransit_link(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_busroute, self.observed_links_bus)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_busroute, self.observed_links_bus, self.num_procs)
         return dar
 
     def get_bus_dar_matrix_driving_link(self, dta, f):
@@ -573,7 +579,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_bus_dar_matrix_driving_link(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_busroute, self.observed_links_driving)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_busroute, self.observed_links_driving, self.num_procs)
         return dar
 
     def get_passenger_dar_matrix_bustransit(self, dta, f):
@@ -582,7 +588,7 @@ class MMDODE:
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_passenger_dar_matrix_bustransit(start_intervals, end_intervals)
         dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_bustransit, 
-                                    np.concatenate((self.observed_links_bus, self.observed_links_walking)))
+                                    np.concatenate((self.observed_links_bus, self.observed_links_walking)), self.num_procs)
         return dar
 
     def get_passenger_dar_matrix_pnr(self, dta, f):
@@ -591,7 +597,7 @@ class MMDODE:
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_passenger_dar_matrix_pnr(start_intervals, end_intervals)
         dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_pnr, 
-                                    np.concatenate((self.observed_links_bus, self.observed_links_walking)))
+                                    np.concatenate((self.observed_links_bus, self.observed_links_walking)), self.num_procs)
         return dar
 
     def get_car_dar_matrix_bus_driving_link(self, dta, f):
@@ -599,7 +605,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_car_dar_matrix_bus_driving_link(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_driving, self.observed_links_bus_driving)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_driving, self.observed_links_bus_driving, self.num_procs)
         return dar
 
     def get_truck_dar_matrix_bus_driving_link(self, dta, f):
@@ -607,7 +613,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_truck_dar_matrix_bus_driving_link(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_driving, self.observed_links_bus_driving)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_driving, self.observed_links_bus_driving, self.num_procs)
         return dar
 
     def get_passenger_dar_matrix_bustransit_bus_link(self, dta, f):
@@ -615,7 +621,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_passenger_dar_matrix_bustransit_bus_link(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_bustransit, self.observed_links_bus)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_bustransit, self.observed_links_bus, self.num_procs)
         return dar
 
     def get_passenger_dar_matrix_pnr_bus_link(self, dta, f):
@@ -623,7 +629,7 @@ class MMDODE:
         end_intervals = start_intervals + self.ass_freq
         assert(end_intervals[-1] <= self.num_loading_interval)
         raw_dar = dta.get_passenger_dar_matrix_pnr_bus_link(start_intervals, end_intervals)
-        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_pnr, self.observed_links_bus)
+        dar = self._massage_raw_dar(raw_dar, self.ass_freq, f, self.num_assign_interval, self.paths_list_pnr, self.observed_links_bus, self.num_procs)
         return dar
 
     def get_passenger_bus_link_flow_relationship(self, dta):
@@ -732,7 +738,7 @@ class MMDODE:
                passenger_dar_matrix_bustransit, passenger_dar_matrix_pnr, car_dar_matrix_bus_driving_link, truck_dar_matrix_bus_driving_link, passenger_dar_matrix_bustransit_bus_link, passenger_dar_matrix_pnr_bus_link, \
                passenger_bus_link_flow_relationship
 
-    def _massage_raw_dar(self, raw_dar, ass_freq, f, num_assign_interval, paths_list, observed_links):
+    def _massage_raw_dar(self, raw_dar, ass_freq, f, num_assign_interval, paths_list, observed_links, num_procs=5):
         assert(raw_dar.shape[1] == 5)
         if raw_dar.shape[0] == 0:
             print("No dar. Consider increase the demand values")
@@ -744,7 +750,7 @@ class MMDODE:
         # 15 min
         small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
 
-        raw_dar = raw_dar[(raw_dar[:, 1] < self.num_assign_interval * small_assign_freq) & (raw_dar[:, 3] < self.num_loading_interval), :]
+        raw_dar = raw_dar[(raw_dar[:, 1] < num_assign_interval * small_assign_freq) & (raw_dar[:, 3] < self.num_loading_interval), :]
         
         # raw_dar[:, 0]: path no.
         # raw_dar[:, 1]: the count of 1 min interval
@@ -761,32 +767,68 @@ class MMDODE:
         #         print('*************************************')
         #         print(x)
         #         print('*************************************')
-                
-                
-        if type(paths_list) == np.ndarray:
-            ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_dar[:, 0].astype(int)))).astype(bool)
-            assert(np.sum(ind) == len(ind))
-            path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_dar[ind, 0].astype(int))))
-                        + (raw_dar[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
-        elif type(paths_list) == list:
-            ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_dar[:, 0].astype(int)))).astype(bool)
-            assert(np.sum(ind) == len(ind))
-            path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[ind, 0].astype(int))))
-                        + (raw_dar[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
 
-        # raw_dar[:, 2]: link no.
-        # raw_dar[:, 3]: the count of unit time interval (5s)
-        if type(observed_links) == np.ndarray:
-            # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
-            link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_dar[ind, 2].astype(int))))
-                        + (raw_dar[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
-        elif type(observed_links) == list:
-            link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_dar[ind, 2].astype(int))))
-                        + (raw_dar[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
-                    
-        # print(path_seq)
-        # raw_dar[:, 4]: flow
-        p = raw_dar[ind, 4] / f[path_seq]
+        if num_procs > 1:
+            raw_dar = pd.DataFrame(data=raw_dar)
+
+            from pandarallel import pandarallel
+            pandarallel.initialize(progress_bar=True, nb_workers=num_procs)
+
+            ind = raw_dar.loc[:, 0].parallel_apply(lambda x: True if x in set(paths_list) else False)
+            assert(np.sum(ind) == len(ind))
+            
+            if type(paths_list) == list:
+                paths_list = np.array(paths_list)
+            elif type(paths_list) == np.ndarray:
+                pass
+            else:
+                raise Exception('Wrong data type of paths_list')
+
+            path_seq = (raw_dar.loc[ind, 0].astype(int).parallel_apply(lambda x: np.where(paths_list == x)[0][0]) 
+                        + (raw_dar.loc[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            
+            if type(observed_links) == list:
+                observed_links = np.array(observed_links)
+            elif type(observed_links) == np.ndarray:
+                pass
+            else:
+                raise Exception('Wrong data type of observed_links')
+
+            link_seq = (raw_dar.loc[ind, 2].astype(int).parallel_apply(lambda x: np.where(observed_links == x)[0][0])
+                        + (raw_dar.loc[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+
+            p = raw_dar.loc[ind, 4] / f[path_seq]
+                
+        else:
+
+            if type(paths_list) == np.ndarray:
+                ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_dar[:, 0].astype(int)))).astype(bool)
+                assert(np.sum(ind) == len(ind))
+                path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_dar[ind, 0].astype(int))))
+                            + (raw_dar[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            elif type(paths_list) == list:
+                ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_dar[:, 0].astype(int)))).astype(bool)
+                assert(np.sum(ind) == len(ind))
+                path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[ind, 0].astype(int))))
+                            + (raw_dar[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            else:
+                raise Exception('Wrong data type of paths_list')
+
+            # raw_dar[:, 2]: link no.
+            # raw_dar[:, 3]: the count of unit time interval (5s)
+            if type(observed_links) == np.ndarray:
+                # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
+                link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_dar[ind, 2].astype(int))))
+                            + (raw_dar[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            elif type(observed_links) == list:
+                link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_dar[ind, 2].astype(int))))
+                            + (raw_dar[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            else:
+                raise Exception('Wrong data type of observed_links')
+                        
+            # print(path_seq)
+            # raw_dar[:, 4]: flow
+            p = raw_dar[ind, 4] / f[path_seq]
         
         # print("Creating the coo matrix", time.time()), coo_matrix permits duplicate entries
         mat = coo_matrix((p, (link_seq, path_seq)), shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))
@@ -1734,7 +1776,7 @@ class MMDODE:
 
         raw_ltg = dta.get_car_ltg_matrix_driving(release_intervals, self.num_loading_interval)
 
-        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list_driving, self.observed_links_driving)
+        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list_driving, self.observed_links_driving, self.num_procs)
         return ltg
 
     def _compute_link_tt_grad_on_path_flow_car_pnr(self, dta):
@@ -1747,7 +1789,7 @@ class MMDODE:
 
         raw_ltg = dta.get_car_ltg_matrix_pnr(release_intervals, self.num_loading_interval)
 
-        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list_pnr, self.observed_links_driving)
+        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list_pnr, self.observed_links_driving, self.num_procs)
         return ltg
 
     def _compute_link_tt_grad_on_path_flow_truck_driving(self, dta):
@@ -1760,7 +1802,7 @@ class MMDODE:
 
         raw_ltg = dta.get_truck_ltg_matrix_driving(release_intervals, self.num_loading_interval)
 
-        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list_driving, self.observed_links_driving)
+        ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list_driving, self.observed_links_driving, self.num_procs)
         return ltg
 
     def _compute_link_tt_grad_on_path_flow_passenger_bustransit(self, dta):
@@ -1774,7 +1816,7 @@ class MMDODE:
         raw_ltg = dta.get_passenger_ltg_matrix_bustransit(release_intervals, self.num_loading_interval)
 
         ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list_bustransit, 
-                                    np.concatenate((self.observed_links_bus, self.observed_links_walking)))
+                                    np.concatenate((self.observed_links_bus, self.observed_links_walking)), self.num_procs)
         return ltg
     
     def _compute_link_tt_grad_on_path_flow_passenger_pnr(self, dta):
@@ -1788,10 +1830,10 @@ class MMDODE:
         raw_ltg = dta.get_passenger_ltg_matrix_pnr(release_intervals, self.num_loading_interval)
 
         ltg = self._massage_raw_ltg(raw_ltg, self.ass_freq, num_assign_intervals, self.paths_list_pnr,
-                                    np.concatenate((self.observed_links_bus, self.observed_links_walking)))
+                                    np.concatenate((self.observed_links_bus, self.observed_links_walking)), self.num_procs)
         return ltg
 
-    def _massage_raw_ltg(self, raw_ltg, ass_freq, num_assign_interval, paths_list, observed_links):
+    def _massage_raw_ltg(self, raw_ltg, ass_freq, num_assign_interval, paths_list, observed_links, num_procs=5):
         assert(raw_ltg.shape[1] == 5)
         if raw_ltg.shape[0] == 0:
             print("No ltg. No congestion.")
@@ -1805,33 +1847,70 @@ class MMDODE:
 
         raw_ltg = raw_ltg[(raw_ltg[:, 1] < self.num_loading_interval) & (raw_ltg[:, 3] < self.num_loading_interval), :]
 
-        # raw_ltg[:, 0]: path no.
-        # raw_ltg[:, 1]: the count of 1 min interval in terms of 5s intervals
-                
-        if type(paths_list) == np.ndarray:
-            ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_ltg[:, 0].astype(int)))).astype(bool)
-            assert(np.sum(ind) == len(ind))
-            path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_ltg[ind, 0].astype(int))))
-                        + (raw_ltg[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
-        elif type(paths_list) == list:
-            ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_ltg[:, 0].astype(int)))).astype(bool)
-            assert(np.sum(ind) == len(ind))
-            path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_ltg[ind, 0].astype(int))))
-                        + (raw_ltg[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+        if num_procs > 1:
+            raw_ltg = pd.DataFrame(data=raw_ltg)
 
-        # raw_ltg[:, 2]: link no.
-        # raw_ltg[:, 3]: the count of unit time interval (5s)
-        if type(observed_links) == np.ndarray:
-            # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
-            link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_ltg[ind, 2].astype(int))))
-                        + (raw_ltg[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
-        elif type(observed_links) == list:
-            link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_ltg[ind, 2].astype(int))))
-                        + (raw_ltg[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            from pandarallel import pandarallel
+            pandarallel.initialize(progress_bar=True, nb_workers=num_procs)
+
+            ind = raw_ltg.loc[:, 0].parallel_apply(lambda x: True if x in set(paths_list) else False)
+            assert(np.sum(ind) == len(ind))
+            
+            if type(paths_list) == list:
+                paths_list = np.array(paths_list)
+            elif type(paths_list) == np.ndarray:
+                pass
+            else:
+                raise Exception('Wrong data type of paths_list')
+
+            path_seq = (raw_ltg.loc[ind, 0].astype(int).parallel_apply(lambda x: np.where(paths_list == x)[0][0]) 
+                        + (raw_ltg.loc[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+            
+            if type(observed_links) == list:
+                observed_links = np.array(observed_links)
+            elif type(observed_links) == np.ndarray:
+                pass
+            else:
+                raise Exception('Wrong data type of observed_links')
+
+            link_seq = (raw_ltg.loc[ind, 2].astype(int).parallel_apply(lambda x: np.where(observed_links == x)[0][0])
+                        + (raw_ltg.loc[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+
+            p = raw_ltg.loc[ind, 4] / (ass_freq * small_assign_freq)
+
+        else:
+
+            # raw_ltg[:, 0]: path no.
+            # raw_ltg[:, 1]: the count of 1 min interval in terms of 5s intervals
                     
-        # print(path_seq)
-        # raw_ltg[:, 4]: gradient, to be averaged for each large assign interval 
-        p = raw_ltg[ind, 4] / (ass_freq * small_assign_freq)
+            if type(paths_list) == np.ndarray:
+                ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_ltg[:, 0].astype(int)))).astype(bool)
+                assert(np.sum(ind) == len(ind))
+                path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_ltg[ind, 0].astype(int))))
+                            + (raw_ltg[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+            elif type(paths_list) == list:
+                ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_ltg[:, 0].astype(int)))).astype(bool)
+                assert(np.sum(ind) == len(ind))
+                path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_ltg[ind, 0].astype(int))))
+                            + (raw_ltg[ind, 1] / ass_freq).astype(int) * num_e_path).astype(int)
+            else:
+                raise Exception('Wrong data type of paths_list')
+
+            # raw_ltg[:, 2]: link no.
+            # raw_ltg[:, 3]: the count of unit time interval (5s)
+            if type(observed_links) == np.ndarray:
+                # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
+                link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_ltg[ind, 2].astype(int))))
+                            + (raw_ltg[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            elif type(observed_links) == list:
+                link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_ltg[ind, 2].astype(int))))
+                            + (raw_ltg[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            else:
+                raise Exception('Wrong data type of observed_links')
+                        
+            # print(path_seq)
+            # raw_ltg[:, 4]: gradient, to be averaged for each large assign interval 
+            p = raw_ltg[ind, 4] / (ass_freq * small_assign_freq)
         
         # print("Creating the coo matrix", time.time()), coo_matrix permits duplicate entries
         mat = coo_matrix((p, (link_seq, path_seq)), shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))
@@ -2292,7 +2371,7 @@ class MMDODE:
                         self.compute_path_flow_grad_and_loss(one_data_dict, f_car_driving_numpy, f_truck_driving_numpy, 
                                                              f_passenger_bustransit_numpy, f_car_pnr_numpy, f_bus_numpy, fix_bus=fix_bus, counter=0, run_mmdta_adaptive=run_mmdta_adaptive)
 
-                if ~column_generation[i]:
+                if column_generation[i] == 0:
                     dta = 0
                 
                 pathflow_solver.optimizer.zero_grad()
@@ -2565,7 +2644,7 @@ class MMDODE:
                     tmp_loss, tmp_loss_dict, dta, x_e_car, x_e_truck, x_e_passenger, x_e_bus, tt_e_car, tt_e_truck, tt_e_passenger, tt_e_bus = \
                         self.compute_path_flow_grad_and_loss(one_data_dict, f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, f_bus, fix_bus=fix_bus, counter=0, run_mmdta_adaptive=run_mmdta_adaptive)
 
-                if ~column_generation[i]:
+                if column_generation[i] == 0:
                     dta = 0
                 
                 optimizer.zero_grad()
@@ -2845,7 +2924,7 @@ class MMDODE:
                     tmp_loss, tmp_loss_dict, dta, x_e_car, x_e_truck, x_e_passenger, x_e_bus, tt_e_car, tt_e_truck, tt_e_passenger, tt_e_bus = \
                         self.compute_path_flow_grad_and_loss(one_data_dict, f_car_driving, f_truck_driving, f_passenger_bustransit, f_car_pnr, f_bus, fix_bus=fix_bus, counter=0, run_mmdta_adaptive=run_mmdta_adaptive)
 
-                if ~column_generation[i]:
+                if column_generation[i] == 0:
                     dta = 0
                 
                 if adagrad:

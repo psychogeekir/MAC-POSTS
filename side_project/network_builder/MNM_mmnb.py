@@ -1618,7 +1618,8 @@ class MNM_network_builder():
                         bustransit_demand_file_name = 'bustransit_demand',
                         pnr_pathtable_file_name = 'pnr_path_table', pnr_path_p_file_name = 'pnr_path_table_buffer',
                         pnr_demand_file_name = 'pnr_demand',
-                        total_passenger_demand_file_name = 'passenger_demand', emission_link_file_name='MNM_input_emission_linkID'):
+                        total_passenger_demand_file_name = 'passenger_demand', emission_link_file_name='MNM_input_emission_linkID',
+                        link_toll_file_name='MNM_input_link_toll'):
         
         self.folder_path = folder_path
 
@@ -1870,6 +1871,12 @@ class MNM_network_builder():
         else:
             print("No emission link file")
 
+        if os.path.isfile(os.path.join(folder_path, link_toll_file_name)):
+            self.link_toll_df = pd.read_csv(os.path.join(folder_path, link_toll_file_name), sep=" ")
+            self.config.config_dict['DTA']['num_of_tolled_link'] = self.link_toll_df.shape[0]
+        else:
+            print("No link toll file")
+
     def generate_link_driving_text(self):
         tmp_str = '#ID Type LEN(mile) FFS_car(mile/h) Cap_car(v/hour) RHOJ_car(v/miles) Lane FFS_truck(mile/h) Cap_truck(v/hour) RHOJ_truck(v/miles) Convert_factor(1)\n'
         for link in self.link_driving_list:
@@ -1926,7 +1933,8 @@ class MNM_network_builder():
                         bustransit_demand_file_name = 'bustransit_demand',
                         pnr_pathtable_file_name = 'pnr_path_table', pnr_path_p_file_name = 'pnr_path_table_buffer',
                         pnr_demand_file_name = 'pnr_demand',
-                        total_passenger_demand_file_name = 'passenger_demand', emission_link_file_name='MNM_input_emission_linkID'):
+                        total_passenger_demand_file_name = 'passenger_demand', emission_link_file_name='MNM_input_emission_linkID',
+                        link_toll_file_name='MNM_input_link_toll'):
         if not os.path.isdir(folder_path):
             os.makedirs(folder_path)
 
@@ -1955,6 +1963,8 @@ class MNM_network_builder():
         assert(self.config.config_dict['FIXED']['num_driving_path'] == len(self.path_table_driving.ID2path))
         assert(self.config.config_dict['FIXED']['num_bustransit_path'] == len(self.path_table_bustransit.ID2path))
         assert(self.config.config_dict['FIXED']['num_pnr_path'] == len(self.path_table_pnr.ID2path))
+
+        assert(self.config.config_dict['DTA']['num_of_tolled_link'] == self.link_toll_df.shape[0])
 
         # python 2
         # f = open(os.path.join(folder_path, config_file_name), 'wb')
@@ -2131,6 +2141,11 @@ class MNM_network_builder():
             np.savetxt(os.path.join(folder_path, emission_link_file_name), self.emission_link_array, fmt='%d')
         else:
             print("No emission link file")
+
+        if self.link_toll_df is not None:
+            self.link_toll_df.to_csv(os.path.join(folder_path, link_toll_file_name), sep=" ", index=False)
+        else:
+            print("No link toll file")
 
     def update_demand_path_driving(self, car_flow, truck_flow):
         # car_flow and truck_flow are 1D ndarrays recording the time-dependent flows with length of number of total paths x intervals

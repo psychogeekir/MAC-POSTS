@@ -172,7 +172,7 @@ int MNM_Dta::set_routing()
   // Note here still only one path_table and buffer, but in buffer file each row contains:
   // Row #k : [probabilities choosing route k in all intervals for cars] [probabilities choosing route k in all intervals for trucks]
   // For Bi-class Fixed routing, just set both adaptive_ratio_car=0 & adaptive_ratio_truck=0 in "config.conf"
-  else if (m_config -> get_string("routing_type") == "Biclass_Hybrid"){
+  else if (m_config -> get_string("routing_type") == "Biclass_Hybrid" || m_config -> get_string("routing_type") == "Biclass_Hybrid_ColumnGeneration"){
     MNM_ConfReader* _tmp_conf = new MNM_ConfReader(m_file_folder + "/config.conf", "FIXED");
     Path_Table *_path_table;
     if (_tmp_conf -> get_string("choice_portion") == "Buffer"){

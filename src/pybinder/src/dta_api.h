@@ -148,6 +148,11 @@ public:
 
   py::array_t<double> get_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
   py::array_t<double> get_truck_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+
+  SparseMatrixR get_complete_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
+                                            int num_intervals, py::array_t<double> f);
+  SparseMatrixR get_complete_truck_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
+                                              int num_intervals, py::array_t<double> f);
   
   py::array_t<double> get_waiting_time_at_intersections();
   py::array_t<double> get_waiting_time_at_intersections_car();
@@ -163,6 +168,9 @@ public:
 
   py::array_t<double> get_car_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp);
   py::array_t<double> get_truck_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp);
+
+  SparseMatrixR get_complete_car_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp, int num_intervals);
+  SparseMatrixR get_complete_truck_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp, int num_intervals);
 
   int delete_all_agents();
 

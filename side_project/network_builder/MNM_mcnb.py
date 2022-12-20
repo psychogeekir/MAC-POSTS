@@ -1,8 +1,10 @@
 import os
 import numpy as np
+import pandas as pd
 import networkx as nx
 from bidict import bidict
 from collections import OrderedDict
+import MNMAPI
 
 # link type in MAC-POSTS/src/minami/dlink.cpp: cell transmission model (CTM), link queue (LQ), point queue (PQ)
 DLINK_ENUM = ['CTM', 'LQ', 'PQ']
@@ -685,18 +687,14 @@ class MNM_config():
         # python 3
         for name, value in self.config_dict['STAT'].items():
             tmp_str += "{} = {}\n".format(str(name), str(value))
-        if (self.config_dict['DTA']['routing_type'] == 'Fixed'
-            or self.config_dict['DTA']['routing_type'] == 'Hybrid'
-                or self.config_dict['DTA']['routing_type'] == 'Biclass_Hybrid'):
+        if self.config_dict['DTA']['routing_type'] in ['Fixed', 'Hybrid', 'Biclass_Hybrid', 'Biclass_Hybrid_ColumnGeneration']:
             tmp_str += '\n[FIXED]\n'
             # python 2
             # for name, value in self.config_dict['FIXED'].iteritems():
             # python 3
             for name, value in self.config_dict['FIXED'].items():
                 tmp_str += "{} = {}\n".format(str(name), str(value))
-        if (self.config_dict['DTA']['routing_type'] == 'Adaptive'
-            or self.config_dict['DTA']['routing_type'] == 'Hybrid'
-                or self.config_dict['DTA']['routing_type'] == 'Biclass_Hybrid'):
+        if self.config_dict['DTA']['routing_type'] in ['Fixed', 'Hybrid', 'Biclass_Hybrid', 'Biclass_Hybrid_ColumnGeneration']:
             tmp_str += '\n[ADAPTIVE]\n'
             # python 2
             # for name, value in self.config_dict['ADAPTIVE'].iteritems():
@@ -723,6 +721,7 @@ class MNM_network_builder():
         self.path_table = MNM_pathtable()
         self.route_choice_flag = False
         self.emission_link_array = None
+        self.link_toll_df = None
 
     def get_link(self, ID):
         for link in self.link_list:
@@ -734,7 +733,8 @@ class MNM_network_builder():
                          link_file_name='MNM_input_link', node_file_name='MNM_input_node',
                          graph_file_name='Snap_graph', od_file_name='MNM_input_od',
                          pathtable_file_name='path_table', path_p_file_name='path_table_buffer',
-                         demand_file_name='MNM_input_demand', emission_link_file_name='MNM_input_emission_linkID'):
+                         demand_file_name='MNM_input_demand', emission_link_file_name='MNM_input_emission_linkID', 
+                         link_toll_file_name='MNM_input_link_toll'):
 
         self.folder_path = path
 
@@ -744,6 +744,32 @@ class MNM_network_builder():
                 self.config.config_dict['DTA']['max_interval']
         else:
             print("No config file")
+
+        if (self.config.config_dict['DTA']['routing_type'] == 'Biclass_Hybrid_ColumnGeneration') or \
+           (self.config.config_dict['FIXED']['num_path'] < 0) or \
+           (not os.path.isfile(os.path.join(self.folder_path, pathtable_file_name))):
+            
+            assert(self.config.config_dict['DTA']['routing_type'] == 'Biclass_Hybrid_ColumnGeneration')
+            assert(self.config.config_dict['FIXED']['num_path'] == -1)
+            # python 2
+            # f = open(os.path.join(folder_path, config_file_name), 'wb')
+            # python 3
+            # f = open(os.path.join(self.folder_path, config_file_name), 'w')
+            # f.write(str(self.config))
+            # f.close()
+
+            a = MNMAPI.mcdta_api()
+            a.initialize(self.folder_path)  # generate at least one path for each mode for each OD pair, if connected
+            
+            a.generate_shortest_pathsets(self.folder_path, 0, self.config.config_dict['ADAPTIVE']['vot'], 3, 6, 0)
+            assert((os.path.isfile(os.path.join(self.folder_path, pathtable_file_name))) and \
+                   (os.path.isfile(os.path.join(self.folder_path, path_p_file_name))))
+
+
+        self.config.config_dict['DTA']['routing_type'] = 'Biclass_Hybrid'
+
+        if not os.path.exists(os.path.join(self.folder_path, self.config.config_dict['STAT']['rec_folder'])):
+            os.mkdir(os.path.join(self.folder_path, self.config.config_dict['STAT']['rec_folder']))
 
         if os.path.isfile(os.path.join(path, link_file_name)):
             self.link_list = self.read_link_input(
@@ -783,7 +809,7 @@ class MNM_network_builder():
             else:
                 self.route_choice_flag = False
                 # print "No route choice portition for path table"
-
+            self.config.config_dict['FIXED']['num_path'] = len(self.path_table.ID2path)
         else:
             print("No path table input")
 
@@ -795,17 +821,38 @@ class MNM_network_builder():
         else:
             print("No emission link file")
 
+        if os.path.isfile(os.path.join(path, link_toll_file_name)):
+            self.link_toll_df = pd.read_csv(os.path.join(path, link_toll_file_name), sep=" ")
+            self.config.config_dict['DTA']['num_of_tolled_link'] = self.link_toll_df.shape[0]
+        else:
+            print("No link toll file")
+
     def dump_to_folder(self, path, config_file_name='config.conf',
                        link_file_name='MNM_input_link', node_file_name='MNM_input_node',
                        graph_file_name='Snap_graph', od_file_name='MNM_input_od',
                        pathtable_file_name='path_table', path_p_file_name='path_table_buffer',
-                       demand_file_name='MNM_input_demand', emission_link_file_name='MNM_input_emission_linkID'):
+                       demand_file_name='MNM_input_demand', emission_link_file_name='MNM_input_emission_linkID',
+                       link_toll_file_name='MNM_input_link_toll'):
         if not os.path.isdir(path):
             os.makedirs(path)
 
         if not os.path.exists(os.path.join(path, self.config.config_dict['STAT']['rec_folder'])):
             os.mkdir(os.path.join(
                 path, self.config.config_dict['STAT']['rec_folder']))
+
+        assert(self.config.config_dict['DTA']['num_of_O'] == len(self.od.O_dict))
+        assert(self.config.config_dict['DTA']['num_of_D'] == len(self.od.D_dict))
+
+        assert(self.config.config_dict['DTA']['num_of_node'] == len(self.node_list))
+
+        assert(self.config.config_dict['DTA']['num_of_link'] == len(self.link_list))
+
+        assert(self.config.config_dict['DTA']['OD_pair'] == len(self.demand.demand_list))
+
+        assert(self.config.config_dict['FIXED']['num_path'] == len(self.path_table.ID2path))
+
+        assert(self.config.config_dict['DTA']['num_of_tolled_link'] == self.link_toll_df.shape[0])
+
 
         # python 2
         # f = open(os.path.join(path, link_file_name), 'wb')
@@ -869,6 +916,11 @@ class MNM_network_builder():
                        self.emission_link_array, fmt='%d')
         else:
             print("No emission link file")
+
+        if self.link_toll_df is not None:
+            self.link_toll_df.to_csv(os.path.join(path, link_toll_file_name), sep=" ", index=False)
+        else:
+            print("No link toll file")
 
     def read_link_input(self, file_name):
         link_list = list()

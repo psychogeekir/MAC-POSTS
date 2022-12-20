@@ -409,7 +409,7 @@ int Dta_Api::generate_shortest_pathsets(const std::string &folder, int max_iter,
     Path_Table *_driving_path_table = \
         MNM::build_pathset(m_dta -> m_graph, m_dta -> m_od_factory,
                            m_dta -> m_link_factory, min_path_tt, max_iter, vot, mid_scale, heavy_scale, 
-                           m_dta -> m_config -> get_int("max_interval") * m_dta -> m_config -> get_int("assign_frq"));
+                           m_dta -> m_config -> get_int("max_interval"));
     printf("driving pathset generated\n");
     MNM::save_driving_path_table(folder, _driving_path_table, "path_table", "path_table_buffer", true);
     printf("driving pathset saved\n");
@@ -1021,20 +1021,21 @@ py::array_t<double> Dta_Api::get_dar_matrix(py::array_t<int>start_intervals, py:
 
 SparseMatrixR Dta_Api::get_complete_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
                                                int num_intervals, py::array_t<double> f)
-{
+{ 
+  // start_intervals and end_intervals are like [0, 180, 360, ...] and [180, 360, 720, ...] with increment of ass_freq
   int _num_e_path = m_path_map.size();
   int _num_e_link = m_link_vec.size();
   auto start_buf = start_intervals.request();
   auto end_buf = end_intervals.request();
   auto f_buf = f.request();
   if (start_buf.ndim != 1 || end_buf.ndim != 1){
-    throw std::runtime_error("Error, Dta_Api::get_link_inflow, input dimension mismatch");
+    throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, input dimension mismatch");
   }
   if (start_buf.shape[0] != end_buf.shape[0]){
-    throw std::runtime_error("Error, Dta_Api::get_link_inflow, input length mismatch");
+    throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, input length mismatch");
   }
   if (f_buf.ndim != 1){
-    throw std::runtime_error("Error, Dta_Api::get_link_inflow, input path flow mismatch");
+    throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, input path flow mismatch");
   }
   int l = start_buf.shape[0];
   int *start_prt = (int *) start_buf.ptr;
@@ -1043,26 +1044,26 @@ SparseMatrixR Dta_Api::get_complete_dar_matrix(py::array_t<int>start_intervals, 
 
   std::vector<Eigen::Triplet<double>> _record;
   // pre-allocate sufficient space for dar
-  _record.reserve(100000);
-  for (int t = 0; t < l; ++t){
-      if (end_prt[t] <= start_prt[t]){
-          throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, end time is smaller than or equal to start time");
-      }
-      if (start_prt[t] >= get_cur_loading_interval()){
-          throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, input start intervals exceeds the total loading intervals - 1");
-      }
-      if (end_prt[t] > get_cur_loading_interval()){
-          throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, input end intervals exceeds the total loading intervals");
-      }
-      for (size_t i = 0; i<m_link_vec.size(); ++i){
+  _record.reserve(int(1e9));
 
-          MNM_DTA_GRADIENT::add_dar_records_eigen(_record, m_link_vec[i], m_path_map,
-                                                  TFlt(start_prt[t]), TFlt(end_prt[t]),
-                                                  i, t, _num_e_link, _num_e_path, f_ptr);
-     }
+  for (size_t i = 0; i<m_link_vec.size(); ++i){
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Dta_Api::get_complete_dar_matrix, input end intervals exceeds the total loading intervals");
+            }
+            MNM_DTA_GRADIENT::add_dar_records_eigen(_record, m_link_vec[i], m_path_map,
+                                                    TFlt(start_prt[t]), TFlt(end_prt[t]),
+                                                    i, t, _num_e_link, _num_e_path, f_ptr);
+        }
   }
   // https://eigen.tuxfamily.org/dox/group__TutorialSparse.html
-  // dar matrix rou
+  // dar matrix rho
   SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
   // https://eigen.tuxfamily.org/dox/classEigen_1_1SparseMatrix.html#acc35051d698e3973f1de5b9b78dbe345
   mat.setFromTriplets(_record.begin(), _record.end());
@@ -1168,6 +1169,9 @@ int Mcdta_Api::initialize(const std::string &folder)
   m_mcdta -> build_from_files();
   m_mcdta -> hook_up_node_and_link();
   m_mcdta -> is_ok();
+  IAssert(m_mcdta -> m_config -> get_string("routing_type") == "Biclass_Hybrid" ||
+          m_mcdta -> m_config -> get_string("routing_type") == "Biclass_Hybrid_ColumnGeneration" ||
+          m_mcdta -> m_config -> get_string("routing_type") == "Hybrid");
   if (MNM_Routing_Fixed *_routing = dynamic_cast<MNM_Routing_Fixed *>(m_mcdta -> m_routing)){
     MNM::get_ID_path_mapping(m_ID_path_mapping, _routing -> m_path_table);
     return 0;
@@ -1196,14 +1200,17 @@ bool Mcdta_Api::check_input_files()
 
 int Mcdta_Api::generate_shortest_pathsets(const std::string &folder, int max_iter, double vot, double mid_scale, double heavy_scale, double min_path_tt)
 {
-    m_mcdta = new MNM_Dta_Multiclass(folder);
-    m_mcdta -> build_from_files();
-    m_mcdta -> hook_up_node_and_link();
+    // m_mcdta = new MNM_Dta_Multiclass(folder);
+    // m_mcdta -> build_from_files();
+    // m_mcdta -> hook_up_node_and_link();
+    // m_mcdta -> is_ok();
+
+    IAssert(m_mcdta != nullptr);
     // this is based on travel time
     Path_Table *_driving_path_table = \
         MNM::build_pathset_multiclass(m_mcdta -> m_graph, m_mcdta -> m_od_factory,
                                       m_mcdta -> m_link_factory, min_path_tt, max_iter, vot, mid_scale, heavy_scale, 
-                                      2 * m_mcdta -> m_config -> get_int("max_interval") * m_mcdta -> m_config -> get_int("assign_frq"));
+                                      2 * m_mcdta -> m_config -> get_int("max_interval"));
     printf("driving pathset generated\n");
     MNM::save_driving_path_table(folder, _driving_path_table, "path_table", "path_table_buffer", true);
     printf("driving pathset saved\n");
@@ -2906,6 +2913,162 @@ py::array_t<double> Mcdta_Api::get_truck_dar_matrix(py::array_t<int>start_interv
   return result;
 }
 
+SparseMatrixR Mcdta_Api::get_complete_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
+                                                     int num_intervals, py::array_t<double> f)
+{ 
+    // start_intervals and end_intervals are like [0, 180, 360, ...] and [180, 360, 720, ...] with increment of ass_freq
+    int _num_e_path = m_path_vec.size();
+    int _num_e_link = m_link_vec.size();
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    auto f_buf = f.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, input length mismatch");
+    }
+    if (f_buf.ndim != 1){
+        throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, input path flow mismatch");
+    }
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
+    int *end_prt = (int *) end_buf.ptr;
+    double *f_ptr = (double *) f_buf.ptr;
+
+    int _num_of_minute = int(m_mcdta -> m_config -> get_int("assign_frq") / m_mcdta -> m_assign_freq);  // 15 min, release interval
+
+    // std::vector<Eigen::Triplet<double>> _record;
+    // // pre-allocate sufficient space for dar
+    // // _record.reserve(int(_num_e_link * num_intervals * _num_e_path * num_intervals * 0.3));
+    // _record.reserve(int(1e9));
+
+    // for (size_t i = 0; i<m_link_vec.size(); ++i){
+    //     for (int t = 0; t < l; ++t){
+    //         if (end_prt[t] <= start_prt[t]){
+    //             throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, end time is smaller than or equal to start time");
+    //         }
+    //         if (start_prt[t] >= get_cur_loading_interval()){
+    //             throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+    //         }
+    //         if (end_prt[t] > get_cur_loading_interval()){
+    //             throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, input end intervals exceeds the total loading intervals");
+    //         }
+    //         MNM_DTA_GRADIENT::add_dar_records_eigen_car(_record, m_link_vec[i], m_path_set,
+    //                                                     TFlt(start_prt[t]), TFlt(end_prt[t]),
+    //                                                     i, t, _num_of_minute, _num_e_link, _num_e_path, f_ptr);
+    //     }
+    // }
+    // // https://eigen.tuxfamily.org/dox/group__TutorialSparse.html
+    // // dar matrix rho
+    // SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
+    // // https://eigen.tuxfamily.org/dox/classEigen_1_1SparseMatrix.html#acc35051d698e3973f1de5b9b78dbe345
+    // mat.setFromTriplets(_record.begin(), _record.end());
+
+    
+    // http://eigen.tuxfamily.org/dox/group__TutorialSparse.html#title3
+    // dar matrix rho
+    SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
+    mat.reserve(Eigen::VectorXi::Constant(num_intervals * _num_e_link, 1000));
+    for (size_t i = 0; i<m_link_vec.size(); ++i){
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mcdta_Api::get_complete_car_dar_matrix, input end intervals exceeds the total loading intervals");
+            }
+            MNM_DTA_GRADIENT::add_dar_records_eigen_car(mat, m_link_vec[i], m_path_set,
+                                                        TFlt(start_prt[t]), TFlt(end_prt[t]),
+                                                        i, t, _num_of_minute, _num_e_link, _num_e_path, f_ptr);
+        }
+    }
+    mat.makeCompressed();    
+
+    return mat;
+}
+
+SparseMatrixR Mcdta_Api::get_complete_truck_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
+                                                       int num_intervals, py::array_t<double> f)
+{ 
+    // start_intervals and end_intervals are like [0, 180, 360, ...] and [180, 360, 720, ...] with increment of ass_freq
+    int _num_e_path = m_path_vec.size();
+    int _num_e_link = m_link_vec.size();
+    auto start_buf = start_intervals.request();
+    auto end_buf = end_intervals.request();
+    auto f_buf = f.request();
+    if (start_buf.ndim != 1 || end_buf.ndim != 1){
+        throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, input dimension mismatch");
+    }
+    if (start_buf.shape[0] != end_buf.shape[0]){
+        throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, input length mismatch");
+    }
+    if (f_buf.ndim != 1){
+        throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, input path flow mismatch");
+    }
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
+    int *end_prt = (int *) end_buf.ptr;
+    double *f_ptr = (double *) f_buf.ptr;
+
+    int _num_of_minute = int(m_mcdta -> m_config -> get_int("assign_frq") / m_mcdta -> m_assign_freq);  // 15 min, release interval
+
+    // std::vector<Eigen::Triplet<double>> _record;
+    // // pre-allocate sufficient space for dar
+    // // _record.reserve(int(_num_e_link * num_intervals * _num_e_path * num_intervals * 0.3));
+    // _record.reserve(int(1e9));
+
+    // for (size_t i = 0; i<m_link_vec.size(); ++i){
+    //     for (int t = 0; t < l; ++t){
+    //         if (end_prt[t] <= start_prt[t]){
+    //             throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, end time is smaller than or equal to start time");
+    //         }
+    //         if (start_prt[t] >= get_cur_loading_interval()){
+    //             throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+    //         }
+    //         if (end_prt[t] > get_cur_loading_interval()){
+    //             throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, input end intervals exceeds the total loading intervals");
+    //         }
+    //         MNM_DTA_GRADIENT::add_dar_records_eigen_truck(_record, m_link_vec[i], m_path_set,
+    //                                                       TFlt(start_prt[t]), TFlt(end_prt[t]),
+    //                                                       i, t, _num_of_minute, _num_e_link, _num_e_path, f_ptr);
+    //     }
+    // }
+    // // https://eigen.tuxfamily.org/dox/group__TutorialSparse.html
+    // // dar matrix rho
+    // SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
+    // // https://eigen.tuxfamily.org/dox/classEigen_1_1SparseMatrix.html#acc35051d698e3973f1de5b9b78dbe345
+    // mat.setFromTriplets(_record.begin(), _record.end());
+
+
+    // http://eigen.tuxfamily.org/dox/group__TutorialSparse.html#title3
+    // dar matrix rho
+    SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
+    mat.reserve(Eigen::VectorXi::Constant(num_intervals * _num_e_link, 1000));
+    for (size_t i = 0; i<m_link_vec.size(); ++i){
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_dar_matrix, input end intervals exceeds the total loading intervals");
+            }
+            MNM_DTA_GRADIENT::add_dar_records_eigen_truck(mat, m_link_vec[i], m_path_set,
+                                                          TFlt(start_prt[t]), TFlt(end_prt[t]),
+                                                          i, t, _num_of_minute, _num_e_link, _num_e_path, f_ptr);
+        }
+    }
+    mat.makeCompressed();    
+    
+    return mat;
+}
+
 py::array_t<double> Mcdta_Api::get_car_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp)
 {
     // input: intervals in which the agents are released for each path, 1 min interval = 12 5-s intervals
@@ -3006,6 +3169,10 @@ py::array_t<double> Mcdta_Api::get_car_ltg_matrix(py::array_t<int>start_interval
                         else {
                             _t_queue_dissipated_valid = int(round(_link -> m_last_valid_time));
                             _t_depart_lift_up_valid = _t_queue_dissipated_valid - 1 + MNM_Ults::round_up_time(m_link_tt_map[_link_ID][_t_queue_dissipated_valid - 1 < get_cur_loading_interval() ? _t_queue_dissipated_valid - 1 : get_cur_loading_interval() - 1]);
+                        }
+                        // TODO: debug
+                        if (_t_depart_lift_up_valid > get_cur_loading_interval() - 1) {
+                            _t_depart_lift_up_valid = get_cur_loading_interval() - 1;
                         }
                         IAssert(_t_depart_lift_up_valid <= get_cur_loading_interval() - 1);
                         IAssert(_t_arrival_lift_up < _t_queue_dissipated_valid);
@@ -3187,6 +3354,10 @@ py::array_t<double> Mcdta_Api::get_truck_ltg_matrix(py::array_t<int>start_interv
                             _t_queue_dissipated_valid = int(round(_link -> m_last_valid_time));
                             _t_depart_lift_up_valid = _t_queue_dissipated_valid - 1 + MNM_Ults::round_up_time(m_link_tt_map_truck[_link_ID][_t_queue_dissipated_valid - 1 < get_cur_loading_interval() ? _t_queue_dissipated_valid - 1 : get_cur_loading_interval() - 1]);
                         }
+                        // TODO: debug
+                        if (_t_depart_lift_up_valid > get_cur_loading_interval() - 1) {
+                            _t_depart_lift_up_valid = get_cur_loading_interval() - 1;
+                        }
                         IAssert(_t_depart_lift_up_valid <= get_cur_loading_interval() - 1);
                         IAssert(_t_arrival_lift_up < _t_queue_dissipated_valid);
                         if (_t_depart_prime > _t_depart_lift_up_valid) {
@@ -3264,6 +3435,396 @@ py::array_t<double> Mcdta_Api::get_truck_ltg_matrix(py::array_t<int>start_interv
     }
     _record.clear();
     return result;
+}
+
+SparseMatrixR Mcdta_Api::get_complete_car_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp, int num_intervals)
+{
+    // input: intervals in which the agents are released for each path, 1 min interval = 12 5-s intervals
+    // assume Mcdta_Api::build_link_cost_map() and Mcdta_Api::get_link_queue_dissipated_time() are invoked already
+    int _num_e_path = m_path_vec.size();
+    int _num_e_link = m_link_vec.size();
+    int _assign_interval = int(m_mcdta -> m_config -> get_int("assign_frq"));
+    std::vector<Eigen::Triplet<double>> _record;
+    // pre-allocate sufficient space for dar
+    // _record.reserve(int(_num_e_link * num_intervals * _num_e_path * num_intervals));
+    _record.reserve(int(1e9));
+
+    auto start_buf = start_intervals.request();
+    if (start_buf.ndim != 1){
+        throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_ltg_matrix, input dimension mismatch");
+    }
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
+
+    bool _flg; 
+    TFlt _fftt, _gradient;
+    int _t_arrival, _t_depart, _t_arrival_lift_up, _t_depart_lift_up, _t_depart_prime, _t_queue_dissipated_valid, _t_depart_lift_up_valid;
+    for (auto *_path : m_path_vec) {
+        // check if the path does not include any link in m_link_vec
+        _flg = false;
+        for (auto *_link : m_link_vec) {
+            if (_path -> is_link_in(_link -> m_link_ID)) {
+                _flg = true;
+                break;
+            }
+        }
+        if (!_flg) {
+            continue;
+        }
+
+        for (int t = 0; t < l; ++t){
+            // printf("Current processing time: %d\n", t);
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_ltg_matrix, input start intervals exceeds the total loading intervals - 1");
+            }
+
+            _t_arrival = -1, _t_depart = -1, _t_arrival_lift_up = -1, _t_depart_lift_up = -1, _t_depart_prime = -1;
+            // trace one additional veh departing from origin of path at start_prt[t]
+            _t_depart = start_prt[t];
+            for (TInt _link_ID : _path -> m_link_vec) {
+                // arrival and departure time of original perturbation vehicle
+                _t_arrival = _t_depart;
+                _t_depart = _t_arrival + MNM_Ults::round_up_time(m_link_tt_map[_link_ID][_t_arrival < get_cur_loading_interval() ? _t_arrival : get_cur_loading_interval() - 1]);
+                
+                // arrival time of the new perturbation vehicle
+                auto *_link = dynamic_cast<MNM_Dlink_Multiclass*>(m_mcdta -> m_link_factory -> get_link(_link_ID));
+                if (dynamic_cast<MNM_Dlink_Pq_Multiclass*>(_link) != nullptr) {
+                    _t_arrival_lift_up = _t_arrival;  // for last pq, _t_arrival_lift_up >= get_cur_loading_interval()
+                }
+                else {
+                    IAssert(dynamic_cast<MNM_Dlink_Ctm_Multiclass*>(_link) != nullptr);
+                    IAssert(_t_depart_lift_up >= 0);  // from its upstream link
+                    _t_arrival_lift_up = _t_depart_lift_up;
+                }
+                IAssert(_t_arrival_lift_up >= _t_arrival);
+
+                IAssert(_link -> m_last_valid_time > 0);
+                if (_t_arrival_lift_up > int(round(_link -> m_last_valid_time - 1)) || _t_arrival_lift_up >= threshold_timestamp) {
+                    break;
+                }
+
+                // departure time of new perturbation vehicle
+                _t_depart_prime = _t_arrival_lift_up + MNM_Ults::round_up_time(m_link_tt_map[_link_ID][_t_arrival_lift_up < get_cur_loading_interval() ? _t_arrival_lift_up : get_cur_loading_interval() - 1]);
+
+                // arrival time of the NEXT new perturbation for the NEXT link
+                _fftt = dynamic_cast<MNM_Dlink_Multiclass*>(m_mcdta -> m_link_factory -> get_link(_link_ID)) -> get_link_freeflow_tt_loading_car();
+                // _fftt = dynamic_cast<MNM_Dlink_Ctm_Multiclass*>(m_mcdta -> m_link_factory -> get_link(_link_ID)) -> get_link_freeflow_tt_car() / m_mcdta -> m_unit_time;
+                _t_depart_lift_up = m_queue_dissipated_time_car[_link_ID][_t_arrival_lift_up] + MNM_Ults::round_up_time(_fftt);
+                    
+                if (!m_link_congested_car[_link_ID][_t_arrival_lift_up]) {
+                    if (m_queue_dissipated_time_car[_link_ID][_t_arrival_lift_up] == _t_arrival_lift_up) {
+                        IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) == _t_depart_lift_up);
+                    }
+                    else {
+                        // critical state where subgradient applies
+                        IAssert(m_queue_dissipated_time_car[_link_ID][_t_arrival_lift_up] > _t_arrival_lift_up);
+                        IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) < _t_depart_lift_up);
+                    }
+                }
+                else {
+                    IAssert(m_queue_dissipated_time_car[_link_ID][_t_arrival_lift_up] > _t_arrival_lift_up);
+                    IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) < _t_depart_lift_up);
+                }
+
+                if (_t_depart_lift_up < _t_depart_prime) {
+                    printf("Error, Mcdta_Api::get_complete_truck_ltg_matrix, something is wrong");
+                    exit(-1);
+                    // _t_depart_lift_up can be equal to _t_depart_prime, when the arrival curve is horizontal
+                }
+
+                auto _itr = std::find_if(m_link_vec.begin(), m_link_vec.end(), 
+                                        [&_link_ID](const MNM_Dlink_Multiclass *_l){return _l -> m_link_ID == _link_ID;});
+                if (_t_depart_prime < get_cur_loading_interval() - 1 && _itr != m_link_vec.end()) {
+                    int link_ind = std::distance(m_link_vec.begin(), _itr);
+                    
+                    if (m_link_congested_car[_link_ID][_t_arrival_lift_up] && _t_depart_lift_up > _t_depart_prime) {
+                        IAssert(_link -> m_last_valid_time > 0);
+                        if (m_queue_dissipated_time_car[_link_ID][_t_arrival_lift_up] <= int(round(_link -> m_last_valid_time - 1))) {
+                            _t_queue_dissipated_valid = m_queue_dissipated_time_car[_link_ID][_t_arrival_lift_up];
+                            _t_depart_lift_up_valid = _t_depart_lift_up;
+                        }
+                        else {
+                            _t_queue_dissipated_valid = int(round(_link -> m_last_valid_time));
+                            _t_depart_lift_up_valid = _t_queue_dissipated_valid - 1 + MNM_Ults::round_up_time(m_link_tt_map[_link_ID][_t_queue_dissipated_valid - 1 < get_cur_loading_interval() ? _t_queue_dissipated_valid - 1 : get_cur_loading_interval() - 1]);
+                        }
+                        // TODO: debug
+                        if (_t_depart_lift_up_valid > get_cur_loading_interval() - 1) {
+                            _t_depart_lift_up_valid = get_cur_loading_interval() - 1;
+                        }
+                        IAssert(_t_depart_lift_up_valid <= get_cur_loading_interval() - 1);
+                        IAssert(_t_arrival_lift_up < _t_queue_dissipated_valid);
+                        if (_t_depart_prime > _t_depart_lift_up_valid) {
+                            std::cout << "\nError, Mcdta_Api::get_car_ltg_matrix" << "\n";
+                            std::cout << "interval: " << start_prt[t] << ", link: " << _link_ID << "\n";
+                            std::cout << "car in" << "\n";
+                            std::cout << _link -> m_N_in_car -> to_string() << "\n";
+                            std::cout << "car out" << "\n";
+                            std::cout << _link -> m_N_out_car -> to_string() << "\n\n";
+                            std::cout << "last valid time: " << _link -> m_last_valid_time << "\n";
+                            std::cout << "_t_arrival: " << _t_arrival << "\n";
+                            std::cout << "_t_depart: " << _t_depart << "\n";
+                            std::cout << "_t_arrival_lift_up: " << _t_arrival_lift_up << "\n";
+                            std::cout << "_t_depart_prime: " << _t_depart_prime << "\n";
+                            std::cout << "m_queue_dissipated_time_car[_link_ID][_t_arrival_lift_up]: " << m_queue_dissipated_time_car[_link_ID][_t_arrival_lift_up] << "\n";
+                            std::cout << "_t_queue_dissipated_valid: " << _t_queue_dissipated_valid << "\n";
+                            std::cout << "_t_depart_lift_up: " << _t_depart_lift_up << "\n";
+                            std::cout << "_t_depart_lift_up_valid: " << _t_depart_lift_up_valid << "\n";
+                            std::cout << "_fftt: " << _fftt << "\n";
+                            std::cout << "m_link_tt_map[_link_ID][_t_queue_dissipated_valid]: " << m_link_tt_map[_link_ID][_t_queue_dissipated_valid - 1 < get_cur_loading_interval() ? _t_queue_dissipated_valid - 1 : get_cur_loading_interval() - 1] << "\n";
+                            std::cout << "get_cur_loading_interval(): " << get_cur_loading_interval() << "\n";
+                            exit(-1);
+                        }
+                        if (_t_depart_prime < _t_depart_lift_up_valid) {
+
+                            _gradient = MNM_DTA_GRADIENT::get_departure_cc_slope_car(_link, TFlt(_t_depart_prime), TFlt(_t_depart_lift_up_valid + 1));
+                            if (_gradient > DBL_EPSILON) {
+                                _gradient = m_mcdta -> m_unit_time / _gradient;  // seconds
+                                int _tmp = int(_t_arrival_lift_up / _assign_interval);
+                                int _ct = 0;
+                                for (int t_prime = _t_arrival_lift_up; t_prime < _t_queue_dissipated_valid; ++t_prime) {
+                
+                                    if (int(t_prime / _assign_interval) == _tmp) {
+                                        _ct += 1;
+                                    }
+                                    else {
+                                        MNM_DTA_GRADIENT::add_ltg_records_eigen_veh(_record, _path, start_prt[t], t_prime-1, link_ind, 
+                                                                                    _assign_interval, _num_e_link, _num_e_path, _gradient * _ct);
+                                        _ct = 1;
+                                        _tmp = int(t_prime / _assign_interval);
+                                    }
+                                    if (t_prime == _t_queue_dissipated_valid - 1) {
+                                        MNM_DTA_GRADIENT::add_ltg_records_eigen_veh(_record, _path, start_prt[t], t_prime, link_ind, 
+                                                                                    _assign_interval, _num_e_link, _num_e_path, _gradient * _ct);
+                                    }
+                                    
+                                    
+                                    // MNM_DTA_GRADIENT::add_ltg_records_eigen_veh(_record, _path, start_prt[t], t_prime, link_ind, 
+                                    //                                             _assign_interval, _num_e_link, _num_e_path, _gradient);
+                                }
+                            }
+
+                            // for (int t_prime = _t_arrival_lift_up; t_prime < _t_queue_dissipated_valid; ++t_prime) {
+                            //     _gradient = MNM_DTA_GRADIENT::get_departure_cc_slope_car(_link, 
+                            //                                                             TFlt(t_prime + MNM_Ults::round_up_time(m_link_tt_map[_link_ID][t_prime < get_cur_loading_interval() ? t_prime : get_cur_loading_interval() - 1])), 
+                            //                                                             TFlt(t_prime + MNM_Ults::round_up_time(m_link_tt_map[_link_ID][t_prime < get_cur_loading_interval() ? t_prime : get_cur_loading_interval() - 1]) + 1) 
+                            //                                                             );
+                            //     if (_gradient > DBL_EPSILON) {
+                            //         _gradient = m_mcdta -> m_unit_time / _gradient;  // seconds
+                            //         MNM_DTA_GRADIENT::add_ltg_records_eigen_veh(_record, _path, start_prt[t], t_prime, link_ind, 
+                            //                                                     _assign_interval, _num_e_link, _num_e_path, _gradient);
+                            //     }
+                            // }
+
+                        }
+                        
+                    }
+                }
+            }
+            
+        }
+    }
+
+    // https://eigen.tuxfamily.org/dox/group__TutorialSparse.html
+    // dar matrix rho
+    SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
+    // https://eigen.tuxfamily.org/dox/classEigen_1_1SparseMatrix.html#acc35051d698e3973f1de5b9b78dbe345
+    mat.setFromTriplets(_record.begin(), _record.end());
+    return mat;
+}
+
+SparseMatrixR Mcdta_Api::get_complete_truck_ltg_matrix(py::array_t<int>start_intervals, int threshold_timestamp, int num_intervals)
+{
+    // input: intervals in which the agents are released for each path, 1 min interval = 12 5-s intervals
+    // assume Mcdta_Api::build_link_cost_map() and Mcdta_Api::get_link_queue_dissipated_time() are invoked already
+    int _num_e_path = m_path_vec.size();
+    int _num_e_link = m_link_vec.size();
+    int _assign_interval = int(m_mcdta -> m_config -> get_int("assign_frq"));
+    std::vector<Eigen::Triplet<double>> _record;
+    // pre-allocate sufficient space for dar
+    // _record.reserve(int(_num_e_link * num_intervals * _num_e_path * num_intervals));
+    _record.reserve(int(1e9));
+
+    auto start_buf = start_intervals.request();
+    if (start_buf.ndim != 1){
+        throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_ltg_matrix, input dimension mismatch");
+    }
+    int l = start_buf.shape[0];
+    int *start_prt = (int *) start_buf.ptr;
+
+    bool _flg; 
+    TFlt _fftt, _gradient;
+    int _t_arrival, _t_depart, _t_arrival_lift_up, _t_depart_lift_up, _t_depart_prime, _t_queue_dissipated_valid, _t_depart_lift_up_valid;
+    for (auto *_path : m_path_vec) {
+        // check if the path does not include any link in m_link_vec
+        _flg = false;
+        for (auto *_link : m_link_vec) {
+            if (_path -> is_link_in(_link -> m_link_ID)) {
+                _flg = true;
+                break;
+            }
+        }
+        if (!_flg) {
+            continue;
+        }
+
+        for (int t = 0; t < l; ++t){
+            // printf("Current processing time: %d\n", t);
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mcdta_Api::get_complete_truck_ltg_matrix, input start intervals exceeds the total loading intervals - 1");
+            }
+
+            _t_arrival = -1, _t_depart = -1, _t_arrival_lift_up = -1, _t_depart_lift_up = -1, _t_depart_prime = -1;
+            // trace one additional veh departing from origin of path at start_prt[t]
+            _t_depart = start_prt[t];
+            for (TInt _link_ID : _path -> m_link_vec) {
+                // arrival and departure time of original perturbation vehicle
+                _t_arrival = _t_depart;
+                _t_depart = _t_arrival + MNM_Ults::round_up_time(m_link_tt_map_truck[_link_ID][_t_arrival < get_cur_loading_interval() ? _t_arrival : get_cur_loading_interval() - 1]);
+                
+                // arrival time of the new perturbation vehicle
+                auto *_link = dynamic_cast<MNM_Dlink_Multiclass*>(m_mcdta -> m_link_factory -> get_link(_link_ID));
+                if (dynamic_cast<MNM_Dlink_Pq_Multiclass*>(_link) != nullptr) {
+                    _t_arrival_lift_up = _t_arrival;  // for last pq, _t_arrival_lift_up >= get_cur_loading_interval()
+                }
+                else {
+                    IAssert(dynamic_cast<MNM_Dlink_Ctm_Multiclass*>(_link) != nullptr);
+                    IAssert(_t_depart_lift_up >= 0);  // from its upstream link
+                    _t_arrival_lift_up = _t_depart_lift_up;
+                }
+                IAssert(_t_arrival_lift_up >= _t_arrival);
+
+                IAssert(_link -> m_last_valid_time > 0);
+                if (_t_arrival_lift_up > int(round(_link -> m_last_valid_time - 1)) || _t_arrival_lift_up >= threshold_timestamp) {
+                    break;
+                }
+
+                // departure time of new perturbation vehicle
+                _t_depart_prime = _t_arrival_lift_up + MNM_Ults::round_up_time(m_link_tt_map_truck[_link_ID][_t_arrival_lift_up < get_cur_loading_interval() ? _t_arrival_lift_up : get_cur_loading_interval() - 1]);
+
+                // arrival time of the NEXT new perturbation for the NEXT link
+                _fftt = dynamic_cast<MNM_Dlink_Multiclass*>(m_mcdta -> m_link_factory -> get_link(_link_ID)) -> get_link_freeflow_tt_loading_truck();
+                // _fftt = dynamic_cast<MNM_Dlink_Ctm_Multiclass*>(m_mcdta -> m_link_factory -> get_link(_link_ID)) -> get_link_freeflow_tt_truck() / m_mcdta -> m_unit_time;
+                _t_depart_lift_up = m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] + MNM_Ults::round_up_time(_fftt);
+                    
+                if (!m_link_congested_truck[_link_ID][_t_arrival_lift_up]) {
+                    if (m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] == _t_arrival_lift_up) {
+                        IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) == _t_depart_lift_up);
+                    }
+                    else {
+                        // critical state where subgradient applies
+                        IAssert(m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] > _t_arrival_lift_up);
+                        IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) < _t_depart_lift_up);
+                    }
+                }
+                else {
+                    IAssert(m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] > _t_arrival_lift_up);
+                    IAssert(_t_arrival_lift_up + MNM_Ults::round_up_time(_fftt) < _t_depart_lift_up);
+                }
+
+                if (_t_depart_lift_up < _t_depart_prime) {
+                    printf("Error, Mcdta_Api::get_complete_truck_ltg_matrix, something is wrong");
+                    exit(-1);
+                    // _t_depart_lift_up can be equal to _t_depart_prime, when the arrival curve is horizontal
+                }
+
+                auto _itr = std::find_if(m_link_vec.begin(), m_link_vec.end(), 
+                                        [&_link_ID](const MNM_Dlink_Multiclass *_l){return _l -> m_link_ID == _link_ID;});
+                if (_t_depart_prime < get_cur_loading_interval() - 1 && _itr != m_link_vec.end()) {
+                    int link_ind = std::distance(m_link_vec.begin(), _itr);
+
+                    if (m_link_congested_truck[_link_ID][_t_arrival_lift_up] && _t_depart_lift_up > _t_depart_prime) {
+                        IAssert(_link -> m_last_valid_time > 0);
+                        if (m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] <= int(round(_link -> m_last_valid_time - 1))) {
+                            _t_queue_dissipated_valid = m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up];
+                            _t_depart_lift_up_valid = _t_depart_lift_up;
+                        }
+                        else {
+                            _t_queue_dissipated_valid = int(round(_link -> m_last_valid_time));
+                            _t_depart_lift_up_valid = _t_queue_dissipated_valid - 1 + MNM_Ults::round_up_time(m_link_tt_map_truck[_link_ID][_t_queue_dissipated_valid - 1 < get_cur_loading_interval() ? _t_queue_dissipated_valid - 1 : get_cur_loading_interval() - 1]);
+                        }
+                        // TODO: debug
+                        if (_t_depart_lift_up_valid > get_cur_loading_interval() - 1) {
+                            _t_depart_lift_up_valid = get_cur_loading_interval() - 1;
+                        }
+                        IAssert(_t_depart_lift_up_valid <= get_cur_loading_interval() - 1);
+                        IAssert(_t_arrival_lift_up < _t_queue_dissipated_valid);
+                        if (_t_depart_prime > _t_depart_lift_up_valid) {
+                            std::cout << "\nError, Mcdta_Api::get_truck_ltg_matrix" << "\n";
+                            std::cout << "interval: " << start_prt[t] << ", link: " << _link_ID << "\n";
+                            std::cout << "truck in" << "\n";
+                            std::cout << _link -> m_N_in_truck -> to_string() << "\n";
+                            std::cout << "truck out" << "\n";
+                            std::cout << _link -> m_N_out_truck -> to_string() << "\n\n";
+                            std::cout << "last valid time: " << _link -> m_last_valid_time << "\n";
+                            std::cout << "_t_arrival: " << _t_arrival << "\n";
+                            std::cout << "_t_depart: " << _t_depart << "\n";
+                            std::cout << "_t_arrival_lift_up: " << _t_arrival_lift_up << "\n";
+                            std::cout << "_t_depart_prime: " << _t_depart_prime << "\n";
+                            std::cout << "m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up]: " << m_queue_dissipated_time_truck[_link_ID][_t_arrival_lift_up] << "\n";
+                            std::cout << "_t_queue_dissipated_valid: " << _t_queue_dissipated_valid << "\n";
+                            std::cout << "_t_depart_lift_up: " << _t_depart_lift_up << "\n";
+                            std::cout << "_t_depart_lift_up_valid: " << _t_depart_lift_up_valid << "\n";
+                            std::cout << "_fftt: " << _fftt << "\n";
+                            std::cout << "m_link_tt_map_truck[_link_ID][_t_queue_dissipated_valid]: " << m_link_tt_map_truck[_link_ID][_t_queue_dissipated_valid - 1 < get_cur_loading_interval() ? _t_queue_dissipated_valid - 1 : get_cur_loading_interval() - 1] << "\n";
+                            std::cout << "get_cur_loading_interval(): " << get_cur_loading_interval() << "\n";
+                            exit(-1);
+                        }
+                        if (_t_depart_prime < _t_depart_lift_up_valid) {
+
+                            _gradient = MNM_DTA_GRADIENT::get_departure_cc_slope_truck(_link, TFlt(_t_depart_prime), TFlt(_t_depart_lift_up_valid + 1));
+                            if (_gradient > DBL_EPSILON) {
+                                _gradient = m_mcdta -> m_unit_time / _gradient;  // seconds
+                                int _tmp = int(_t_arrival_lift_up / _assign_interval);
+                                int _ct = 0;
+                                for (int t_prime = _t_arrival_lift_up; t_prime < _t_queue_dissipated_valid; ++t_prime) {
+                
+                                    if (int(t_prime / _assign_interval) == _tmp) {
+                                        _ct += 1;
+                                    }
+                                    else {
+                                        MNM_DTA_GRADIENT::add_ltg_records_eigen_veh(_record, _path, start_prt[t], t_prime-1, link_ind, 
+                                                                                    _assign_interval, _num_e_link, _num_e_path, _gradient * _ct);
+                                        _ct = 1;
+                                        _tmp = int(t_prime / _assign_interval);
+                                    }
+                                    if (t_prime == _t_queue_dissipated_valid - 1) {
+                                        MNM_DTA_GRADIENT::add_ltg_records_eigen_veh(_record, _path, start_prt[t], t_prime, link_ind, 
+                                                                                    _assign_interval, _num_e_link, _num_e_path, _gradient * _ct);
+                                    }
+                                    
+                                    
+                                    // MNM_DTA_GRADIENT::add_ltg_records_eigen_veh(_record, _path, start_prt[t], t_prime, link_ind, 
+                                    //                                             _assign_interval, _num_e_link, _num_e_path, _gradient);
+                                }
+                            }
+
+                            // for (int t_prime = _t_arrival_lift_up; t_prime < _t_queue_dissipated_valid; ++t_prime) {
+                            //     _gradient = MNM_DTA_GRADIENT::get_departure_cc_slope_truck(_link, 
+                            //                                                             TFlt(t_prime + MNM_Ults::round_up_time(m_link_tt_map_truck[_link_ID][t_prime < get_cur_loading_interval() ? t_prime : get_cur_loading_interval() - 1])), 
+                            //                                                             TFlt(t_prime + MNM_Ults::round_up_time(m_link_tt_map_truck[_link_ID][t_prime < get_cur_loading_interval() ? t_prime : get_cur_loading_interval() - 1]) + 1) 
+                            //                                                             );
+                            //     if (_gradient > DBL_EPSILON) {
+                            //         _gradient = m_mcdta -> m_unit_time / _gradient;  // seconds
+                            //         MNM_DTA_GRADIENT::add_ltg_records_eigen_veh(_record, _path, start_prt[t], t_prime, link_ind, 
+                            //                                                     _assign_interval, _num_e_link, _num_e_path, _gradient);
+                            //     }
+                            // }
+
+                        }
+                        
+                    }
+                }
+            }
+            
+        }
+    }
+
+    // https://eigen.tuxfamily.org/dox/group__TutorialSparse.html
+    // dar matrix rho
+    SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
+    // https://eigen.tuxfamily.org/dox/classEigen_1_1SparseMatrix.html#acc35051d698e3973f1de5b9b78dbe345
+    mat.setFromTriplets(_record.begin(), _record.end());
+    return mat;
 }
 
 int Mcdta_Api::delete_all_agents()
@@ -8797,7 +9358,8 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_truck_link_tt_robust", &Mcdta_Api::get_truck_link_tt_robust)
             .def("get_car_link_out_num", &Mcdta_Api::get_car_link_out_num)
             .def("get_truck_link_out_num", &Mcdta_Api::get_truck_link_out_num)
-            // .def("get_car_link_out_cc", &Mcdta_Api::get_car_link_out_cc);
+            .def("get_car_link_out_cc", &Mcdta_Api::get_car_link_out_cc)
+            .def("get_truck_link_out_cc", &Mcdta_Api::get_truck_link_out_cc)
             .def("get_car_link_speed", &Mcdta_Api::get_car_link_speed)
             .def("get_truck_link_speed", &Mcdta_Api::get_truck_link_speed)
             .def("get_link_car_inflow", &Mcdta_Api::get_link_car_inflow)
@@ -8807,6 +9369,8 @@ PYBIND11_MODULE(MNMAPI, m) {
 
             .def("get_car_dar_matrix", &Mcdta_Api::get_car_dar_matrix)
             .def("get_truck_dar_matrix", &Mcdta_Api::get_truck_dar_matrix)
+            .def("get_complete_car_dar_matrix", &Mcdta_Api::get_complete_car_dar_matrix)
+            .def("get_complete_truck_dar_matrix", &Mcdta_Api::get_complete_truck_dar_matrix)
             
             // For scenarios in McKees Rocks project:
             .def("get_waiting_time_at_intersections", &Mcdta_Api::get_waiting_time_at_intersections)
@@ -8824,6 +9388,9 @@ PYBIND11_MODULE(MNMAPI, m) {
 
             .def("get_car_ltg_matrix", &Mcdta_Api::get_car_ltg_matrix)
             .def("get_truck_ltg_matrix", &Mcdta_Api::get_truck_ltg_matrix)
+
+            .def("get_complete_car_ltg_matrix", &Mcdta_Api::get_complete_car_ltg_matrix)
+            .def("get_complete_truck_ltg_matrix", &Mcdta_Api::get_complete_truck_ltg_matrix)
 
             .def("delete_all_agents", &Mcdta_Api::delete_all_agents);
 
