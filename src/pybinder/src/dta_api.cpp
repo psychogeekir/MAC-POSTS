@@ -457,6 +457,106 @@ int Dta_Api::get_cur_loading_interval()
   return m_dta -> m_current_loading_interval();
 }
 
+py::array_t<double> Dta_Api::get_travel_stats()
+{
+    // finished 
+    TInt _count_car = 0;
+    TFlt _tot_tt_car = 0.0;
+
+    auto *_veh_factory = dynamic_cast<MNM_Veh_Factory*>(m_dta -> m_veh_factory);
+    _count_car = _veh_factory -> m_finished;
+    _tot_tt_car = _veh_factory -> m_total_time * m_dta -> m_unit_time / 3600.0;
+
+    // unfinished
+    MNM_Veh* _veh;
+    int _end_time = get_cur_loading_interval();
+    for (auto _map_it : m_dta -> m_veh_factory -> m_veh_map){
+        IAssert(_veh -> m_finish_time < 0);
+        _count_car += 1;
+        _tot_tt_car += (_end_time - _veh -> m_start_time) * m_dta -> m_unit_time / 3600.0;
+        
+    }
+    
+    // for all released vehicles
+    int new_shape[1] = {2};
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_ptr = (double *)result_buf.ptr;
+    result_ptr[0] = _count_car/m_dta -> m_flow_scalar;
+    result_ptr[1] = _tot_tt_car/m_dta -> m_flow_scalar;
+    
+    return result;
+}
+
+std::string Dta_Api::print_emission_stats()
+{
+  return m_dta -> m_emission -> output();
+}
+
+int Dta_Api::print_simulation_results(const std::string &folder, int cong_frequency)
+{
+    // cong_frequency: number of 5-s interval, 180 means 15 minutes
+    bool output_link_cong;
+    if (cong_frequency > 0) {
+        output_link_cong = true; // if true output link congestion level every cong_frequency
+    }
+    else {
+        output_link_cong = false;
+    }
+
+    MNM_Dlink *_link;
+    std::string _str1;
+    TInt _current_inter = m_dta -> m_current_loading_interval;
+    std::ofstream _vis_file2;
+    if (output_link_cong){
+        _vis_file2.open(folder + "/driving_link_cong_raw.txt", std::ofstream::out);
+        if (! _vis_file2.is_open()){
+            printf("Error happens when open _vis_file2\n");
+            exit(-1);
+        }
+
+        _str1 = "timestamp (intervals), driving_link_ID, vehicle_inflow, vehicle_tt (s), vehicle_fftt (s), vehicle_speed (mph)\n";
+        _vis_file2 << _str1;
+
+        TInt _iter = 0;
+        while (_iter + cong_frequency <= _current_inter){
+            if (_iter % cong_frequency == 0 || _iter == _current_inter - 1){
+                printf("Current loading interval: %d\n", int(_iter));
+                for (auto _link_it : m_dta -> m_link_factory -> m_link_map){
+                    _link = _link_it.second;
+                    _str1 = std::to_string(int(_iter)) + " ";
+                    _str1 += std::to_string(_link -> m_link_ID()) + " ";
+                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_link_inflow(_link, _iter, _iter+cong_frequency)) + " ";
+                    // _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(_iter + 1), m_dta -> m_unit_time, m_dta -> m_current_loading_interval) * m_dta -> m_unit_time) + " ";
+                    _str1 += std::to_string(MNM_DTA_GRADIENT::get_travel_time_robust(_link, TFlt(_iter + 1), TFlt(_iter + cong_frequency + 1), m_dta -> m_unit_time, m_dta -> m_current_loading_interval) * m_dta -> m_unit_time) + " ";  // seconds
+                    _str1 += std::to_string(_link -> get_link_freeflow_tt()) + " ";
+                    // _str1 += std::to_string(_link_m -> m_length/(MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(_iter + 1), m_dta -> m_unit_time, m_dta -> m_current_loading_interval) * m_dta -> m_unit_time) * 3600 / 1600) + " ";
+                    _str1 += std::to_string(_link -> m_length/(MNM_DTA_GRADIENT::get_travel_time_robust(_link, TFlt(_iter + 1), TFlt(_iter + cong_frequency + 1), m_dta -> m_unit_time, m_dta -> m_current_loading_interval) * m_dta -> m_unit_time) * 3600 / 1600) + "\n";  // mph
+                    _vis_file2 << _str1;
+                }
+            }
+            _iter += 1;
+        }
+
+        // // save cc of some links
+        // _str = "\n\n **************************** driving link cc ****************************";
+        // for (auto _link_it : m_dta->m_link_factory->m_link_map) {
+        //     _link = _link_it.second;
+        //     if (_link->m_link_ID() == 4) {
+        //         _str += "\nlink_ID: " + std::to_string(_link->m_link_ID());
+        //         _str +="\nm_N_in: \n";
+        //         _str += _link->m_N_in->to_string();
+        //         _str +="\nm_N_out: \n";
+        //         _str += _link->m_N_out->to_string();
+        //         _vis_file2 << _str;
+        //     }
+        // }
+
+        if (_vis_file2.is_open()) _vis_file2.close();
+    }
+    return 0;
+}
+
 int Dta_Api::build_link_cost_map(bool with_congestion_indicator)
 {
     MNM_Dlink *_link;
@@ -483,9 +583,9 @@ int Dta_Api::build_link_cost_map(bool with_congestion_indicator)
              m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << "\n";
             // std::cout << "car in" << "\n";
-            // std::cout << _link -> m_N_in_car -> to_string() << "\n";
+            // std::cout << _link -> m_N_in -> to_string() << "\n";
             // std::cout << "car out" << "\n";
-            // std::cout << _link -> m_N_out_car -> to_string() << "\n";
+            // std::cout << _link -> m_N_out -> to_string() << "\n";
             if (with_congestion_indicator) {
                 m_link_congested[_link_it.first][i] = m_link_tt_map[_link_it.first][i] > _link -> get_link_freeflow_tt_loading();
                 // std::cout << "car, interval: " << i << ", link: " << _link_it.first << ", congested?: " << m_link_congested[_link_it.first][i] << "\n";
@@ -905,7 +1005,7 @@ py::array_t<double> Dta_Api::get_registered_path_tt(py::array_t<int>start_interv
 {
   auto start_buf = start_intervals.request();
   if (start_buf.ndim != 1){
-    throw std::runtime_error("Error, Dta_Api::get_path_tt, input dimension mismatch");
+    throw std::runtime_error("Error, Dta_Api::get_registered_path_tt, input dimension mismatch");
   }
   int l = start_buf.shape[0];
   int new_shape [2] = { (int) m_path_vec.size(), l}; 
@@ -915,7 +1015,7 @@ py::array_t<double> Dta_Api::get_registered_path_tt(py::array_t<int>start_interv
   int *start_prt = (int *) start_buf.ptr;
   for (int t = 0; t < l; ++t){
     if (start_prt[t] >= get_cur_loading_interval()){
-        throw std::runtime_error("Error, Dta_Api::get_path_tt, input start intervals exceeds the total loading intervals - 1");
+        throw std::runtime_error("Error, Dta_Api::get_registered_path_tt, input start intervals exceeds the total loading intervals - 1");
     }
     for (size_t i = 0; i<m_path_vec.size(); ++i){
         // MNM_DTA_GRADIENT::get_path_travel_time will process link travel time and the start_time for cc
@@ -928,6 +1028,48 @@ py::array_t<double> Dta_Api::get_registered_path_tt(py::array_t<int>start_interv
   return result;
 }
 
+py::array_t<double> Dta_Api::get_path_tt(py::array_t<int>link_IDs, py::array_t<int>start_intervals)
+{
+    auto start_buf = start_intervals.request();
+    int num_int = start_buf.shape[0];
+        
+    auto links_buf = link_IDs.request();
+        
+    int new_shape [2] = { 2, num_int }; 
+    // the output is an array with size of 2 * num_int
+    // in first row, each element being the average path travel time departing at start_interval,
+    // in second row, each element being the average path travel cost departing at start_interval,
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    
+    int *start_prt = (int *) start_buf.ptr;
+    int *links_ptr = (int *) links_buf.ptr;
+    MNM_Dlink *_link;
+    MNM_Path *_path = new MNM_Path();
+    for (int i = 0; i < links_buf.shape[0]; i++){
+        _link = m_dta -> m_link_factory -> get_link(TInt(links_ptr[i]));
+        _path -> m_link_vec.push_back(links_ptr[i]);
+        _path -> m_node_vec.push_back(_link -> m_from_node -> m_node_ID);
+        if (i == links_buf.shape[0] - 1) {
+            _path -> m_node_vec.push_back(_link -> m_to_node -> m_node_ID);
+        }
+    }
+
+    for (int t = 0; t < num_int; ++t){
+        // std::cout << "t: " << t << ", time: " << start_prt[t] << ", duration: " << get_cur_loading_interval() << std::endl;
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Dta_Api::get_path_tt, input start intervals exceeds the total loading intervals - 1");
+        }
+        // MNM_DTA_GRADIENT::get_path_travel_time will process link travel time and the start_time for cc
+        // result_prt[t] = MNM_DTA_GRADIENT::get_path_travel_time(_path, TFlt(start_prt[t]), m_dta -> m_link_factory, m_dta -> m_unit_time, get_cur_loading_interval()) * m_dta -> m_unit_time;  // seconds
+        // assume build_link_cost_map() is invoked before
+        result_prt[t] = MNM_DTA_GRADIENT::get_path_travel_time(_path, TFlt(start_prt[t]), m_link_tt_map, get_cur_loading_interval()) * m_dta -> m_unit_time;  // seconds
+        result_prt[t + num_int] = MNM_DTA_GRADIENT::get_path_travel_cost(_path, TFlt(start_prt[t]), m_link_tt_map, m_link_cost_map, get_cur_loading_interval());
+    }
+    delete _path;
+    return result;
+}
 
 py::array_t<double> Dta_Api::get_link_in_cc(int link_ID)
 {
@@ -1946,7 +2088,7 @@ py::array_t<double> Mcdta_Api::get_path_tt_car(py::array_t<int>link_IDs, py::arr
     auto result_buf = result.request();
     double *result_prt = (double *) result_buf.ptr;
     
-    double *start_prt = (double *) start_buf.ptr;
+    int *start_prt = (int *) start_buf.ptr;
     int *links_ptr = (int *) links_buf.ptr;
     MNM_Dlink *_link;
     MNM_Path *_path = new MNM_Path();
@@ -1993,7 +2135,7 @@ py::array_t<double> Mcdta_Api::get_path_tt_truck(py::array_t<int>link_IDs, py::a
     auto result_buf = result.request();
     double *result_prt = (double *) result_buf.ptr;
     
-    double *start_prt = (double *) start_buf.ptr;
+    int *start_prt = (int *) start_buf.ptr;
     int *links_ptr = (int *) links_buf.ptr;
     MNM_Dlink *_link;
     MNM_Path *_path = new MNM_Path();
@@ -2941,7 +3083,7 @@ SparseMatrixR Mcdta_Api::get_complete_car_dar_matrix(py::array_t<int>start_inter
     // std::vector<Eigen::Triplet<double>> _record;
     // // pre-allocate sufficient space for dar
     // // _record.reserve(int(_num_e_link * num_intervals * _num_e_path * num_intervals * 0.3));
-    // _record.reserve(int(1e9));
+    // _record.reserve(int(1e7));
 
     // for (size_t i = 0; i<m_link_vec.size(); ++i){
     //     for (int t = 0; t < l; ++t){
@@ -2969,7 +3111,7 @@ SparseMatrixR Mcdta_Api::get_complete_car_dar_matrix(py::array_t<int>start_inter
     // http://eigen.tuxfamily.org/dox/group__TutorialSparse.html#title3
     // dar matrix rho
     SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
-    mat.reserve(Eigen::VectorXi::Constant(num_intervals * _num_e_link, 1000));
+    mat.reserve(Eigen::VectorXi::Constant(num_intervals * _num_e_link, 2000));
     for (size_t i = 0; i<m_link_vec.size(); ++i){
         for (int t = 0; t < l; ++t){
             if (end_prt[t] <= start_prt[t]){
@@ -3019,7 +3161,7 @@ SparseMatrixR Mcdta_Api::get_complete_truck_dar_matrix(py::array_t<int>start_int
     // std::vector<Eigen::Triplet<double>> _record;
     // // pre-allocate sufficient space for dar
     // // _record.reserve(int(_num_e_link * num_intervals * _num_e_path * num_intervals * 0.3));
-    // _record.reserve(int(1e9));
+    // _record.reserve(int(1e7));
 
     // for (size_t i = 0; i<m_link_vec.size(); ++i){
     //     for (int t = 0; t < l; ++t){
@@ -3047,7 +3189,7 @@ SparseMatrixR Mcdta_Api::get_complete_truck_dar_matrix(py::array_t<int>start_int
     // http://eigen.tuxfamily.org/dox/group__TutorialSparse.html#title3
     // dar matrix rho
     SparseMatrixR mat(num_intervals * _num_e_link, num_intervals * _num_e_path);
-    mat.reserve(Eigen::VectorXi::Constant(num_intervals * _num_e_link, 1000));
+    mat.reserve(Eigen::VectorXi::Constant(num_intervals * _num_e_link, 2000));
     for (size_t i = 0; i<m_link_vec.size(); ++i){
         for (int t = 0; t < l; ++t){
             if (end_prt[t] <= start_prt[t]){
@@ -9311,14 +9453,22 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("run_whole", &Dta_Api::run_whole)
             .def("install_cc", &Dta_Api::install_cc)
             .def("install_cc_tree", &Dta_Api::install_cc_tree)
+            .def("get_travel_stats", &Dta_Api::get_travel_stats)
+            .def("print_emission_stats", &Dta_Api::print_emission_stats)
             .def("get_cur_loading_interval", &Dta_Api::get_cur_loading_interval)
+            .def("print_simulation_results", &Dta_Api::print_simulation_results)
             .def("register_links", &Dta_Api::register_links)
             .def("register_paths", &Dta_Api::register_paths)
             .def("are_registered_links_in_registered_paths", &Dta_Api::are_registered_links_in_registered_paths)
             .def("generate_paths_to_cover_registered_links", &Dta_Api::generate_paths_to_cover_registered_links)
             .def("get_link_tt", &Dta_Api::get_link_tt)
             .def("get_link_tt_robust", &Dta_Api::get_link_tt_robust)
+
+            .def("build_link_cost_map", &Dta_Api::build_link_cost_map)
+            // with build_link_cost_map()
+            .def("get_path_tt", &Dta_Api::get_path_tt)
             .def("get_registered_path_tt", &Dta_Api::get_registered_path_tt)
+            
             .def("get_link_inflow", &Dta_Api::get_link_inflow)
             .def("get_link_in_cc", &Dta_Api::get_link_in_cc)
             .def("get_link_out_cc", &Dta_Api::get_link_out_cc)

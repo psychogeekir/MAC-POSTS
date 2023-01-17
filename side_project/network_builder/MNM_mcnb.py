@@ -675,18 +675,21 @@ class MNM_config():
 
     def __str__(self):
         tmp_str = ''
+
         tmp_str += '[DTA]\n'
         # python 2
         # for name, value in self.config_dict['DTA'].iteritems():
         # python 3
         for name, value in self.config_dict['DTA'].items():
             tmp_str += "{} = {}\n".format(str(name), str(value))
+
         tmp_str += '\n[STAT]\n'
         # python 2
         # for name, value in self.config_dict['STAT'].iteritems():
         # python 3
         for name, value in self.config_dict['STAT'].items():
             tmp_str += "{} = {}\n".format(str(name), str(value))
+
         if self.config_dict['DTA']['routing_type'] in ['Fixed', 'Hybrid', 'Biclass_Hybrid', 'Biclass_Hybrid_ColumnGeneration']:
             tmp_str += '\n[FIXED]\n'
             # python 2
@@ -694,6 +697,7 @@ class MNM_config():
             # python 3
             for name, value in self.config_dict['FIXED'].items():
                 tmp_str += "{} = {}\n".format(str(name), str(value))
+
         if self.config_dict['DTA']['routing_type'] in ['Fixed', 'Hybrid', 'Biclass_Hybrid', 'Biclass_Hybrid_ColumnGeneration']:
             tmp_str += '\n[ADAPTIVE]\n'
             # python 2
@@ -701,6 +705,7 @@ class MNM_config():
             # python 3
             for name, value in self.config_dict['ADAPTIVE'].items():
                 tmp_str += "{} = {}\n".format(str(name), str(value))
+                
         return tmp_str
 
     def __repr__(self):

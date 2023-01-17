@@ -23,14 +23,20 @@ nb = MNM_network_builder()
 nb.load_from_folder(data_folder)
 print(nb)
 
-a = MNMAPI.mcdta_api()
-# manually set num_path = -1 under [FIXED] in config.conf
-a.initialize(nb.folder_path)  # generate at least one path for each mode for each OD pair, if connected
-max_iter = 0 # number of iterations to generate paths, if max_iter = 0, only one shortest path will be generate
-a.generate_shortest_pathsets(nb.folder_path, 0, nb.config.config_dict['ADAPTIVE']['vot'], 3, 6, 0)
-# after this step, check folder_path, path_table and path_table_buffer should be created
-# then manually set num_path = number of rows in path_table under [FIXED] in config.conf for the following simulation
+# %% 
+# # if no path exists
+# a = MNMAPI.mcdta_api()
+# # manually set num_path = -1 under [FIXED] in config.conf
+# a.initialize(nb.folder_path)  # generate at least one path for each mode for each OD pair, if connected
+# max_iter = 2 # number of iterations to generate paths, if max_iter = 0, only one shortest path will be generate
+# a.generate_shortest_pathsets(nb.folder_path, 0, nb.config.config_dict['ADAPTIVE']['vot'], 3, 6, 0)
+# # after this step, check folder_path, path_table and path_table_buffer should be created
+# # then manually set num_path = number of rows in path_table under [FIXED] in config.conf for the following simulation
 
+# # re-read the folder to include the generated paths
+# nb = MNM_network_builder()
+# nb.load_from_folder(data_folder)
+# print(nb)
 
 # %%
 # test destructor

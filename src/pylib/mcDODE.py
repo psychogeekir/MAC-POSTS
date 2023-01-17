@@ -12,7 +12,14 @@ import multiprocessing as mp
 from typing import Union
 import torch
 import torch.nn as nn
+import scipy
 from sklearn.metrics import r2_score
+
+# def r2_score(y_true, y_hat):
+#     slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(y_true, y_hat)
+#     # linear regression without intercept
+#     # slope, _, _, _ = np.linalg.lstsq(y_true[:, np.newaxis], y_hat)
+#     return r_value**2
 
 import MNMAPI
 
@@ -1087,30 +1094,30 @@ class MCDODE():
             x_e = dta.get_link_car_inflow(assign_intervals, assign_intervals + self.ass_freq).flatten(order='F')
             if self.config['car_count_agg']:
                 x_e = one_data_dict['car_count_agg_L'].dot(x_e)
-            loss = self.config['link_car_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e[one_data_dict['mask_driving_link']] - one_data_dict['car_link_flow'][one_data_dict['mask_driving_link']]))
-            # loss = np.linalg.norm(np.nan_to_num(x_e[one_data_dict['mask_driving_link']] - one_data_dict['car_link_flow'][one_data_dict['mask_driving_link']]))
+            # loss = self.config['link_car_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e[one_data_dict['mask_driving_link']] - one_data_dict['car_link_flow'][one_data_dict['mask_driving_link']]))
+            loss = np.linalg.norm(np.nan_to_num(x_e[one_data_dict['mask_driving_link']] - one_data_dict['car_link_flow'][one_data_dict['mask_driving_link']]))
             loss_dict['car_count_loss'] = loss
 
         if self.config['use_truck_link_flow'] or self.config['compute_truck_link_flow_loss']:
             x_e = dta.get_link_truck_inflow(assign_intervals, assign_intervals + self.ass_freq).flatten(order='F')
             if self.config['truck_count_agg']:
                 x_e = one_data_dict['truck_count_agg_L'].dot(x_e)
-            loss = self.config['link_truck_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e[one_data_dict['mask_driving_link']] - one_data_dict['truck_link_flow'][one_data_dict['mask_driving_link']]))
-            # loss = np.linalg.norm(np.nan_to_num(x_e[one_data_dict['mask_driving_link']] - one_data_dict['truck_link_flow'][one_data_dict['mask_driving_link']]))
+            # loss = self.config['link_truck_flow_weight'] * np.linalg.norm(np.nan_to_num(x_e[one_data_dict['mask_driving_link']] - one_data_dict['truck_link_flow'][one_data_dict['mask_driving_link']]))
+            loss = np.linalg.norm(np.nan_to_num(x_e[one_data_dict['mask_driving_link']] - one_data_dict['truck_link_flow'][one_data_dict['mask_driving_link']]))
             loss_dict['truck_count_loss'] = loss
 
         if self.config['use_car_link_tt'] or self.config['compute_car_link_tt_loss']:
             x_tt_e = dta.get_car_link_tt(assign_intervals, False).flatten(order='F')
             # x_tt_e = dta.get_car_link_tt_robust(assign_intervals, assign_intervals + self.ass_freq, self.ass_freq, False).flatten(order='F')
-            loss = self.config['link_car_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e[one_data_dict['mask_driving_link']] - one_data_dict['car_link_tt'][one_data_dict['mask_driving_link']]))
-            # loss = np.linalg.norm(np.nan_to_num(x_tt_e[one_data_dict['mask_driving_link']] - one_data_dict['car_link_tt'][one_data_dict['mask_driving_link']]))
+            # loss = self.config['link_car_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e[one_data_dict['mask_driving_link']] - one_data_dict['car_link_tt'][one_data_dict['mask_driving_link']]))
+            loss = np.linalg.norm(np.nan_to_num(x_tt_e[one_data_dict['mask_driving_link']] - one_data_dict['car_link_tt'][one_data_dict['mask_driving_link']]))
             loss_dict['car_tt_loss'] = loss
 
         if self.config['use_truck_link_tt'] or self.config['compute_truck_link_tt_loss']:
             x_tt_e = dta.get_truck_link_tt(assign_intervals, False).flatten(order='F')
             # x_tt_e = dta.get_truck_link_tt_robust(assign_intervals, assign_intervals + self.ass_freq, self.ass_freq, False).flatten(order='F')
-            loss = self.config['link_truck_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e[one_data_dict['mask_driving_link']] - one_data_dict['truck_link_tt'][one_data_dict['mask_driving_link']]))
-            # loss = np.linalg.norm(np.nan_to_num(x_tt_e[one_data_dict['mask_driving_link']] - one_data_dict['truck_link_tt'][one_data_dict['mask_driving_link']]))
+            # loss = self.config['link_truck_tt_weight'] * np.linalg.norm(np.nan_to_num(x_tt_e[one_data_dict['mask_driving_link']] - one_data_dict['truck_link_tt'][one_data_dict['mask_driving_link']]))
+            loss = np.linalg.norm(np.nan_to_num(x_tt_e[one_data_dict['mask_driving_link']] - one_data_dict['truck_link_tt'][one_data_dict['mask_driving_link']]))
             loss_dict['truck_tt_loss'] = loss
 
         if self.config['use_origin_vehicle_registration_data'] or self.config['compute_origin_vehicle_registration_loss']:
@@ -1119,8 +1126,8 @@ class MCDODE():
                 return (sum(O_demand_est[Origin_ID][0] for Origin_ID in row['origin_ID']) - row['car'])**2 + \
                        (sum(O_demand_est[Origin_ID][1] for Origin_ID in row['origin_ID']) - row['truck'])**2
             loss = np.sqrt(np.nansum(one_data_dict['origin_vehicle_registration_data'].apply(lambda row: process_one_row(row), axis=1)))
-            loss_dict['origin_vehicle_registration_loss'] = self.config['origin_vehicle_registration_weight'] * loss
-            # loss_dict['origin_vehicle_registration_loss'] = loss
+            # loss_dict['origin_vehicle_registration_loss'] = self.config['origin_vehicle_registration_weight'] * loss
+            loss_dict['origin_vehicle_registration_loss'] = loss
 
         total_loss = 0.0
         for loss_type, loss_value in loss_dict.items():
@@ -2044,14 +2051,14 @@ class PostProcessing:
         if self.dode.config['use_car_link_tt']:
             self.true_car_cost = self.one_data_dict['car_link_tt']
 
-            self.true_car_speed = self.link_length[np.newaxis, :] / self.true_car_cost.reshape(len(start_intervals), -1) * 3600 
+            self.true_car_speed = self.link_length[np.newaxis, :] / self.true_car_cost.reshape(len(start_intervals), -1) * 3600 # mph
             self.true_car_speed = self.true_car_speed.flatten(order='C')
             
             if self.estimated_car_cost is None:
                 # self.estimated_car_cost = self.dta.get_car_link_tt_robust(start_intervals, end_intervals, self.dode.ass_freq, True).flatten(order = 'F')
                 self.estimated_car_cost = self.dta.get_car_link_tt(start_intervals, False).flatten(order = 'F')
 
-            self.estimated_car_speed = self.link_length[np.newaxis, :] / self.estimated_car_cost.reshape(len(start_intervals), -1) * 3600 
+            self.estimated_car_speed = self.link_length[np.newaxis, :] / self.estimated_car_cost.reshape(len(start_intervals), -1) * 3600  # mph
             self.estimated_car_speed = self.estimated_car_speed.flatten(order='C')
 
             self.true_car_cost, self.estimated_car_cost = self.true_car_cost[self.one_data_dict['mask_driving_link']], self.estimated_car_cost[self.one_data_dict['mask_driving_link']]
@@ -2062,7 +2069,7 @@ class PostProcessing:
         if self.dode.config['use_truck_link_tt']:
             self.true_truck_cost = self.one_data_dict['truck_link_tt']
 
-            self.true_truck_speed = self.link_length[np.newaxis, :] / self.true_truck_cost.reshape(len(start_intervals), -1) * 3600 
+            self.true_truck_speed = self.link_length[np.newaxis, :] / self.true_truck_cost.reshape(len(start_intervals), -1) * 3600
             self.true_truck_speed = self.true_truck_speed.flatten(order='C')
 
             if self.estimated_truck_cost is None:
@@ -2224,7 +2231,7 @@ class PostProcessing:
             print(self.true_car_speed)
             print(self.estimated_car_speed)
             print('----- car speed -----')
-            ind = ~((self.true_car_speed > 90) + (self.estimated_car_speed > 90) + (self.true_car_speed < 10) + (self.estimated_car_speed < 10) + np.isnan(self.true_car_speed) + np.isnan(self.estimated_car_speed)
+            ind = ~((self.true_car_speed > 90) + (self.estimated_car_speed > 90) + (self.true_car_speed < 10) + (self.estimated_car_speed < 10) + np.isnan(self.true_car_speed) + np.isnan(self.estimated_car_speed) + (self.estimated_car_speed > 3 * self.true_car_speed)
                     + np.isinf(self.true_car_cost) + np.isinf(self.estimated_car_cost) + np.isnan(self.true_car_cost) + np.isnan(self.estimated_car_cost) + (self.estimated_car_cost > 3 * self.true_car_cost))
             self.r2_car_speed = r2_score(self.true_car_speed[ind], self.estimated_car_speed[ind])
 
@@ -2233,7 +2240,7 @@ class PostProcessing:
             print(self.true_truck_speed)
             print(self.estimated_truck_speed)
             print('----- truck speed -----')
-            ind = ~((self.true_truck_speed > 90) + (self.estimated_truck_speed > 90) + (self.true_truck_speed < 10) + (self.estimated_truck_speed < 10) + np.isnan(self.true_truck_speed) + np.isnan(self.estimated_truck_speed)
+            ind = ~((self.true_truck_speed > 90) + (self.estimated_truck_speed > 90) + (self.true_truck_speed < 10) + (self.estimated_truck_speed < 10) + np.isnan(self.true_truck_speed) + np.isnan(self.estimated_truck_speed) + (self.estimated_truck_speed > 3 * self.true_truck_speed)
                     + np.isinf(self.true_truck_cost) + np.isinf(self.estimated_truck_cost) + np.isnan(self.true_truck_cost) + np.isnan(self.estimated_truck_cost) + (self.estimated_truck_cost > 3 * self.true_truck_cost))
             self.r2_truck_speed = r2_score(self.true_truck_speed[ind], self.estimated_truck_speed[ind])
 
@@ -2301,7 +2308,7 @@ class PostProcessing:
             i = 0
 
             if self.dode.config['use_car_link_tt']:
-                ind = ~((self.true_car_speed > 90) + (self.estimated_car_speed > 90) + (self.true_car_speed < 10) + (self.estimated_car_speed < 10) + np.isnan(self.true_car_speed) + np.isnan(self.estimated_car_speed)
+                ind = ~((self.true_car_speed > 90) + (self.estimated_car_speed > 90) + (self.true_car_speed < 10) + (self.estimated_car_speed < 10) + np.isnan(self.true_car_speed) + np.isnan(self.estimated_car_speed) + (self.estimated_car_speed > 3 * self.true_car_speed)
                          + np.isinf(self.true_car_cost) + np.isinf(self.estimated_car_cost) + np.isnan(self.true_car_cost) + np.isnan(self.estimated_car_cost) + (self.estimated_car_cost > 3 * self.true_car_cost))
             
                 car_speed_min = np.min((np.min(self.true_car_speed[ind]), np.min(self.estimated_car_speed[ind]))) - 1
@@ -2320,7 +2327,7 @@ class PostProcessing:
             i += self.dode.config['use_car_link_tt']
 
             if self.dode.config['use_truck_link_tt']:
-                ind = ~((self.true_truck_speed > 90) + (self.estimated_truck_speed > 90) + (self.true_truck_speed < 10) + (self.estimated_truck_speed < 10) + np.isnan(self.true_truck_speed) + np.isnan(self.estimated_truck_speed)
+                ind = ~((self.true_truck_speed > 90) + (self.estimated_truck_speed > 90) + (self.true_truck_speed < 10) + (self.estimated_truck_speed < 10) + np.isnan(self.true_truck_speed) + np.isnan(self.estimated_truck_speed) + (self.estimated_truck_speed > 3 * self.true_truck_speed)
                         + np.isinf(self.true_truck_cost) + np.isinf(self.estimated_truck_cost) + np.isnan(self.true_truck_cost) + np.isnan(self.estimated_truck_cost) + (self.estimated_truck_cost > 3 * self.true_truck_cost))
             
                 truck_speed_min = np.min((np.min(self.true_truck_speed[ind]), np.min(self.estimated_truck_speed[ind]))) - 1

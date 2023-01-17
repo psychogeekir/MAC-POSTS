@@ -424,15 +424,46 @@ class MNM_config():
   def __init__(self):
     print("MNM_config")
     self.config_dict = OrderedDict()
-    self.type_dict = {'network_name' : str, 'unit_time': np.int, 'total_interval': np.int,
-                      'assign_frq' : np.int, 'start_assign_interval': np.int, 'max_interval': np.int,
-                      'flow_scalar': np.int, 'num_of_link': np.int, 'num_of_node': np.int, 
-                      'num_of_O': np.int, 'num_of_D': np.int, 'OD_pair': np.int,
-                      'routing_type' : str, 'init_demand_split': np.int, 'num_of_tolled_link': np.int, 'rec_mode': str, 'rec_mode_para': str, 'rec_folder': str,
-                      'rec_volume': np.int, 'volume_load_automatic_rec': np.int, 'volume_record_automatic_rec': np.int,
-                      'rec_tt': np.int, 'tt_load_automatic_rec':np.int, 'tt_record_automatic_rec':np.int, 'rec_gridlock': np.int,
-                      'route_frq': np.int, 'vot': np.float, 'path_file_name': str, 'num_path': np.int,
-                      'choice_portion': str, 'route_frq': np.int, 'buffer_length':np.int}
+    self.type_dict = {
+      # DTA
+      'network_name': str, 
+      'unit_time': np.int, 
+      'total_interval': np.int,
+      'assign_frq' : np.int, 
+      'start_assign_interval': np.int, 
+      'max_interval': np.int,
+      'flow_scalar': np.int, 
+      'num_of_link': np.int, 
+      'num_of_node': np.int, 
+      'num_of_O': np.int, 
+      'num_of_D': np.int, 
+      'OD_pair': np.int,
+      'routing_type' : str,
+      'adaptive_ratio': np.float,
+      'init_demand_split': np.int, 
+      'num_of_tolled_link': np.int, 
+      'num_of_vehicle_labels': np.int,
+
+      # STAT
+      'rec_mode': str, 
+      'rec_mode_para': str, 
+      'rec_folder': str,
+      'rec_volume': np.int, 
+      'volume_load_automatic_rec': np.int, 
+      'volume_record_automatic_rec': np.int,
+      'rec_tt': np.int, 
+      'tt_load_automatic_rec': np.int, 
+      'tt_record_automatic_rec': np.int, 
+      'rec_gridlock': np.int,
+
+      # FIXED, ADAPTIVE
+      'route_frq': np.int, 
+      'vot': np.float, 
+      'path_file_name': str, 
+      'num_path': np.int,
+      'choice_portion': str,
+      'buffer_length':np.int
+    }
 
   def build_from_file(self, file_name):
     self.config_dict = OrderedDict()
@@ -457,25 +488,37 @@ class MNM_config():
 
   def __str__(self):
     tmp_str = ''
+
     tmp_str += '[DTA]\n'
     # python 2
     # for name, value in self.config_dict['DTA'].iteritems():
     # python 3
     for name, value in self.config_dict['DTA'].items():
       tmp_str += "{} = {}\n".format(str(name), str(value))
+
     tmp_str += '\n[STAT]\n'
     # python 2
     # for name, value in self.config_dict['STAT'].iteritems():
     # python 3
     for name, value in self.config_dict['STAT'].items():
-      tmp_str += "{} = {}\n".format(str(name), str(value))    
-    if self.config_dict['DTA']['routing_type'] == 'Fixed':
+      tmp_str += "{} = {}\n".format(str(name), str(value))  
+
+    if self.config_dict['DTA']['routing_type'] in ['Fixed', 'Adaptive', 'Hybrid']:
       tmp_str += '\n[FIXED]\n'
       # python 2
       # for name, value in self.config_dict['FIXED'].iteritems():
       # python 3
       for name, value in self.config_dict['FIXED'].items():
         tmp_str += "{} = {}\n".format(str(name), str(value))  
+
+    if self.config_dict['DTA']['routing_type'] in ['Fixed', 'Adaptive', 'Hybrid']:
+      tmp_str += '\n[ADAPTIVE]\n'
+      # python 2
+      # for name, value in self.config_dict['ADAPTIVE'].iteritems():
+      # python 3
+      for name, value in self.config_dict['ADAPTIVE'].items():
+        tmp_str += "{} = {}\n".format(str(name), str(value))
+
     return tmp_str
 
   def __repr__(self):
@@ -634,7 +677,7 @@ class MNM_network_builder():
 
   def read_node_input(self, file_name):
     node_list = list()
-    f = file(file_name)
+    f = open(file_name, "r")
     log = f.readlines()[1:]
     f.close()
     for i in range(len(log)):

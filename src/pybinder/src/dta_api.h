@@ -57,6 +57,9 @@ public:
   int install_cc();
   int install_cc_tree();
   int run_whole(bool verbose=true);
+  py::array_t<double> get_travel_stats();
+  std::string print_emission_stats();
+  int print_simulation_results(const std::string &folder, int cong_frequency = 180);
   int register_links(py::array_t<int> links);
   int register_paths(py::array_t<int> paths);
   std::vector<bool> check_registered_links_in_registered_paths();
@@ -69,8 +72,11 @@ public:
                                         py::array_t<int>end_intervals);
   py::array_t<double> get_link_tt(py::array_t<int>start_intervals, bool return_inf = false);
   py::array_t<double> get_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
+  
   // assume build_link_cost_map() is invoked before
+  py::array_t<double> get_path_tt(py::array_t<int>link_IDs, py::array_t<int>start_intervals);
   py::array_t<double> get_registered_path_tt(py::array_t<int>start_intervals);
+
   py::array_t<double> get_link_in_cc(int link_ID);
   py::array_t<double> get_link_out_cc(int link_ID);
   py::array_t<double> get_dar_matrix(py::array_t<int>link_start_intervals, py::array_t<int>link_end_intervals);
