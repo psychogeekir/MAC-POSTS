@@ -923,6 +923,31 @@ py::array_t<double> Dta_Api::get_link_inflow(py::array_t<int>start_intervals, py
   return result;
 }
 
+py::array_t<double> Dta_Api::get_link_tt_FD(py::array_t<int>start_intervals)
+{
+    auto start_buf = start_intervals.request();
+    if (start_buf.ndim != 1){
+        throw std::runtime_error("Error, Dta_Api::get_link_tt_FD, input dimension mismatch");
+    }
+    int l = start_buf.shape[0];
+    int new_shape [2] = { (int) m_link_vec.size(), l}; 
+
+    auto result = py::array_t<double>(new_shape);
+    auto result_buf = result.request();
+    double *result_prt = (double *) result_buf.ptr;
+    int *start_prt = (int *) start_buf.ptr;
+    for (int t = 0; t < l; ++t){
+        // if (start_prt[t] >= get_cur_loading_interval()){
+        //     throw std::runtime_error("Error, Dta_Api::get_link_tt_FD, input start intervals exceeds the total loading intervals - 1");
+        // }
+        for (size_t i = 0; i<m_link_vec.size(); ++i){
+            // // use start_prt[t] + 1 as start_time in cc to compute link travel time for vehicles arriving at the beginning of interval start_prt[t]
+            result_prt[i * l + t] = MNM_DTA_GRADIENT::get_travel_time_from_FD(m_link_vec[i], TFlt(start_prt[t]), m_dta -> m_unit_time)() * m_dta -> m_unit_time; // second
+        }
+    }
+    return result;
+}
+
 py::array_t<double> Dta_Api::get_link_tt(py::array_t<int>start_intervals, bool return_inf)
 {
   auto start_buf = start_intervals.request();
@@ -9461,6 +9486,7 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("register_paths", &Dta_Api::register_paths)
             .def("are_registered_links_in_registered_paths", &Dta_Api::are_registered_links_in_registered_paths)
             .def("generate_paths_to_cover_registered_links", &Dta_Api::generate_paths_to_cover_registered_links)
+            .def("get_link_tt_FD", &Dta_Api::get_link_tt_FD)
             .def("get_link_tt", &Dta_Api::get_link_tt)
             .def("get_link_tt_robust", &Dta_Api::get_link_tt_robust)
 

@@ -70,6 +70,7 @@ public:
   int build_link_cost_map(bool with_congestion_indicator=false);
   py::array_t<double> get_link_inflow(py::array_t<int>start_intervals, 
                                         py::array_t<int>end_intervals);
+  py::array_t<double> get_link_tt_FD(py::array_t<int>start_intervals);
   py::array_t<double> get_link_tt(py::array_t<int>start_intervals, bool return_inf = false);
   py::array_t<double> get_link_tt_robust(py::array_t<double>start_intervals, py::array_t<double>end_intervals, int num_trials = 180, bool return_inf = false);
   
