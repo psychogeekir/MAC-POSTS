@@ -250,7 +250,6 @@ namespace MNM_DTA_GRADIENT {
         return 0;
     }
 
-
     int add_dar_records_eigen(std::vector<Eigen::Triplet<double>> &record, MNM_Dlink *link,
                               std::unordered_map<MNM_Path *, int> path_map,
                               TFlt start_time, TFlt end_time,

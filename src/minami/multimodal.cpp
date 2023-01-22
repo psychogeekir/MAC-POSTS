@@ -1851,7 +1851,8 @@ int MNM_Origin_Multimodal::release_one_interval(TInt current_interval,
             }
             _veh -> set_destination(_demand_it -> first);
             _veh -> set_origin(this);
-            _veh -> m_assign_interval = assign_interval;
+            // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
             _veh -> m_label = generate_label(_veh -> get_class());
             m_origin_node -> m_in_veh_queue.push_back(_veh);
         }
@@ -1879,7 +1880,8 @@ int MNM_Origin_Multimodal::release_one_interval(TInt current_interval,
             }
             _veh -> set_destination(_demand_it -> first);
             _veh -> set_origin(this);
-            _veh -> m_assign_interval = assign_interval;
+            // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
             _veh -> m_label = generate_label(_veh -> get_class());
             m_origin_node -> m_in_veh_queue.push_back(_veh);
         }
@@ -1896,7 +1898,8 @@ int MNM_Origin_Multimodal::release_one_interval(TInt current_interval,
 
                 _veh -> set_destination(_demand_it -> first);
                 _veh -> set_origin(this);
-                _veh -> m_assign_interval = assign_interval;
+                // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			    _veh -> m_assign_interval = int(current_interval / m_frequency);
                 m_origin_node -> m_in_veh_queue.push_back(_veh);
             }
         }
@@ -1924,7 +1927,8 @@ int MNM_Origin_Multimodal::release_one_interval(TInt current_interval,
             }
             _veh -> set_destination(_demand_it -> first);
             _veh -> set_origin(this);
-            _veh -> m_assign_interval = assign_interval;
+            // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
             _veh -> m_label = generate_label(_veh -> get_class());
             m_origin_node -> m_in_veh_queue.push_back(_veh);
         }
@@ -1971,7 +1975,8 @@ int MNM_Origin_Multimodal::release_one_interval_biclass(TInt current_interval,
             }
             _veh -> set_destination(_demand_it -> first);
             _veh -> set_origin(this);
-            _veh -> m_assign_interval = assign_interval;
+            // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
             _veh -> m_label = generate_label(_veh -> get_class());
             m_origin_node -> m_in_veh_queue.push_back(_veh);
         }
@@ -1999,7 +2004,8 @@ int MNM_Origin_Multimodal::release_one_interval_biclass(TInt current_interval,
             }
             _veh -> set_destination(_demand_it -> first);
             _veh -> set_origin(this);
-            _veh -> m_assign_interval = assign_interval;
+            // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
             _veh -> m_label = generate_label(_veh -> get_class());
             m_origin_node -> m_in_veh_queue.push_back(_veh);
         }
@@ -2016,7 +2022,8 @@ int MNM_Origin_Multimodal::release_one_interval_biclass(TInt current_interval,
 
                 _veh -> set_destination(_demand_it -> first);
                 _veh -> set_origin(this);
-                _veh -> m_assign_interval = assign_interval;
+                // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			    _veh -> m_assign_interval = int(current_interval / m_frequency);
                 m_origin_node -> m_in_veh_queue.push_back(_veh);
             }
         }
@@ -2044,7 +2051,8 @@ int MNM_Origin_Multimodal::release_one_interval_biclass(TInt current_interval,
             }
             _veh -> set_destination(_demand_it -> first);
             _veh -> set_origin(this);
-            _veh -> m_assign_interval = assign_interval;
+            // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_veh -> m_assign_interval = int(current_interval / m_frequency);
             _veh -> m_label = generate_label(_veh -> get_class());
             m_origin_node -> m_in_veh_queue.push_back(_veh);
         }
@@ -2092,7 +2100,8 @@ int MNM_Origin_Multimodal::release_one_interval_passenger(TInt current_interval,
             _passenger -> set_destination(_demand_it -> first);
             _passenger -> set_origin(this);
             _passenger -> m_pnr = false;
-            _passenger -> m_assign_interval = assign_interval;
+            // in case the multiclass modeling has 1-min release interval as the "assign" interval
+			_passenger -> m_assign_interval = int(current_interval / m_frequency);
             m_in_passenger_queue.push_back(_passenger);
         }
     }
@@ -4623,6 +4632,10 @@ MNM_Routing_Multimodal_Adaptive::MNM_Routing_Multimodal_Adaptive(const std::stri
 
     m_driving_link_cost = std::unordered_map<TInt, TFlt> ();
     m_bustransit_link_cost = std::unordered_map<TInt, TFlt> ();
+
+    auto *_tmp_config = new MNM_ConfReader(file_folder + "/config.conf", "DTA");
+    m_working = _tmp_config -> get_float("adaptive_ratio_passenger") > 0 || _tmp_config -> get_float("adaptive_ratio_car") > 0 || _tmp_config -> get_float("adaptive_ratio_truck") > 0;
+    delete _tmp_config;
 }
 
 MNM_Routing_Multimodal_Adaptive::~MNM_Routing_Multimodal_Adaptive()
@@ -5247,18 +5260,11 @@ MNM_Routing_Multimodal_Hybrid::MNM_Routing_Multimodal_Hybrid(const std::string& 
                                                                           parkinglot_factory, transitlink_factory, bustransit_path_table,
                                                                           route_frq_fixed, TInt(buffer_length/2));
 
-    auto *_tmp_config = new MNM_ConfReader(file_folder + "/config.conf", "DTA");
-    if (_tmp_config -> get_float("adaptive_ratio_passenger") > 0 ||
-        _tmp_config -> get_float("adaptive_ratio_car") > 0 ||
-        _tmp_config -> get_float("adaptive_ratio_truck") > 0) {
-        m_routing_multimodal_adaptive = new MNM_Routing_Multimodal_Adaptive(file_folder, driving_graph, transit_graph, statistics,
-                                                                            od_factory, node_factory, busstop_factory, parkinglot_factory,
-                                                                            link_factory, transitlink_factory);
-    }
-    else {
-        m_routing_multimodal_adaptive = nullptr;
-    }
-    delete _tmp_config;
+    m_routing_multimodal_adaptive = new MNM_Routing_Multimodal_Adaptive(file_folder, driving_graph, transit_graph, statistics,
+                                                                        od_factory, node_factory, busstop_factory, parkinglot_factory,
+                                                                        link_factory, transitlink_factory);
+    
+   
 ;}
 
 MNM_Routing_Multimodal_Hybrid::~MNM_Routing_Multimodal_Hybrid()
@@ -5281,7 +5287,7 @@ int MNM_Routing_Multimodal_Hybrid::init_routing(Path_Table *driving_path_table)
     // printf("Finished init STATIC and PNR cars routing\n");
     m_routing_passenger_fixed -> init_routing(driving_path_table);
     // printf("Finished init STATIC passengers routing\n");
-    if (m_routing_multimodal_adaptive != nullptr) m_routing_multimodal_adaptive -> init_routing();
+    if (m_routing_multimodal_adaptive -> m_working) m_routing_multimodal_adaptive -> init_routing();
     // printf("Finished init all ADAPTIVE cars, trucks, and passengers routing\n");
     return 0;
 }
@@ -5299,7 +5305,7 @@ int MNM_Routing_Multimodal_Hybrid::update_routing(TInt timestamp)
     // printf("Finished update STATIC and PNR cars routing\n");
     m_routing_passenger_fixed -> update_routing(timestamp);
     // printf("Finished update STATIC passengers routing\n");
-    if (m_routing_multimodal_adaptive != nullptr) m_routing_multimodal_adaptive -> update_routing(timestamp);
+    if (m_routing_multimodal_adaptive -> m_working) m_routing_multimodal_adaptive -> update_routing(timestamp);
     // printf("Finished update all ADAPTIVE cars, trucks, and passengers routing\n");
     return 0;
 }
@@ -6945,7 +6951,26 @@ int MNM_Dta_Multimodal::initialize()
 
 
     // printf("5\n");
-    m_emission = new MNM_Cumulative_Emission_Multiclass(TFlt(m_unit_time), 0);
+    TInt _ev_label_car, _ev_label_truck;
+	try
+	{
+		_ev_label_car = m_config -> get_int("ev_label_car");
+	}
+	catch (const std::invalid_argument& ia)
+	{
+		std::cout << "ev_label_car does not exist in config.conf/DTA, use default value -2 instead\n";
+		_ev_label_car = -2;
+	}
+	try
+	{
+		_ev_label_truck = m_config -> get_int("ev_label_truck");
+	}
+	catch (const std::invalid_argument& ia)
+	{
+		std::cout << "ev_label_truck does not exist in config.conf/DTA, use default value -2 instead\n";
+		_ev_label_truck = -2;
+	}
+	m_emission = new MNM_Cumulative_Emission_Multiclass(TFlt(m_unit_time), 0, _ev_label_car, _ev_label_truck);
 
     // the releasing strategy is assigning vehicles per 1 minute, so disaggregate 15-min demand into 1-min demand
     // change assign_freq to 12 (1 minute = 12 x 5 second / 60) and total_assign_interval to max_interval*_num_of_minute

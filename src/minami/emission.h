@@ -10,7 +10,8 @@
 class MNM_Cumulative_Emission
 {
 public:
-  MNM_Cumulative_Emission(TFlt unit_time, TInt freq);
+  // -1 is the default veh -> m_label value, use -2 ad ev label
+  MNM_Cumulative_Emission(TFlt unit_time, TInt freq, TInt ev_label=-2);
   virtual ~MNM_Cumulative_Emission();
   std::vector<MNM_Dlink*> m_link_vector;
   std::unordered_set<MNM_Dlink*> m_link_set;
@@ -37,6 +38,8 @@ public:
   TInt m_freq;
   TInt m_counter;
   TFlt m_VMT;
+  TFlt m_VMT_ev;
+  TInt m_ev_label;
 };
 
 

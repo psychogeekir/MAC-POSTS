@@ -36,6 +36,52 @@ def find_first(vec, item):
 def tensor_to_numpy(x: torch.Tensor):
     return x.data.cpu().numpy()
 
+def groupby_sum(value:torch.Tensor, labels:torch.LongTensor):
+    # https://discuss.pytorch.org/t/groupby-aggregate-mean-in-pytorch/45335/9
+    """Group-wise sum(average) for (sparse) grouped tensors
+    
+    Args:
+        value (torch.Tensor): values to average (# samples, latent dimension)
+        labels (torch.LongTensor): labels for embedding parameters (# samples,)
+    
+    Returns: 
+        result (torch.Tensor): (# unique labels, latent dimension)
+        new_labels (torch.LongTensor): (# unique labels,)
+        
+    Examples:
+        >>> samples = torch.Tensor([
+                             [0.15, 0.15, 0.15],    #-> group / class 1
+                             [0.2, 0.2, 0.2],    #-> group / class 5
+                             [0.4, 0.4, 0.4],    #-> group / class 5
+                             [0.0, 0.0, 0.0]     #-> group / class 0
+                      ])
+        >>> labels = torch.LongTensor([1, 5, 5, 0])
+        >>> result, new_labels = groupby_sum(samples, labels)
+        
+        >>> result
+        tensor([[0.0000, 0.0000, 0.0000],
+            [0.1500, 0.1500, 0.1500],
+            [0.6000, 0.6000, 0.6000]])
+            
+        >>> new_labels
+        tensor([0, 1, 5])
+    """
+    uniques = labels.unique().tolist()
+    labels = labels.tolist()
+
+    key_val = {key: val for key, val in zip(uniques, range(len(uniques)))}
+    val_key = {val: key for key, val in zip(uniques, range(len(uniques)))}
+    
+    labels = torch.LongTensor(list(map(key_val.get, labels)))
+    
+    labels = labels.view(labels.size(0), 1).expand(-1, value.size(1))
+    
+    unique_labels, labels_count = labels.unique(dim=0, return_counts=True)
+    result = torch.zeros_like(unique_labels, dtype=value.dtype).scatter_add_(0, labels, value)
+    # result = result / labels_count.float().unsqueeze(1)
+    new_labels = torch.LongTensor(list(map(val_key.get, unique_labels[:, 0].tolist())))
+    return result, new_labels
+
 class torch_pathflow_solver(nn.Module):
     def __init__(self, num_assign_interval, num_path,
                car_scale=1, truck_scale=0.1, use_file_as_init=None):
@@ -320,6 +366,54 @@ class MCDODE():
 
         return a
 
+    def get_dar3(self, dta, f_car, f_truck):
+
+        if self.config['use_car_link_flow'] or self.config['use_car_link_tt']:
+            # (num_assign_timesteps x num_links x num_path x num_assign_timesteps) x 5
+            file_name = os.path.join(self.nb.folder_path, 'record', 'car_dar_matrix.txt')
+            dta.save_car_dar_matrix(np.arange(0, self.num_loading_interval, self.ass_freq), 
+                                    np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq,
+                                    f_car, file_name)
+            # print("raw car dar", raw_car_dar)
+            # num_assign_interval * num_e_link, num_assign_interval * num_e_path
+            if os.path.exists(file_name):
+                # require pandas > 1.4 and pyarrow
+                dar_triplets = pd.read_csv(file_name, header=None, engine='pyarrow', dtype={0: int, 1: int, 2: float})
+                car_dar = coo_matrix((dar_triplets[2], (dar_triplets[0], dar_triplets[1])), 
+                                    shape=(self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
+                car_dar = car_dar.tocsr()
+                dar_triplets = None
+                os.remove(file_name)
+                if car_dar.max() == 0.:
+                    print("car_dar is empty!")
+            else:
+                raise Exception('No car_dar_matrix.txt')
+            
+
+        if self.config['use_truck_link_flow'] or self.config['use_truck_link_tt']:
+            # (num_assign_timesteps x num_links x num_path x num_assign_timesteps) x 5
+            file_name = os.path.join(self.nb.folder_path, 'record', 'truck_dar_matrix.txt')
+            dta.save_truck_dar_matrix(np.arange(0, self.num_loading_interval, self.ass_freq), 
+                                    np.arange(0, self.num_loading_interval, self.ass_freq) + self.ass_freq,
+                                    f_truck, file_name)
+            # print("raw car dar", raw_car_dar)
+            # num_assign_interval * num_e_link, num_assign_interval * num_e_path
+            if os.path.exists(file_name):
+                # require pandas > 1.4 and pyarrow
+                dar_triplets = pd.read_csv(file_name, header=None, engine='pyarrow', dtype={0: int, 1: int, 2: float})
+                truck_dar = coo_matrix((dar_triplets[2], (dar_triplets[0], dar_triplets[1])), 
+                                      shape=(self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
+                truck_dar = truck_dar.tocsr()
+                dar_triplets = None
+                os.remove(file_name)
+                if truck_dar.max() == 0.:
+                    print("truck_dar is empty!")
+            else:
+                raise Exception('No truck_dar_matrix.txt')
+
+        # print("dar", car_dar, truck_dar)
+        return (car_dar, truck_dar)
+        
     def get_dar2(self, dta, f_car, f_truck):
         car_dar = csr_matrix((self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
         truck_dar = csr_matrix((self.num_assign_interval * len(self.observed_links), self.num_assign_interval * len(self.paths_list)))
@@ -381,7 +475,11 @@ class MCDODE():
         # 15 min
         small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
 
-        raw_dar = raw_dar[(raw_dar[:, 1] < num_assign_interval * small_assign_freq) & (raw_dar[:, 3] < self.num_loading_interval), :]
+        # # if release_one_interval_biclass set the 1-min assign interval for vehicle for the multiclass modeling
+        # raw_dar = raw_dar[(raw_dar[:, 1] < num_assign_interval * small_assign_freq) & (raw_dar[:, 3] < self.num_loading_interval), :]
+        # # if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
+        raw_dar = raw_dar[(raw_dar[:, 1] < num_assign_interval) & (raw_dar[:, 3] < self.num_loading_interval), :]
+
         assert(set(raw_dar[:, 0]).issubset(set(paths_list)))
 
         if num_procs > 1:
@@ -400,11 +498,16 @@ class MCDODE():
             else:
                 raise Exception('Wrong data type of paths_list')
 
-            path_seq = (raw_dar.loc[:, 0].astype(int).parallel_apply(lambda x: np.nonzero(paths_list == x)[0][0]) 
-                        + (raw_dar.loc[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            # # if release_one_interval_biclass set the 1-min assign interval for vehicle for the multiclass modeling
+            # path_seq = (raw_dar.loc[:, 0].astype(int).parallel_apply(lambda x: np.nonzero(paths_list == x)[0][0]) 
+            #             + (raw_dar.loc[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
             
             # path_seq = (raw_dar.loc[:, 0].astype(int).parallel_apply(lambda x: find_first(paths_list, x)) 
             #             + (raw_dar.loc[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+
+            # if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
+            path_seq = (raw_dar.loc[:, 0].astype(int).parallel_apply(lambda x: np.nonzero(paths_list == x)[0][0]) 
+                        + raw_dar.loc[:, 1].astype(int) * num_e_path).astype(int)
             
             if type(observed_links) == list:
                 observed_links = np.array(observed_links)
@@ -424,23 +527,33 @@ class MCDODE():
         else:
 
             # raw_dar[:, 0]: path no.
-            # raw_dar[:, 1]: the count of 1 min interval
+            # raw_dar[:, 1]: originally the count of 1 min interval, if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
             # path_seq = (raw_dar[:, 0].astype(int) + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            # path_seq = (raw_dar[:, 0].astype(int) + raw_dar[:, 1].astype(int) * num_e_path).astype(int)
 
             if type(paths_list) == np.ndarray:
                 # ind = np.array(list(map(lambda x: True if len(np.nonzero(paths_list == x)[0]) > 0 else False, raw_dar[:, 0].astype(int)))).astype(bool)
                 # assert(np.sum(ind) == len(ind))
+                # # if release_one_interval_biclass set the 1-min assign interval for vehicle for the multiclass modeling
                 # path_seq = (np.array(list(map(lambda x: np.nonzero(paths_list == x)[0][0], raw_dar[:, 0].astype(int))))
                 #             + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                # path_seq = (np.array(list(map(lambda x: find_first(paths_list, x), raw_dar[:, 0].astype(int))))
+                #             + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                # # if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
                 path_seq = (np.array(list(map(lambda x: find_first(paths_list, x), raw_dar[:, 0].astype(int))))
-                            + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                            + raw_dar[:, 1].astype(int) * num_e_path).astype(int)
+                
             elif type(paths_list) == list:
                 # ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_dar[:, 0].astype(int)))).astype(bool)
                 # assert(np.sum(ind) == len(ind))
+                # # if release_one_interval_biclass set the 1-min assign interval for vehicle for the multiclass modeling
                 # path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[:, 0].astype(int))))
                 #             + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                # path_seq = (np.array(list(map(lambda x: find_first(paths_list, x), raw_dar[:, 0].astype(int))))
+                #             + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                # # if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
                 path_seq = (np.array(list(map(lambda x: find_first(paths_list, x), raw_dar[:, 0].astype(int))))
-                            + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                            + raw_dar[:, 1].astype(int) * num_e_path).astype(int)
             else:
                 raise Exception('Wrong data type of paths_list')
 
@@ -530,9 +643,14 @@ class MCDODE():
 
         # print("Getting DAR", time.time())
         print("********************** Begin get_dar **********************")
+        # get raw record and process using python
         # (car_dar, truck_dar) = self.get_dar(dta, f_car, f_truck)
-        (car_dar, truck_dar) = self.get_dar2(dta, f_car, f_truck)
-        print("********************** Begin get_dar **********************")
+        # directly construct sparse matrix
+        # (car_dar2, truck_dar2) = self.get_dar2(dta, f_car, f_truck)
+        # print(car_dar.toarray() - car_dar2.toarray())
+        # save and read
+        (car_dar, truck_dar) = self.get_dar3(dta, f_car, f_truck)
+        print("********************** End get_dar **********************")
 
         x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand_est = None, None, None, None, None
 
@@ -584,7 +702,7 @@ class MCDODE():
 
         # Origin vehicle registration data
         if self.config['use_origin_vehicle_registration_data']:
-            f_car_grad_add, f_truck_grad_add, O_demand_est = self._compute_grad_on_origin_vehicle_registration_data(one_data_dict, f_car, f_truck)
+            f_car_grad_add, f_truck_grad_add, O_demand_est = self._compute_grad_on_origin_vehicle_registration_data2(one_data_dict, f_car, f_truck)
             f_car_grad += self.config['origin_vehicle_registration_weight'] * f_car_grad_add
             f_truck_grad += self.config['origin_vehicle_registration_weight'] * f_truck_grad_add
 
@@ -1034,8 +1152,66 @@ class MCDODE():
 
         # pandas DataFrame
         def process_one_row(row):
+
+            # loss = torch.Tensor([0.])
+            # if not np.isnan(row['car']):
+            #     loss += (sum(O_demand_est[Origin_ID][0] for Origin_ID in row['origin_ID']) - row['car'])**2
+            # if not np.isnan(row['truck']):
+            #     loss += (sum(O_demand_est[Origin_ID][1] for Origin_ID in row['origin_ID']) - row['truck'])**2
+            # if (np.isnan(row['car'])) and (np.isnan(row['truck'])) and (not np.isnan(row['total'])):
+            #     loss += (sum(O_demand_est[Origin_ID][0] + O_demand_est[Origin_ID][1] for Origin_ID in row['origin_ID']) - row['total'])**2
+
             loss = (sum(O_demand_est[Origin_ID][0] for Origin_ID in row['origin_ID']) - row['car'])**2 + \
                    (sum(O_demand_est[Origin_ID][1] for Origin_ID in row['origin_ID']) - row['truck'])**2
+
+            loss.backward()
+                
+        one_data_dict['origin_vehicle_registration_data'].apply(lambda row: process_one_row(row), axis=1)
+
+        O_demand_est = {O: (O_demand_est[O][0].item(), O_demand_est[O][1].item()) for O in O_demand_est}
+        return f_car.grad.data.cpu().numpy(), f_truck.grad.data.cpu().numpy(), O_demand_est
+
+    def _compute_grad_on_origin_vehicle_registration_data2(self, one_data_dict, f_car, f_truck):
+        # reshape car_flow and truck_flow into ndarrays with dimensions of intervals x number of total paths
+        # loss in terms of total counts of cars and trucks for some origin nodes
+        f_car = torch.from_numpy(f_car)
+        f_truck = torch.from_numpy(f_truck)
+        f_car.requires_grad = True
+        f_truck.requires_grad = True
+
+        f_car_reshaped = torch.transpose(f_car.reshape(self.num_assign_interval, -1), 0, 1)
+        f_truck_reshaped = torch.transpose(f_truck.reshape(self.num_assign_interval, -1), 0, 1)
+        f_car_reshaped = f_car_reshaped.sum(dim=1, keepdim=True)
+        f_truck_reshaped = f_truck_reshaped.sum(dim=1, keepdim=True)
+        f = torch.concat((f_car_reshaped, f_truck_reshaped), dim=1)
+
+        O_ID = []
+        for i, path_ID in enumerate(self.nb.path_table.ID2path.keys()):
+            path = self.nb.path_table.ID2path[path_ID]
+            O_node = path.origin_node
+            O_ID.append(self.nb.od.O_dict.inv[O_node])
+        O_ID = torch.LongTensor(O_ID)
+
+        O_f, O_ID = groupby_sum(f, O_ID)
+
+        O_demand_est = dict()
+        for i in range(len(O_ID)):
+            O_demand_est[O_ID[i].item()] = O_f[i, :]
+
+        # pandas DataFrame
+        def process_one_row(row):
+
+            # loss = torch.Tensor([0.])
+            # if not np.isnan(row['car']):
+            #     loss += (sum(O_demand_est[Origin_ID][0] for Origin_ID in row['origin_ID']) - row['car'])**2
+            # if not np.isnan(row['truck']):
+            #     loss += (sum(O_demand_est[Origin_ID][1] for Origin_ID in row['origin_ID']) - row['truck'])**2
+            # if (np.isnan(row['car'])) and (np.isnan(row['truck'])) and (not np.isnan(row['total'])):
+            #     loss += (sum(O_demand_est[Origin_ID][0] + O_demand_est[Origin_ID][1] for Origin_ID in row['origin_ID']) - row['total'])**2
+
+            loss = (sum(O_demand_est[Origin_ID][0] for Origin_ID in row['origin_ID']) - row['car'])**2 + \
+                   (sum(O_demand_est[Origin_ID][1] for Origin_ID in row['origin_ID']) - row['truck'])**2
+
             loss.backward()
                 
         one_data_dict['origin_vehicle_registration_data'].apply(lambda row: process_one_row(row), axis=1)

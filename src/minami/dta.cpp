@@ -68,6 +68,17 @@ int MNM_Dta::initialize()
   m_config = new MNM_ConfReader(m_file_folder + "/config.conf", "DTA");
   m_unit_time = m_config -> get_int("unit_time");
   m_flow_scalar = m_config -> get_int("flow_scalar");
+  TInt _ev_label;
+  try
+	{
+		_ev_label = m_config -> get_int("ev_label");
+	}
+	catch (const std::invalid_argument& ia)
+	{
+		std::cout << "ev_label does not exist in config.conf/DTA, use default value -2 instead\n";
+		_ev_label = -2;
+	}
+  m_emission = new MNM_Cumulative_Emission(TFlt(m_unit_time), 0, _ev_label);
   // note the difference in m_assign_freq and m_total_assign_inter between MNM_Dta and MNM_Dta_Multiclass and MNM_Dta_Multimodal
   m_assign_freq = m_config -> get_int("assign_frq");
   m_start_assign_interval = m_config -> get_int("start_assign_interval");
@@ -363,17 +374,22 @@ int MNM_Dta::pre_loading()
   // printf("dsf\n");
   //m_workzone -> init_workzone();
 
-  // MNM_Dlink *_link;
-  // for (auto _link_it = m_link_factory -> m_link_map.begin(); _link_it != m_link_factory -> m_link_map.end(); _link_it++){
-  //   _link = _link_it -> second;
-  //   _link -> install_cumulative_curve();
-  // }
+  // https://stackoverflow.com/questions/7443787/using-c-ifstream-extraction-operator-to-read-formatted-data-from-a-file
+	std::ifstream _emission_file(m_file_folder + "/MNM_input_emission_linkID");
+	int _link_ID;
+	std::unordered_map<int, int> _emission_links = {};
+	while (_emission_file >> _link_ID)
+	{
+	    _emission_links.insert({_link_ID, 0});
+	}
+	_emission_file.close();
 
   std::deque<TInt> *_rec;
   for (auto _map_it : m_link_factory -> m_link_map)
   {
     _rec = new std::deque<TInt>();
     m_queue_veh_map.insert({_map_it.second -> m_link_ID, _rec});
+    if (_emission_links.find(int(_map_it.second -> m_link_ID)) != _emission_links.end()) m_emission -> register_link(_map_it.second);
   }
 
   // printf("Exiting MNM: Prepare loading!\n");
@@ -480,6 +496,8 @@ int MNM_Dta::load_once(bool verbose, TInt load_int, TInt assign_int)
   record_enroute_vehicles();
   MNM::print_vehicle_statistics(m_veh_factory);
   // test();  
+  // consistent with loading()
+  m_current_loading_interval = load_int + 1;
   return 0;
 }
 
@@ -599,6 +617,8 @@ int MNM_Dta::loading(bool verbose)
 
     // test();
     _cur_int ++;
+    // also in load_once()
+    m_current_loading_interval = _cur_int;
   }
   MNM::print_vehicle_statistics(m_veh_factory);
   // MNM_IO::dump_cumulative_curve(m_file_folder, m_link_factory);

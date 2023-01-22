@@ -81,6 +81,7 @@ public:
   py::array_t<double> get_link_in_cc(int link_ID);
   py::array_t<double> get_link_out_cc(int link_ID);
   py::array_t<double> get_dar_matrix(py::array_t<int>link_start_intervals, py::array_t<int>link_end_intervals);
+  int save_dar_matrix(py::array_t<int>link_start_intervals, py::array_t<int>link_end_intervals, py::array_t<double> f, const std::string &file_name);
   SparseMatrixR get_complete_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
                                                 int num_intervals, py::array_t<double> f);
 
@@ -155,6 +156,9 @@ public:
 
   py::array_t<double> get_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
   py::array_t<double> get_truck_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals);
+
+  int save_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals, py::array_t<double> f, const std::string &file_name);
+  int save_truck_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals, py::array_t<double> f, const std::string &file_name);
 
   SparseMatrixR get_complete_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
                                             int num_intervals, py::array_t<double> f);

@@ -21,10 +21,10 @@ int main()
   // std::string m_file_folder = "../../data/input_files_MckeesRocks_SPC";
   // std::string m_file_folder = "/home/lemma/Documents/truck/Final data for DPFE/tmp_truck";
   // std::string m_file_folder = "/media/lemma/WD/nhd/experiments/input_files/input_files_MckeesRocks_SPC_scenario_new";
-  std::string m_file_folder = "/srv/data/qiling/Projects/Philly/input_files_philly";
+  std::string m_file_folder = "/srv/data/qiling/Projects/CentralOhio_Honda_Project/Multiclass/input_files_CentralOhio_multiclass_AM_vehreg";
 
-  TInt buffer_length = 40;
-  TInt max_iter = 1;
+  TInt buffer_length = 32;
+  TInt max_iter = 0;
   TFlt vot = 20. / 3600.;
   TFlt mid_scale = 2;
   TFlt heavy_scale = 4;

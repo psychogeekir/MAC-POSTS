@@ -36,6 +36,9 @@ public:
     virtual TFlt get_link_flow_car(){return 0;};
     virtual TFlt get_link_flow_truck(){return 0;};
 
+	virtual std::vector<TFlt> get_link_flow_emission_car(TInt ev_label){std::vector<TFlt> _r = {TFlt(0), TFlt(0)}; return _r;};
+    virtual std::vector<TFlt> get_link_flow_emission_truck(TInt ev_label){std::vector<TFlt> _r = {TFlt(0), TFlt(0)}; return _r;};
+
     virtual TFlt get_link_tt_from_flow_car(TFlt flow){return 0;};
     virtual TFlt get_link_tt_from_flow_truck(TFlt flow){return 0;};
 	TFlt get_link_freeflow_tt_car();
@@ -105,6 +108,9 @@ public:
     virtual TFlt get_link_tt() override;
     virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
     virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
+
+	virtual std::vector<TFlt> get_link_flow_emission_car(TInt ev_label) override;
+    virtual std::vector<TFlt> get_link_flow_emission_truck(TInt ev_label) override;
 
 	virtual TInt get_link_freeflow_tt_loading_car() override;  // intervals
 	virtual TInt get_link_freeflow_tt_loading_truck() override;  // intervals
@@ -218,6 +224,9 @@ public:
     virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
     virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
 
+	virtual std::vector<TFlt> get_link_flow_emission_car(TInt ev_label) override;
+    virtual std::vector<TFlt> get_link_flow_emission_truck(TInt ev_label) override;
+
 	virtual TInt get_link_freeflow_tt_loading_car() override;  // intervals
 	virtual TInt get_link_freeflow_tt_loading_truck() override;  // intervals
 
@@ -281,6 +290,9 @@ public:
     virtual TFlt get_link_tt() override;
     virtual TFlt get_link_tt_from_flow_car(TFlt flow) override;
     virtual TFlt get_link_tt_from_flow_truck(TFlt flow) override;
+	
+	virtual std::vector<TFlt> get_link_flow_emission_car(TInt ev_label) override;
+    virtual std::vector<TFlt> get_link_flow_emission_truck(TInt ev_label) override;
 
 	virtual TInt get_link_freeflow_tt_loading_car() override;  // intervals
 	virtual TInt get_link_freeflow_tt_loading_truck() override;  // intervals
@@ -680,7 +692,8 @@ Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory
 class MNM_Cumulative_Emission_Multiclass : public MNM_Cumulative_Emission
 {
 public:
-  MNM_Cumulative_Emission_Multiclass(TFlt unit_time, TInt freq);
+  // -1 is the default veh -> m_label value, use -2 ad ev label
+  MNM_Cumulative_Emission_Multiclass(TFlt unit_time, TInt freq, TInt ev_label_car=-2, TInt ev_label_truck=-2);
   virtual ~MNM_Cumulative_Emission_Multiclass() override;
 
   // new functions for trucks
@@ -699,9 +712,12 @@ public:
   TFlt m_CO_truck;
   TFlt m_NOX_truck;
   TFlt m_VMT_truck;
+  TFlt m_VMT_ev_truck;
 
   TFlt m_VHT_truck;
   TFlt m_VHT_car;
+
+  TInt m_ev_label_truck;
 
   std::unordered_set<MNM_Veh*> m_car_set;
   std::unordered_set<MNM_Veh*> m_truck_set;

@@ -59,6 +59,7 @@ public:
   TInt m_routing_freq;
   TFlt m_vot;
   MNM_ConfReader *m_self_config;
+  bool m_working;
 };
 
 

@@ -1216,6 +1216,8 @@ class MNM_config():
             
             'num_of_car_labels': np.int,
             'num_of_truck_labels': np.int,
+            'ev_label_car': np.int,
+            'ev_label_truck': np.int,
 
             'num_of_tolled_link': np.int,
 
@@ -1964,7 +1966,8 @@ class MNM_network_builder():
         assert(self.config.config_dict['FIXED']['num_bustransit_path'] == len(self.path_table_bustransit.ID2path))
         assert(self.config.config_dict['FIXED']['num_pnr_path'] == len(self.path_table_pnr.ID2path))
 
-        assert(self.config.config_dict['DTA']['num_of_tolled_link'] == self.link_toll_df.shape[0])
+        if self.link_toll_df is not None:
+            assert(self.config.config_dict['DTA']['num_of_tolled_link'] == self.link_toll_df.shape[0])
 
         # python 2
         # f = open(os.path.join(folder_path, config_file_name), 'wb')

@@ -107,7 +107,7 @@ MNM_Routing_Adaptive::MNM_Routing_Adaptive(const std::string& file_folder, PNEGr
   }
   catch (const std::invalid_argument& ia)
   {
-    std::cout << "vot does not exist in config.conf/ADAPTIVE, use default value 20 usd/hour. instead\n";
+    std::cout << "vot does not exist in config.conf/ADAPTIVE, use default value 20 usd/hour instead\n";
     m_vot = 20. / 3600.;  // usd/second
   }
   
@@ -529,13 +529,9 @@ MNM_Routing_Hybrid::MNM_Routing_Hybrid(const std::string& file_folder, PNEGraph 
 {
   m_routing_fixed = new MNM_Routing_Fixed(graph, od_factory, node_factory, link_factory, route_frq_fixed, buffer_len);
 
+  m_routing_adaptive = new MNM_Routing_Adaptive(file_folder, graph, statistics, od_factory, node_factory, link_factory);
   auto *_tmp_config = new MNM_ConfReader(file_folder + "/config.conf", "DTA");
-  if (_tmp_config -> get_float("adaptive_ratio") > 0) {
-      m_routing_adaptive = new MNM_Routing_Adaptive(file_folder, graph, statistics, od_factory, node_factory, link_factory);
-  }
-  else {
-      m_routing_adaptive = nullptr;
-  }
+  m_routing_adaptive -> m_working = _tmp_config -> get_float("adaptive_ratio") > 0;
   delete _tmp_config;
 }
 
@@ -547,14 +543,14 @@ MNM_Routing_Hybrid::~MNM_Routing_Hybrid()
 
 int MNM_Routing_Hybrid::init_routing(Path_Table *path_table)
 {
-  if (m_routing_adaptive != nullptr) m_routing_adaptive -> init_routing();
+  if (m_routing_adaptive -> m_working) m_routing_adaptive -> init_routing();
   m_routing_fixed -> init_routing(path_table);
   return 0;
 }
 
 int MNM_Routing_Hybrid::update_routing(TInt timestamp)
 {
-  if (m_routing_adaptive != nullptr) m_routing_adaptive -> update_routing(timestamp);
+  if (m_routing_adaptive -> m_working) m_routing_adaptive -> update_routing(timestamp);
   m_routing_fixed -> update_routing(timestamp);
   return 0;
 }
@@ -578,14 +574,9 @@ MNM_Routing_Biclass_Hybrid::MNM_Routing_Biclass_Hybrid(const std::string& file_f
   m_routing_fixed_car = new MNM_Routing_Biclass_Fixed(graph, od_factory, node_factory, link_factory, route_frq_fixed, buffer_length, TInt(0));
   m_routing_fixed_truck = new MNM_Routing_Biclass_Fixed(graph, od_factory, node_factory, link_factory, route_frq_fixed, buffer_length, TInt(1));
 
+  m_routing_adaptive = new MNM_Routing_Adaptive(file_folder, graph, statistics, od_factory, node_factory, link_factory);
   auto *_tmp_config = new MNM_ConfReader(file_folder + "/config.conf", "DTA");
-  if (_tmp_config -> get_float("adaptive_ratio_car") > 0 ||
-      _tmp_config -> get_float("adaptive_ratio_truck") > 0) {
-      m_routing_adaptive = new MNM_Routing_Adaptive(file_folder, graph, statistics, od_factory, node_factory, link_factory);
-  }
-  else {
-      m_routing_adaptive = nullptr;
-  }
+  m_routing_adaptive -> m_working = _tmp_config -> get_float("adaptive_ratio_car") > 0 || _tmp_config -> get_float("adaptive_ratio_truck") > 0;
   delete _tmp_config;
 }
 
@@ -601,7 +592,7 @@ MNM_Routing_Biclass_Hybrid::~MNM_Routing_Biclass_Hybrid()
 
 int MNM_Routing_Biclass_Hybrid::init_routing(Path_Table *path_table)
 {
-  if (m_routing_adaptive != nullptr) m_routing_adaptive -> init_routing();
+  if (m_routing_adaptive -> m_working) m_routing_adaptive -> init_routing();
   // printf("Finished init all ADAPTIVE vehicles routing\n");
   m_routing_fixed_car -> init_routing(path_table);
   // printf("Finished init STATIC cars routing\n");
@@ -612,7 +603,7 @@ int MNM_Routing_Biclass_Hybrid::init_routing(Path_Table *path_table)
 
 int MNM_Routing_Biclass_Hybrid::update_routing(TInt timestamp)
 {
-  if (m_routing_adaptive != nullptr) m_routing_adaptive -> update_routing(timestamp);
+  if (m_routing_adaptive -> m_working) m_routing_adaptive -> update_routing(timestamp);
   // printf("Finished update all ADAPTIVE vehicles routing\n");
   m_routing_fixed_car -> update_routing(timestamp);
   // printf("Finished update STATIC cars routing\n");

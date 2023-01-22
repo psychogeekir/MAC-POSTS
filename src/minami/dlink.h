@@ -70,6 +70,7 @@ public:
   virtual void print_info() {};
   int hook_up_node(MNM_Dnode *from, MNM_Dnode *to);
   virtual TFlt get_link_flow() {return TFlt(0);};
+  virtual std::vector<TFlt> get_link_flow_emission(TInt ev_label) {std::vector<TFlt> _r = {TFlt(0), TFlt(0)}; return _r;};
   virtual TFlt get_link_tt() {return TFlt(0);};
   virtual TFlt get_link_tt_from_flow(TFlt flow) {return TFlt(0);};
   virtual TFlt get_link_freeflow_tt();  // seconds
@@ -119,6 +120,7 @@ public:
   virtual int clear_incoming_array(TInt timestamp) override;
   virtual void print_info() override;
   virtual TFlt get_link_flow() override;
+  virtual std::vector<TFlt> get_link_flow_emission(TInt ev_label) override;
   virtual TFlt get_link_tt() override;
   virtual TFlt get_link_tt_from_flow(TFlt flow) override;
   virtual TInt get_link_freeflow_tt_loading() override;  // intervals
@@ -175,6 +177,7 @@ public:
   virtual int clear_incoming_array(TInt timestamp) override;
   virtual void print_info() override;
   virtual TFlt get_link_flow() override;
+  virtual std::vector<TFlt> get_link_flow_emission(TInt ev_label) override;
   virtual TFlt get_link_tt() override;
   virtual TFlt get_link_tt_from_flow(TFlt flow) override;
   virtual TInt get_link_freeflow_tt_loading() override;  // intervals
@@ -212,6 +215,7 @@ public:
   virtual int clear_incoming_array(TInt timestamp) override;
   virtual void print_info() override;
   virtual TFlt get_link_flow() override;
+  virtual std::vector<TFlt> get_link_flow_emission(TInt ev_label) override;
   virtual TFlt get_link_tt() override;
   virtual TFlt get_link_tt_from_flow(TFlt flow) override;
   virtual TInt get_link_freeflow_tt_loading() override;  // intervals
@@ -254,6 +258,7 @@ public:
   virtual int clear_incoming_array(TInt timestamp) override;
   virtual void print_info() override;
   virtual TFlt get_link_flow() override;
+  virtual std::vector<TFlt> get_link_flow_emission(TInt ev_label) override;
   virtual TFlt get_link_tt() override;
   virtual TFlt get_link_tt_from_flow(TFlt flow) override;
   virtual TInt get_link_freeflow_tt_loading() override;  // intervals

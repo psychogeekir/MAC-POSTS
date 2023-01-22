@@ -471,6 +471,7 @@ py::array_t<double> Dta_Api::get_travel_stats()
     MNM_Veh* _veh;
     int _end_time = get_cur_loading_interval();
     for (auto _map_it : m_dta -> m_veh_factory -> m_veh_map){
+        _veh = _map_it.second;
         IAssert(_veh -> m_finish_time < 0);
         _count_car += 1;
         _tot_tt_car += (_end_time - _veh -> m_start_time) * m_dta -> m_unit_time / 3600.0;
@@ -478,12 +479,14 @@ py::array_t<double> Dta_Api::get_travel_stats()
     }
     
     // for all released vehicles
-    int new_shape[1] = {2};
+    int new_shape[1] = {4};
     auto result = py::array_t<double>(new_shape);
     auto result_buf = result.request();
     double *result_ptr = (double *)result_buf.ptr;
-    result_ptr[0] = _count_car/m_dta -> m_flow_scalar;
-    result_ptr[1] = _tot_tt_car/m_dta -> m_flow_scalar;
+    result_ptr[0] = _count_car/m_dta -> m_flow_scalar; // released vehicles
+    result_ptr[1] = _tot_tt_car/m_dta -> m_flow_scalar; // VHT of released vehicles
+    result_ptr[2] = _veh_factory -> m_enroute/m_dta -> m_flow_scalar;  // enroute vehicles
+    result_ptr[3] = _veh_factory -> m_finished/m_dta -> m_flow_scalar;  // finished vehicles
     
     return result;
 }
@@ -1137,10 +1140,10 @@ py::array_t<double> Dta_Api::get_dar_matrix(py::array_t<int>start_intervals, py:
   auto start_buf = start_intervals.request();
   auto end_buf = end_intervals.request();
   if (start_buf.ndim != 1 || end_buf.ndim != 1){
-    throw std::runtime_error("Error, Dta_Api::get_link_inflow, input dimension mismatch");
+    throw std::runtime_error("Error, Dta_Api::get_dar_matrix, input dimension mismatch");
   }
   if (start_buf.shape[0] != end_buf.shape[0]){
-    throw std::runtime_error("Error, Dta_Api::get_link_inflow, input length mismatch");
+    throw std::runtime_error("Error, Dta_Api::get_dar_matrix, input length mismatch");
   }
   int l = start_buf.shape[0];
   int *start_prt = (int *) start_buf.ptr;
@@ -1149,20 +1152,23 @@ py::array_t<double> Dta_Api::get_dar_matrix(py::array_t<int>start_intervals, py:
   // for (size_t i = 0; i<m_link_vec.size(); ++i){
   //   m_link_vec[i] -> m_N_in_tree -> print_out();
   // }
-  for (int t = 0; t < l; ++t){
-      if (end_prt[t] <= start_prt[t]){
-          throw std::runtime_error("Error, Dta_Api::get_dar_matrix, end time is smaller than or equal to start time");
-      }
-      if (start_prt[t] >= get_cur_loading_interval()){
-          throw std::runtime_error("Error, Dta_Api::get_dar_matrix, input start intervals exceeds the total loading intervals - 1");
-      }
-      if (end_prt[t] > get_cur_loading_interval()){
-          throw std::runtime_error("Error, Dta_Api::get_dar_matrix, input end intervals exceeds the total loading intervals");
-      }
-      for (size_t i = 0; i<m_link_vec.size(); ++i){
-          MNM_DTA_GRADIENT::add_dar_records(_record, m_link_vec[i], m_path_map, TFlt(start_prt[t]), TFlt(end_prt[t]));
-      }
+
+  for (size_t i = 0; i<m_link_vec.size(); ++i){
+    std::cout << "************ DAR link " << m_link_vec[i] -> m_link_ID() << " ************\n";
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Dta_Api::get_dar_matrix, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Dta_Api::get_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Dta_Api::get_dar_matrix, input end intervals exceeds the total loading intervals");
+        }
+        MNM_DTA_GRADIENT::add_dar_records(_record, m_link_vec[i], m_path_map, TFlt(start_prt[t]), TFlt(end_prt[t]));
+    }
   }
+
   // path_ID, assign_time, link_ID, start_int, flow
   int new_shape [2] = { (int) _record.size(), 5}; 
   auto result = py::array_t<double>(new_shape);
@@ -1184,6 +1190,89 @@ py::array_t<double> Dta_Api::get_dar_matrix(py::array_t<int>start_intervals, py:
   }
   _record.clear();
   return result;
+}
+
+int Dta_Api::save_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals, py::array_t<double> f, const std::string &file_name)
+{
+  // start_intervals and end_intervals are like [0, 180, 360, ...] and [180, 360, 720, ...] with increment of ass_freq
+  auto f_buf = f.request();
+  if (f_buf.ndim != 1){
+    throw std::runtime_error("Error, Dta_Api::save_dar_matrix, input path flow mismatch");
+  }
+  double *f_ptr = (double *) f_buf.ptr;
+
+  auto start_buf = start_intervals.request();
+  auto end_buf = end_intervals.request();
+  if (start_buf.ndim != 1 || end_buf.ndim != 1){
+    throw std::runtime_error("Error, Dta_Api::save_dar_matrix, input dimension mismatch");
+  }
+  if (start_buf.shape[0] != end_buf.shape[0]){
+    throw std::runtime_error("Error, Dta_Api::save_dar_matrix, input length mismatch");
+  }
+  int l = start_buf.shape[0];
+  int *start_prt = (int *) start_buf.ptr;
+  int *end_prt = (int *) end_buf.ptr;
+  std::vector<dar_record*> _record = std::vector<dar_record*>();
+  // for (size_t i = 0; i<m_link_vec.size(); ++i){
+  //   m_link_vec[i] -> m_N_in_tree -> print_out();
+  // }
+
+  std::ofstream _file;
+  std::string _str;
+  _file.open(file_name, std::ofstream::out);
+  if (! _file.is_open()){
+    printf("Error happens when open dar_matrix.txt\n");
+    exit(-1);
+  }
+
+  int _num_path = m_path_map.size();
+  int _num_link = m_link_vec.size();
+  int _x, _y;
+
+  for (size_t i = 0; i < m_link_vec.size(); ++i){
+    std::cout << "************ DAR link " << m_link_vec[i] -> m_link_ID() << " ************\n";
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Dta_Api::save_dar_matrix, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Dta_Api::save_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Dta_Api::save_dar_matrix, input end intervals exceeds the total loading intervals");
+        }
+        IAssert(_record.empty());
+        MNM_DTA_GRADIENT::add_dar_records(_record, m_link_vec[i], m_path_map, TFlt(start_prt[t]), TFlt(end_prt[t]));
+        for (size_t j = 0; j < _record.size(); ++j){
+            dar_record* tmp_record = _record[j];
+
+            _x = i + _num_link * t; // # of links * # of intervals
+            // assume path_ID starts from zero
+            _y = tmp_record -> path_ID + _num_path * tmp_record -> assign_int(); // # of paths * # of intervals
+            _str = std::to_string(_x) + ",";
+            _str += std::to_string(_y) + ",";
+            _str += std::to_string(tmp_record -> flow() / f_ptr[_y]) + "\n";
+
+            // _str = std::to_string(tmp_record -> path_ID()) + ","
+            // // the count of 15 min interval
+            // _str += std::to_string(tmp_record -> assign_int()) + ",";
+            // _str += std::to_string(tmp_record -> link_ID()) + ",";
+            // // the count of unit time interval (5s)
+            // _str += std::to_string(tmp_record -> link_start_int()) + ",";
+            // _str += std::to_string(tmp_record -> flow()) + "\n";
+
+            _file << _str;
+            delete _record[j];
+        }
+        // for (size_t i = 0; i < _record.size(); ++i){
+        //     delete _record[i];
+        // }
+        _record.clear();
+    }
+  }
+
+  if (_file.is_open()) _file.close();
+  return 0;
 }
 
 SparseMatrixR Dta_Api::get_complete_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
@@ -2987,19 +3076,21 @@ py::array_t<double> Mcdta_Api::get_car_dar_matrix(py::array_t<int>start_interval
   // for (size_t i = 0; i<m_link_vec.size(); ++i){
   //   m_link_vec[i] -> m_N_in_tree -> print_out();
   // }
-  for (int t = 0; t < l; ++t){
+
+  for (size_t i = 0; i<m_link_vec.size(); ++i){
     // printf("Current processing time: %d\n", t);
-    if (end_prt[t] <= start_prt[t]){
-        throw std::runtime_error("Error, Mcdta_Api::get_car_dar_matrix, end time is smaller than or equal to start time");
-    }
-    if (start_prt[t] >= get_cur_loading_interval()){
-        throw std::runtime_error("Error, Mcdta_Api::get_car_dar_matrix, input start intervals exceeds the total loading intervals - 1");
-    }
-    if (end_prt[t] > get_cur_loading_interval()){
-        throw std::runtime_error("Error, Mcdta_Api::get_car_dar_matrix, input end intervals exceeds the total loading intervals");
-    }
-    for (size_t i = 0; i<m_link_vec.size(); ++i){
-      MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec[i], m_path_set, TFlt(start_prt[t]), TFlt(end_prt[t]));
+    std::cout << "************ Car DAR link " << m_link_vec[i] -> m_link_ID() << " ************\n";
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Mcdta_Api::get_car_dar_matrix, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mcdta_Api::get_car_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mcdta_Api::get_car_dar_matrix, input end intervals exceeds the total loading intervals");
+        }
+        MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec[i], m_path_set, TFlt(start_prt[t]), TFlt(end_prt[t]));
     }
   }
   // _record.size() = num_timesteps x num_links x num_path x num_assign_timesteps
@@ -3043,17 +3134,19 @@ py::array_t<double> Mcdta_Api::get_truck_dar_matrix(py::array_t<int>start_interv
   // for (size_t i = 0; i<m_link_vec.size(); ++i){
   //   m_link_vec[i] -> m_N_in_tree -> print_out();
   // }
-  for (int t = 0; t < l; ++t){
-    if (end_prt[t] <= start_prt[t]){
-        throw std::runtime_error("Error, Mcdta_Api::get_truck_dar_matrix, end time is smaller than or equal to start time");
-    }
-    if (start_prt[t] >= get_cur_loading_interval()){
-        throw std::runtime_error("Error, Mcdta_Api::get_truck_dar_matrix, input start intervals exceeds the total loading intervals - 1");
-    }
-    if (end_prt[t] > get_cur_loading_interval()){
-        throw std::runtime_error("Error, Mcdta_Api::get_truck_dar_matrix, input end intervals exceeds the total loading intervals");
-    }
-    for (size_t i = 0; i<m_link_vec.size(); ++i){
+
+  for (size_t i = 0; i<m_link_vec.size(); ++i){
+    std::cout << "************ Truck DAR link " << m_link_vec[i] -> m_link_ID() << " ************\n";
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Mcdta_Api::get_truck_dar_matrix, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mcdta_Api::get_truck_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mcdta_Api::get_truck_dar_matrix, input end intervals exceeds the total loading intervals");
+        }        
         MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec[i], m_path_set, TFlt(start_prt[t]), TFlt(end_prt[t]));
     }
   }
@@ -3079,6 +3172,173 @@ py::array_t<double> Mcdta_Api::get_truck_dar_matrix(py::array_t<int>start_interv
   _record.clear();
   return result;
 }
+
+int Mcdta_Api::save_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals, py::array_t<double> f, const std::string &file_name)
+{
+  // start_intervals and end_intervals are like [0, 180, 360, ...] and [180, 360, 720, ...] with increment of ass_freq
+  auto f_buf = f.request();
+  if (f_buf.ndim != 1){
+    throw std::runtime_error("Error, Mcdta_Api::save_car_dar_matrix, input path flow mismatch");
+  }
+  double *f_ptr = (double *) f_buf.ptr;
+
+  auto start_buf = start_intervals.request();
+  auto end_buf = end_intervals.request();
+  if (start_buf.ndim != 1 || end_buf.ndim != 1){
+    throw std::runtime_error("Error, Mcdta_Api::save_car_dar_matrix, input dimension mismatch");
+  }
+  if (start_buf.shape[0] != end_buf.shape[0]){
+    throw std::runtime_error("Error, Mcdta_Api::save_car_dar_matrix, input length mismatch");
+  }
+  int l = start_buf.shape[0];
+  int *start_prt = (int *) start_buf.ptr;
+  int *end_prt = (int *) end_buf.ptr;
+  std::vector<dar_record*> _record = std::vector<dar_record*>();
+  // for (size_t i = 0; i<m_link_vec.size(); ++i){
+  //   m_link_vec[i] -> m_N_in_tree -> print_out();
+  // }
+
+  std::ofstream _file;
+  std::string _str;
+  _file.open(file_name, std::ofstream::out);
+  if (! _file.is_open()){
+    printf("Error happens when open car_dar_matrix.txt\n");
+    exit(-1);
+  }
+
+  int _num_path = m_path_vec.size();
+  int _num_link = m_link_vec.size();
+  int _x, _y;
+
+  for (size_t i = 0; i<m_link_vec.size(); ++i){
+    std::cout << "************ Car DAR link " << m_link_vec[i] -> m_link_ID() << " ************\n";
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Mcdta_Api::save_car_dar_matrix, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mcdta_Api::save_car_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mcdta_Api::save_car_dar_matrix, input end intervals exceeds the total loading intervals");
+        }
+        IAssert(_record.empty());
+        MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec[i], m_path_set, TFlt(start_prt[t]), TFlt(end_prt[t]));
+        for (size_t j = 0; j < _record.size(); ++j){
+            dar_record* tmp_record = _record[j];
+
+            _x = i + _num_link * t; // # of links * # of intervals
+            // assume path_ID starts from zero
+            _y = tmp_record -> path_ID + _num_path * tmp_record -> assign_int(); // # of paths * # of intervals
+            _str = std::to_string(_x) + ",";
+            _str += std::to_string(_y) + ",";
+            _str += std::to_string(tmp_record -> flow() / f_ptr[_y]) + "\n";
+
+            // _str = std::to_string(tmp_record -> path_ID()) + ","
+            // // the count of 15 min interval
+            // _str += std::to_string(tmp_record -> assign_int()) + ",";
+            // _str += std::to_string(tmp_record -> link_ID()) + ",";
+            // // the count of unit time interval (5s)
+            // _str += std::to_string(tmp_record -> link_start_int()) + ",";
+            // _str += std::to_string(tmp_record -> flow()) + "\n";
+
+            _file << _str;
+            delete _record[j];
+        }
+        // for (size_t i = 0; i < _record.size(); ++i){
+        //     delete _record[i];
+        // }
+        _record.clear();
+    }
+  }
+
+  if (_file.is_open()) _file.close();
+  return 0;
+}
+
+int Mcdta_Api::save_truck_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals, py::array_t<double> f, const std::string &file_name)
+{
+  // start_intervals and end_intervals are like [0, 180, 360, ...] and [180, 360, 720, ...] with increment of ass_freq
+  auto f_buf = f.request();
+  if (f_buf.ndim != 1){
+    throw std::runtime_error("Error, Mcdta_Api::save_truck_dar_matrix, input path flow mismatch");
+  }
+  double *f_ptr = (double *) f_buf.ptr;
+
+  auto start_buf = start_intervals.request();
+  auto end_buf = end_intervals.request();
+  if (start_buf.ndim != 1 || end_buf.ndim != 1){
+    throw std::runtime_error("Error, Mcdta_Api::save_truck_dar_matrix, input dimension mismatch");
+  }
+  if (start_buf.shape[0] != end_buf.shape[0]){
+    throw std::runtime_error("Error, Mcdta_Api::save_truck_dar_matrix, input length mismatch");
+  }
+  int l = start_buf.shape[0];
+  int *start_prt = (int *) start_buf.ptr;
+  int *end_prt = (int *) end_buf.ptr;
+  std::vector<dar_record*> _record = std::vector<dar_record*>();
+  // for (size_t i = 0; i<m_link_vec.size(); ++i){
+  //   m_link_vec[i] -> m_N_in_tree -> print_out();
+  // }
+
+  std::ofstream _file;
+  std::string _str;
+  _file.open(file_name, std::ofstream::out);
+  if (! _file.is_open()){
+    printf("Error happens when open truck_dar_matrix.txt\n");
+    exit(-1);
+  }
+
+  int _num_path = m_path_vec.size();
+  int _num_link = m_link_vec.size();
+  int _x, _y;
+
+  for (size_t i = 0; i<m_link_vec.size(); ++i){
+    std::cout << "************ Truck DAR link " << m_link_vec[i] -> m_link_ID() << " ************\n";
+    for (int t = 0; t < l; ++t){
+        if (end_prt[t] <= start_prt[t]){
+            throw std::runtime_error("Error, Mcdta_Api::save_truck_dar_matrix, end time is smaller than or equal to start time");
+        }
+        if (start_prt[t] >= get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mcdta_Api::save_truck_dar_matrix, input start intervals exceeds the total loading intervals - 1");
+        }
+        if (end_prt[t] > get_cur_loading_interval()){
+            throw std::runtime_error("Error, Mcdta_Api::save_truck_dar_matrix, input end intervals exceeds the total loading intervals");
+        }
+        IAssert(_record.empty());
+        MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec[i], m_path_set, TFlt(start_prt[t]), TFlt(end_prt[t]));
+        for (size_t j = 0; j < _record.size(); ++j){
+            dar_record* tmp_record = _record[j];
+
+            _x = i + _num_link * t; // # of links * # of intervals
+            // assume path_ID starts from zero
+            _y = tmp_record -> path_ID + _num_path * tmp_record -> assign_int(); // # of paths * # of intervals
+            _str = std::to_string(_x) + ",";
+            _str += std::to_string(_y) + ",";
+            _str += std::to_string(tmp_record -> flow() / f_ptr[_y]) + "\n";
+
+            // _str = std::to_string(tmp_record -> path_ID()) + ","
+            // // the count of 15 min interval
+            // _str += std::to_string(tmp_record -> assign_int()) + ",";
+            // _str += std::to_string(tmp_record -> link_ID()) + ",";
+            // // the count of unit time interval (5s)
+            // _str += std::to_string(tmp_record -> link_start_int()) + ",";
+            // _str += std::to_string(tmp_record -> flow()) + "\n";
+
+            _file << _str;
+            delete _record[j];
+        }
+        // for (size_t i = 0; i < _record.size(); ++i){
+        //     delete _record[i];
+        // }
+        _record.clear();
+    }
+  }
+
+  if (_file.is_open()) _file.close();
+  return 0;
+}
+
 
 SparseMatrixR Mcdta_Api::get_complete_car_dar_matrix(py::array_t<int>start_intervals, py::array_t<int>end_intervals,
                                                      int num_intervals, py::array_t<double> f)
@@ -8253,18 +8513,19 @@ py::array_t<double> Mmdta_Api::get_car_dar_matrix_driving(py::array_t<int>start_
     // for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
     //   m_link_vec_driving[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
+    for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
         // printf("Current processing time: %d\n", t);
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_driving, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_driving, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_driving, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
+        std::cout << "************ Car Driving DAR link " << m_link_vec_driving[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_driving, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_driving, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_driving, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec_driving[i], m_path_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec_driving[i], m_pathID_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8312,17 +8573,18 @@ py::array_t<double> Mmdta_Api::get_truck_dar_matrix_driving(py::array_t<int>star
     // for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
     //   m_link_vec_driving[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_driving, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_driving, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_driving, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
+    for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
+        std::cout << "************ Truck Driving DAR link " << m_link_vec_driving[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_driving, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_driving, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_driving, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec_driving[i], m_path_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec_driving[i], m_pathID_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8369,18 +8631,19 @@ py::array_t<double> Mmdta_Api::get_car_dar_matrix_pnr(py::array_t<int>start_inte
     // for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
     //   m_link_vec_driving[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
+    for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
         // printf("Current processing time: %d\n", t);
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_pnr, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_pnr, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_pnr, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
+        std::cout << "************ Car PnR DAR link " << m_link_vec_driving[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_pnr, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_pnr, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_pnr, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec_driving[i], m_path_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec_driving[i], m_pathID_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8428,17 +8691,18 @@ py::array_t<double> Mmdta_Api::get_bus_dar_matrix_bustransit_link(py::array_t<in
     // for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
     //   m_link_vec_bus[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_bustransit_link, end time smaller than start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_bustransit_link, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_bustransit_link, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+    for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+        std::cout << "************ Bus Transit DAR link " << m_link_vec_bus[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_bustransit_link, end time smaller than start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_bustransit_link, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_bustransit_link, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_bus(_record, m_link_vec_bus[i], m_path_set_bus, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_bus(_record, m_link_vec_bus[i], m_pathID_set_bus, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8482,17 +8746,18 @@ py::array_t<double> Mmdta_Api::get_bus_dar_matrix_driving_link(py::array_t<int>s
     int *start_prt = (int *) start_buf.ptr;
     int *end_prt = (int *) end_buf.ptr;
     std::vector<dar_record*> _record = std::vector<dar_record*>();
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_driving_link, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_driving_link, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_driving_link, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
+    for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
+        std::cout << "************ Bus Driving DAR link " << m_link_vec_driving[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_driving_link, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_driving_link, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_bus_dar_matrix_driving_link, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec_driving[i], m_path_set_bus, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec_driving[i], m_pathID_set_bus, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8542,21 +8807,34 @@ py::array_t<double> Mmdta_Api::get_passenger_dar_matrix_bustransit(py::array_t<i
     // for (size_t i = 0; i<m_link_vec_walking.size(); ++i){
     //   m_link_vec_walking[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+    for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+        std::cout << "************ Passenger Bus Transit DAR bus link " << m_link_vec_bus[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_path_set_bustransit, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_pathID_set_bustransit, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
-        for (size_t i = 0; i<m_link_vec_walking.size(); ++i){
+    }
+    for (size_t i = 0; i<m_link_vec_walking.size(); ++i){
+        std::cout << "************ Passenger Bus Transit DAR walking link " << m_link_vec_walking[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_walking[i], m_path_set_bustransit, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_walking[i], m_pathID_set_bustransit, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8606,21 +8884,34 @@ py::array_t<double> Mmdta_Api::get_passenger_dar_matrix_pnr(py::array_t<int>star
     // for (size_t i = 0; i<m_link_vec_walking.size(); ++i){
     //   m_link_vec_walking[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+    for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+        std::cout << "************ Passenger PnR DAR bus link " << m_link_vec_bus[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_path_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_pathID_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
-        for (size_t i = 0; i<m_link_vec_walking.size(); ++i){
+    }
+    for (size_t i = 0; i<m_link_vec_walking.size(); ++i){
+        std::cout << "************ Passenger PnR DAR walking link " << m_link_vec_walking[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_walking[i], m_path_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_walking[i], m_pathID_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8667,17 +8958,18 @@ py::array_t<double> Mmdta_Api::get_car_dar_matrix_bus_driving_link(py::array_t<i
     // for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
     //   m_link_vec_driving[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_bus_driving.size(); ++i){
+    for (size_t i = 0; i<m_link_vec_bus_driving.size(); ++i){
+        std::cout << "************ Car Driving DAR bus driving link " << m_link_vec_bus_driving[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_car_dar_matrix_bus_driving_link, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec_bus_driving[i], m_path_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_car(_record, m_link_vec_bus_driving[i], m_pathID_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8724,17 +9016,18 @@ py::array_t<double> Mmdta_Api::get_truck_dar_matrix_bus_driving_link(py::array_t
     // for (size_t i = 0; i<m_link_vec_driving.size(); ++i){
     //   m_link_vec_driving[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_bus_driving.size(); ++i){
+    for (size_t i = 0; i<m_link_vec_bus_driving.size(); ++i){
+        std::cout << "************ Truck Driving DAR bus driving link " << m_link_vec_bus_driving[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_truck_dar_matrix_bus_driving_link, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec_bus_driving[i], m_path_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_truck(_record, m_link_vec_bus_driving[i], m_pathID_set_driving, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8781,17 +9074,18 @@ py::array_t<double> Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link(py::
     // for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
     //   m_link_vec_bus[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i < m_link_vec_bus.size(); ++i){
+    for (size_t i = 0; i < m_link_vec_bus.size(); ++i){
+        std::cout << "************ Passenger Bus Transit DAR bus link " << m_link_vec_bus[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_bustransit_bus_link, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_path_set_bustransit, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_pathID_set_bustransit, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -8838,17 +9132,18 @@ py::array_t<double> Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link(py::array_t
     // for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
     //   m_link_vec_bus[i] -> m_N_in_tree -> print_out();
     // }
-    for (int t = 0; t < l; ++t){
-        if (end_prt[t] <= start_prt[t]){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, end time is smaller than or equal to start time");
-        }
-        if (start_prt[t] >= get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, input start intervals exceeds the total loading intervals - 1");
-        }
-        if (end_prt[t] > get_cur_loading_interval()){
-            throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, input end intervals exceeds the total loading intervals");
-        }
-        for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+    for (size_t i = 0; i<m_link_vec_bus.size(); ++i){
+        std::cout << "************ Passenger PnR DAR bus link " << m_link_vec_bus[i] -> m_link_ID() << " ************\n";
+        for (int t = 0; t < l; ++t){
+            if (end_prt[t] <= start_prt[t]){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, end time is smaller than or equal to start time");
+            }
+            if (start_prt[t] >= get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, input start intervals exceeds the total loading intervals - 1");
+            }
+            if (end_prt[t] > get_cur_loading_interval()){
+                throw std::runtime_error("Error, Mmdta_Api::get_passenger_dar_matrix_pnr_bus_link, input end intervals exceeds the total loading intervals");
+            }
             // MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_path_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
             MNM_DTA_GRADIENT::add_dar_records_passenger(_record, m_link_vec_bus[i], m_pathID_set_pnr, TFlt(start_prt[t]), TFlt(end_prt[t]));
         }
@@ -9500,6 +9795,7 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_link_out_cc", &Dta_Api::get_link_out_cc)
             .def("get_dar_matrix", &Dta_Api::get_dar_matrix)
             .def("get_complete_dar_matrix", &Dta_Api::get_complete_dar_matrix)
+            .def("save_dar_matrix", &Dta_Api::save_dar_matrix)
             .def("delete_all_agents", &Dta_Api::delete_all_agents);
 
     py::class_<Mcdta_Api> (m, "mcdta_api")
@@ -9547,6 +9843,8 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("get_truck_dar_matrix", &Mcdta_Api::get_truck_dar_matrix)
             .def("get_complete_car_dar_matrix", &Mcdta_Api::get_complete_car_dar_matrix)
             .def("get_complete_truck_dar_matrix", &Mcdta_Api::get_complete_truck_dar_matrix)
+            .def("save_car_dar_matrix", &Mcdta_Api::save_car_dar_matrix)
+            .def("save_truck_dar_matrix", &Mcdta_Api::save_truck_dar_matrix)
             
             // For scenarios in McKees Rocks project:
             .def("get_waiting_time_at_intersections", &Mcdta_Api::get_waiting_time_at_intersections)

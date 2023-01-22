@@ -320,7 +320,32 @@ TFlt MNM_Dlink_Ctm::get_link_flow() {
     for (int i = 0; i < m_num_cells; ++i) {
         _total_volume += m_cell_array[i]->m_volume;
     }
+    _total_volume += m_finished_array.size();
     return TFlt(_total_volume) / m_flow_scalar;
+}
+
+std::vector<TFlt> MNM_Dlink_Ctm::get_link_flow_emission(TInt ev_label) {
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    for (int i = 0; i < m_num_cells; ++i) {
+        for (auto veh : m_cell_array[i] -> m_veh_queue) {
+            if (veh -> m_label == ev_label) {
+                _total_volume_ev += 1;
+            }
+            else {
+                _total_volume_nonev += 1;
+            }
+        }
+    }
+    for (auto veh : m_finished_array) {
+        if (veh -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
 }
 
 
@@ -447,6 +472,30 @@ int MNM_Dlink_Pq::evolve(TInt timestamp) {
 
 TFlt MNM_Dlink_Pq::get_link_flow() {
     return TFlt(m_volume) / m_flow_scalar;
+}
+
+std::vector<TFlt> MNM_Dlink_Pq::get_link_flow_emission(TInt ev_label) {
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    
+    for (auto veh_it : m_veh_queue) {
+        if (veh_it.first -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    
+    for (auto veh : m_finished_array) {
+        if (veh -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
 }
 
 
@@ -580,6 +629,29 @@ TFlt MNM_Dlink_Lq::get_link_flow() {
     return TFlt(m_volume) / m_flow_scalar;
 }
 
+std::vector<TFlt> MNM_Dlink_Lq::get_link_flow_emission(TInt ev_label) {
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    
+    for (auto veh : m_veh_queue) {
+        if (veh -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    
+    for (auto veh : m_finished_array) {
+        if (veh -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
+}
 
 TFlt MNM_Dlink_Lq::get_link_tt() {
     TFlt _cost, _spd;
@@ -974,6 +1046,30 @@ MNM_Dlink_Ltm::~MNM_Dlink_Ltm() {
 
 TFlt MNM_Dlink_Ltm::get_link_flow() {
     return TFlt(m_volume) / m_flow_scalar;
+}
+
+std::vector<TFlt> MNM_Dlink_Ltm::get_link_flow_emission(TInt ev_label) {
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    
+    for (auto veh : m_veh_queue) {
+        if (veh -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    
+    for (auto veh : m_finished_array) {
+        if (veh -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
 }
 
 

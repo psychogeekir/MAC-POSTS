@@ -38,8 +38,8 @@ int MNM_Origin::add_dest_demand(MNM_Destination *dest, TFlt* demand)
 
 TInt MNM_Origin::generate_label(TInt veh_class)
 {
-  if (m_vehicle_label_ratio.empty()) {
-    return TInt(0);
+  if (m_vehicle_label_ratio.empty() || *std::max_element(m_vehicle_label_ratio.begin(), m_vehicle_label_ratio.end()) <= 0) {
+    return TInt(-1);  // no label information
   }
   else {
     TFlt _r = MNM_Ults::rand_flt();

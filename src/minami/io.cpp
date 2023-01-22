@@ -785,7 +785,10 @@ int MNM_IO::build_link_toll(const std::string& file_folder, MNM_ConfReader *conf
     }
     _file.close();
     printf("Finish build link toll.\n");
-  }  
+  } 
+  else {
+    printf("No tolled links.\n");
+  } 
   return 0;
 }
 

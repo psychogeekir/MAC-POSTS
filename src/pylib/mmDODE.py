@@ -750,10 +750,13 @@ class MMDODE:
         # 15 min
         small_assign_freq = ass_freq * self.nb.config.config_dict['DTA']['unit_time'] / 60
 
-        raw_dar = raw_dar[(raw_dar[:, 1] < num_assign_interval * small_assign_freq) & (raw_dar[:, 3] < self.num_loading_interval), :]
+        # # if release_one_interval_biclass set the 1-min assign interval for vehicle for the multiclass modeling
+        # raw_dar = raw_dar[(raw_dar[:, 1] < num_assign_interval * small_assign_freq) & (raw_dar[:, 3] < self.num_loading_interval), :]
+        # # if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
+        raw_dar = raw_dar[(raw_dar[:, 1] < num_assign_interval) & (raw_dar[:, 3] < self.num_loading_interval), :]
         
         # raw_dar[:, 0]: path no.
-        # raw_dar[:, 1]: the count of 1 min interval
+        # raw_dar[:, 1]: originally the count of 1 min interval, if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
 
         # wrong raw_dar may contain paths from different modes (driving, pnr)
         # print(np.min(raw_dar[:, 0].astype(int)))
@@ -774,8 +777,8 @@ class MMDODE:
             from pandarallel import pandarallel
             pandarallel.initialize(progress_bar=True, nb_workers=num_procs)
 
-            ind = raw_dar.loc[:, 0].parallel_apply(lambda x: True if x in set(paths_list) else False)
-            assert(np.sum(ind) == len(ind))
+            # ind = raw_dar.loc[:, 0].parallel_apply(lambda x: True if x in set(paths_list) else False)
+            # assert(np.sum(ind) == len(ind))
             
             if type(paths_list) == list:
                 paths_list = np.array(paths_list)
@@ -784,8 +787,13 @@ class MMDODE:
             else:
                 raise Exception('Wrong data type of paths_list')
 
-            path_seq = (raw_dar.loc[ind, 0].astype(int).parallel_apply(lambda x: np.where(paths_list == x)[0][0]) 
-                        + (raw_dar.loc[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+            # # if release_one_interval_biclass set the 1-min assign interval for vehicle for the multimodal modeling
+            # path_seq = (raw_dar.loc[:, 0].astype(int).parallel_apply(lambda x: np.nonzero(paths_list == x)[0][0]) 
+            #             + (raw_dar.loc[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+
+            # if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
+            path_seq = (raw_dar.loc[:, 0].astype(int).parallel_apply(lambda x: np.nonzero(paths_list == x)[0][0]) 
+                        + raw_dar.loc[:, 1].astype(int) * num_e_path).astype(int)
             
             if type(observed_links) == list:
                 observed_links = np.array(observed_links)
@@ -794,23 +802,33 @@ class MMDODE:
             else:
                 raise Exception('Wrong data type of observed_links')
 
-            link_seq = (raw_dar.loc[ind, 2].astype(int).parallel_apply(lambda x: np.where(observed_links == x)[0][0])
-                        + (raw_dar.loc[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+            link_seq = (raw_dar.loc[:, 2].astype(int).parallel_apply(lambda x: np.where(observed_links == x)[0][0])
+                        + (raw_dar.loc[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
 
-            p = raw_dar.loc[ind, 4] / f[path_seq]
+            p = raw_dar.loc[:, 4] / f[path_seq]
                 
         else:
 
             if type(paths_list) == np.ndarray:
-                ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_dar[:, 0].astype(int)))).astype(bool)
-                assert(np.sum(ind) == len(ind))
-                path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_dar[ind, 0].astype(int))))
-                            + (raw_dar[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                # ind = np.array(list(map(lambda x: True if len(np.where(paths_list == x)[0]) > 0 else False, raw_dar[:, 0].astype(int)))).astype(bool)
+                # assert(np.sum(ind) == len(ind))
+                # # if release_one_interval_biclass set the 1-min assign interval for vehicle for the multimodal modeling
+                # path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_dar[:, 0].astype(int))))
+                #             + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                # if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
+                path_seq = (np.array(list(map(lambda x: np.where(paths_list == x)[0][0], raw_dar[:, 0].astype(int))))
+                            + raw_dar[:, 1].astype(int) * num_e_path).astype(int)
+
             elif type(paths_list) == list:
-                ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_dar[:, 0].astype(int)))).astype(bool)
-                assert(np.sum(ind) == len(ind))
-                path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[ind, 0].astype(int))))
-                            + (raw_dar[ind, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                # ind = np.array(list(map(lambda x: True if x in paths_list else False, raw_dar[:, 0].astype(int)))).astype(bool)
+                # assert(np.sum(ind) == len(ind))
+                # # if release_one_interval_biclass set the 1-min assign interval for vehicle for the multimodal modeling
+                # path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[:, 0].astype(int))))
+                #             + (raw_dar[:, 1] / small_assign_freq).astype(int) * num_e_path).astype(int)
+                # if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
+                path_seq = (np.array(list(map(lambda x: paths_list.index(x), raw_dar[:, 0].astype(int))))
+                            + raw_dar[:, 1].astype(int) * num_e_path).astype(int)
+
             else:
                 raise Exception('Wrong data type of paths_list')
 
@@ -818,17 +836,17 @@ class MMDODE:
             # raw_dar[:, 3]: the count of unit time interval (5s)
             if type(observed_links) == np.ndarray:
                 # In Python 3, map() returns an iterable while, in Python 2, it returns a list.
-                link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_dar[ind, 2].astype(int))))
-                            + (raw_dar[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+                link_seq = (np.array(list(map(lambda x: np.where(observed_links == x)[0][0], raw_dar[:, 2].astype(int))))
+                            + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
             elif type(observed_links) == list:
-                link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_dar[ind, 2].astype(int))))
-                            + (raw_dar[ind, 3] / ass_freq).astype(int) * num_e_link).astype(int)
+                link_seq = (np.array(list(map(lambda x: observed_links.index(x), raw_dar[:, 2].astype(int))))
+                            + (raw_dar[:, 3] / ass_freq).astype(int) * num_e_link).astype(int)
             else:
                 raise Exception('Wrong data type of observed_links')
                         
             # print(path_seq)
             # raw_dar[:, 4]: flow
-            p = raw_dar[ind, 4] / f[path_seq]
+            p = raw_dar[:, 4] / f[path_seq]
         
         # print("Creating the coo matrix", time.time()), coo_matrix permits duplicate entries
         mat = coo_matrix((p, (link_seq, path_seq)), shape=(num_assign_interval * num_e_link, num_assign_interval * num_e_path))

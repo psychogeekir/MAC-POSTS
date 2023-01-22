@@ -443,6 +443,7 @@ class MNM_config():
       'init_demand_split': np.int, 
       'num_of_tolled_link': np.int, 
       'num_of_vehicle_labels': np.int,
+      'ev_label': np.int,
 
       # STAT
       'rec_mode': str, 

@@ -143,6 +143,7 @@ else:
 
     dode = MCDODE(nb, config)
     dta = dode._run_simulation(true_f_car, true_f_truck)
+    dta.build_link_cost_map(False)
     # dta.print_simulation_results(os.path.join(data_folder, 'record'), 12)
     (true_dar_car, true_dar_truck) = dode.get_dar(dta, true_f_car, true_f_truck)
 
@@ -243,11 +244,11 @@ dode.add_data(data_dict)
 #                                                          truck_step_size = 0.01, car_init_scale = 100, 
 #                                                          truck_init_scale = 10, adagrad = True)
 
-max_epoch = 50
+max_epoch = 100
 starting_epoch = 0
-# column_generation = np.zeros(max_epoch, dtype=bool)
+column_generation = np.zeros(max_epoch, dtype=bool)
 # try to generate new path every 5 iterations
-column_generation = np.array([True if (i > 0) and (i // 5 == 0) else False for i in range(max_epoch)])
+# column_generation = np.array([True if (i > 0) and (i // 5 == 0) else False for i in range(max_epoch)])
 
 
 (f_car, f_truck, x_e_car, x_e_truck, tt_e_car, tt_e_truck, O_demand, loss_list) = \
@@ -255,7 +256,7 @@ column_generation = np.array([True if (i > 0) and (i // 5 == 0) else False for i
                                     car_step_size = 2, truck_step_size = 1, 
                                     car_init_scale = 5, truck_init_scale = 2, 
                                     link_car_flow_weight=1, link_truck_flow_weight=1, 
-                                    link_car_tt_weight=0.1, link_truck_tt_weight=0.1, 
+                                    link_car_tt_weight=0.01, link_truck_tt_weight=0.01, 
                                     origin_vehicle_registration_weight=1e-4, 
                                     starting_epoch=starting_epoch, store_folder=os.path.join(data_folder, 'record'),
                                     use_file_as_init=None if starting_epoch == 0 else os.path.join(data_folder, 'record', '{}_iteration.pickle'.format(starting_epoch - 1)),

@@ -54,7 +54,7 @@ public:
   bool m_pnr;
 
   // m_label only used with registration data
-  TInt m_label = 0;
+  TInt m_label = -1;
 };
 
 

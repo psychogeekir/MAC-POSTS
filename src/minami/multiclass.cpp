@@ -639,6 +639,66 @@ TFlt MNM_Dlink_Ctm_Multiclass::get_link_flow_truck()
 	return TFlt(_total_volume_truck) / m_flow_scalar;
 }
 
+std::vector<TFlt> MNM_Dlink_Ctm_Multiclass::get_link_flow_emission_car(TInt ev_label)
+{
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    for (int i = 0; i < m_num_cells; ++i) {
+        for (auto veh : m_cell_array[i] -> m_veh_queue_car) {
+			auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+            if (_veh_multiclass -> m_label == ev_label) {
+                _total_volume_ev += 1;
+            }
+            else {
+                _total_volume_nonev += 1;
+            }
+        }
+    }
+    for (auto veh : m_finished_array) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+		if (_veh_multiclass -> m_class == 0) {
+			if (_veh_multiclass -> m_label == ev_label) {
+				_total_volume_ev += 1;
+			}
+			else {
+				_total_volume_nonev += 1;
+			}
+		}
+        
+    }
+	std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
+}
+
+std::vector<TFlt> MNM_Dlink_Ctm_Multiclass::get_link_flow_emission_truck(TInt ev_label)
+{
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    for (int i = 0; i < m_num_cells; ++i) {
+        for (auto veh : m_cell_array[i] -> m_veh_queue_truck) {
+			auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+            if (_veh_multiclass -> m_label == ev_label) {
+                _total_volume_ev += 1;
+            }
+            else {
+                _total_volume_nonev += 1;
+            }
+        }
+    }
+    for (auto veh : m_finished_array) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+		if (_veh_multiclass -> m_class == 1) {
+			if (_veh_multiclass -> m_label == ev_label) {
+				_total_volume_ev += 1;
+			}
+			else {
+				_total_volume_nonev += 1;
+			}
+		}
+        
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
+}
+
 TFlt MNM_Dlink_Ctm_Multiclass::get_link_flow()
 {
 	// For get_link_tt in adaptive routing
@@ -1247,6 +1307,66 @@ TFlt MNM_Dlink_Lq_Multiclass::get_link_flow()
 	return TFlt(m_volume_car + m_volume_truck) / m_flow_scalar;
 }
 
+std::vector<TFlt> MNM_Dlink_Lq_Multiclass::get_link_flow_emission_car(TInt ev_label) 
+{
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    
+    for (auto veh : m_veh_queue_car) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+        if (_veh_multiclass -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    
+    for (auto veh : m_finished_array) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+		if (_veh_multiclass -> m_class == 0) {
+			if (_veh_multiclass -> m_label == ev_label) {
+				_total_volume_ev += 1;
+			}
+			else {
+				_total_volume_nonev += 1;
+			}
+		}
+        
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
+}
+
+std::vector<TFlt> MNM_Dlink_Lq_Multiclass::get_link_flow_emission_truck(TInt ev_label) 
+{
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    
+    for (auto veh : m_veh_queue_truck) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+        if (_veh_multiclass -> m_label == ev_label) {
+            _total_volume_ev += 1;
+        }
+        else {
+            _total_volume_nonev += 1;
+        }
+    }
+    
+    for (auto veh : m_finished_array) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+		if (_veh_multiclass -> m_class == 1) {
+			if (_veh_multiclass -> m_label == ev_label) {
+				_total_volume_ev += 1;
+			}
+			else {
+				_total_volume_nonev += 1;
+			}
+		}
+        
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
+}
+
 TFlt MNM_Dlink_Lq_Multiclass::get_link_tt()
 {
 	// For adaptive routing and emissions, need modification for multiclass cases
@@ -1477,6 +1597,70 @@ TFlt MNM_Dlink_Pq_Multiclass::get_link_flow()
 	// For adaptive routing, need modification for multiclass case
 	return TFlt(m_volume_car + m_volume_truck) / m_flow_scalar;
 	// return 0;
+}
+
+std::vector<TFlt> MNM_Dlink_Pq_Multiclass::get_link_flow_emission_car(TInt ev_label)
+{
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    
+    for (auto veh_it : m_veh_pool) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh_it.first);
+		if (_veh_multiclass -> m_class == 0) {
+			if (_veh_multiclass -> m_label == ev_label) {
+				_total_volume_ev += 1;
+			}
+			else {
+				_total_volume_nonev += 1;
+			}
+		}
+    }
+    
+    for (auto veh : m_finished_array) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+		if (_veh_multiclass -> m_class == 0) {
+			if (_veh_multiclass -> m_label == ev_label) {
+				_total_volume_ev += 1;
+			}
+			else {
+				_total_volume_nonev += 1;
+			}
+		}
+        
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
+}
+
+std::vector<TFlt> MNM_Dlink_Pq_Multiclass::get_link_flow_emission_truck(TInt ev_label)
+{
+    TInt _total_volume_ev = 0, _total_volume_nonev = 0;
+    
+    for (auto veh_it : m_veh_pool) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh_it.first);
+		if (_veh_multiclass -> m_class == 1) {
+			if (_veh_multiclass -> m_label == ev_label) {
+				_total_volume_ev += 1;
+			}
+			else {
+				_total_volume_nonev += 1;
+			}
+		}
+    }
+    
+    for (auto veh : m_finished_array) {
+		auto _veh_multiclass = dynamic_cast<MNM_Veh_Multiclass*>(veh);
+		if (_veh_multiclass -> m_class == 1) {
+			if (_veh_multiclass -> m_label == ev_label) {
+				_total_volume_ev += 1;
+			}
+			else {
+				_total_volume_nonev += 1;
+			}
+		}
+        
+    }
+    std::vector<TFlt> _r = {TFlt(_total_volume_nonev) / m_flow_scalar, TFlt(_total_volume_ev) / m_flow_scalar};
+    return _r;
 }
 
 TFlt MNM_Dlink_Pq_Multiclass::get_link_tt()
@@ -2144,8 +2328,8 @@ MNM_Origin_Multiclass::~MNM_Origin_Multiclass()
 TInt MNM_Origin_Multiclass::generate_label(TInt veh_class)
 {
 	if (veh_class == 0) {
-		if (m_car_label_ratio.empty()) {
-			return TInt(0);
+		if (m_car_label_ratio.empty() || *std::max_element(m_car_label_ratio.begin(), m_car_label_ratio.end()) <= 0) {
+			return TInt(-1);  // no label information
 		}
 		else {
 			TFlt _r = MNM_Ults::rand_flt();
@@ -2162,8 +2346,8 @@ TInt MNM_Origin_Multiclass::generate_label(TInt veh_class)
 		}
 	}
 	else if (veh_class == 1) {
-		if (m_truck_label_ratio.empty()) {
-			return TInt(0);
+		if (m_truck_label_ratio.empty() || *std::max_element(m_truck_label_ratio.begin(), m_truck_label_ratio.end()) <= 0) {
+			return TInt(-1);  // no label information
 		}
 		else {
 			TFlt _r = MNM_Ults::rand_flt();
@@ -3100,6 +3284,9 @@ int MNM_IO_Multiclass::build_link_toll_multiclass(const std::string& file_folder
 		}
 		_file.close();
 		printf("Finish build link toll.\n");
+	}
+	else {
+		printf("No tolled links.\n");
 	}  
 	return 0;
 }
@@ -3154,7 +3341,26 @@ int MNM_Dta_Multiclass::initialize()
 	m_unit_time = m_config -> get_int("unit_time");
 	m_flow_scalar = m_config -> get_int("flow_scalar");
 	// printf("5\n");
-	m_emission = new MNM_Cumulative_Emission_Multiclass(TFlt(m_unit_time), 0);
+	TInt _ev_label_car, _ev_label_truck;
+	try
+	{
+		_ev_label_car = m_config -> get_int("ev_label_car");
+	}
+	catch (const std::invalid_argument& ia)
+	{
+		std::cout << "ev_label_car does not exist in config.conf/DTA, use default value -2 instead\n";
+		_ev_label_car = -2;
+	}
+	try
+	{
+		_ev_label_truck = m_config -> get_int("ev_label_truck");
+	}
+	catch (const std::invalid_argument& ia)
+	{
+		std::cout << "ev_label_truck does not exist in config.conf/DTA, use default value -2 instead\n";
+		_ev_label_truck = -2;
+	}
+	m_emission = new MNM_Cumulative_Emission_Multiclass(TFlt(m_unit_time), 0, _ev_label_car, _ev_label_truck);
     
 	// the releasing strategy is assigning vehicles per 1 minute, so disaggregate 15-min demand into 1-min demand
 	// change assign_freq to 12 (1 minute = 12 x 5 second / 60) and total_assign_interval to max_interval*_num_of_minute
@@ -3215,8 +3421,7 @@ int MNM_Dta_Multiclass::pre_loading()
 		m_queue_veh_map_car.insert({_map_it.second -> m_link_ID, _rec});
 		_rec = new std::deque<TInt>();
 		m_queue_veh_map_truck.insert({_map_it.second -> m_link_ID, _rec});
-    	if (_emission_links.find(int(_map_it.second -> m_link_ID)) != _emission_links.end()) 
-    		m_emission -> register_link(_map_it.second);
+    	if (_emission_links.find(int(_map_it.second -> m_link_ID)) != _emission_links.end()) m_emission -> register_link(_map_it.second);
   	}
   	
 	printf("Exiting MNM: Prepare loading!\n");
@@ -3508,6 +3713,7 @@ int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* 
           auto new_record = new dar_record();
           new_record -> path_ID = path_it.first -> m_path_ID;
           // the count of 1 min intervals, the vehicles record this assign_int
+		  // if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
           new_record -> assign_int = depart_it.first;
           new_record -> link_ID = link -> m_link_ID;
           // the count of unit time interval (5s)
@@ -3542,6 +3748,7 @@ int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass
           auto new_record = new dar_record();
           new_record -> path_ID = path_it.first -> m_path_ID;
           // the count of 1 min intervals, the vehicles record this assign_int
+		  // if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
           new_record -> assign_int = depart_it.first;
           new_record -> link_ID = link -> m_link_ID;
           // the count of unit time interval (5s)
@@ -3577,6 +3784,7 @@ int add_dar_records_car(std::vector<dar_record*> &record, MNM_Dlink_Multiclass* 
           auto new_record = new dar_record();
           new_record -> path_ID = path_it.first -> m_path_ID;
           // the count of 1 min intervals, the vehicles record this assign_int
+		  // if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
           new_record -> assign_int = depart_it.first;
           new_record -> link_ID = link -> m_link_ID;
           // the count of unit time interval (5s)
@@ -3612,6 +3820,7 @@ int add_dar_records_truck(std::vector<dar_record*> &record, MNM_Dlink_Multiclass
           auto new_record = new dar_record();
           new_record -> path_ID = path_it.first -> m_path_ID;
           // the count of 1 min intervals, the vehicles record this assign_int
+		  // if release_one_interval_biclass already set the correct assign interval for vehicle, then this is 15 min intervals
           new_record -> assign_int = depart_it.first;
           new_record -> link_ID = link -> m_link_ID;
           // the count of unit time interval (5s)
@@ -4055,8 +4264,8 @@ Path_Table *build_pathset_multiclass(PNEGraph &graph, MNM_OD_Factory *od_factory
 											Multiclass Emissions
 *******************************************************************************************************************
 ******************************************************************************************************************/
-MNM_Cumulative_Emission_Multiclass::MNM_Cumulative_Emission_Multiclass(TFlt unit_time, TInt freq)
-	: MNM_Cumulative_Emission::MNM_Cumulative_Emission(unit_time, freq)
+MNM_Cumulative_Emission_Multiclass::MNM_Cumulative_Emission_Multiclass(TFlt unit_time, TInt freq, TInt ev_label_car, TInt ev_label_truck)
+	: MNM_Cumulative_Emission::MNM_Cumulative_Emission(unit_time, freq, ev_label_car)
 {
 	m_fuel_truck = TFlt(0);
 	m_CO2_truck = TFlt(0);
@@ -4064,9 +4273,12 @@ MNM_Cumulative_Emission_Multiclass::MNM_Cumulative_Emission_Multiclass(TFlt unit
 	m_CO_truck = TFlt(0);
 	m_NOX_truck = TFlt(0);
 	m_VMT_truck = TFlt(0);
+	m_VMT_ev_truck = TFlt(0);
 
 	m_VHT_car = TFlt(0);
 	m_VHT_truck = TFlt(0);
+
+	m_ev_label_truck = ev_label_truck;
 
 	m_car_set = std::unordered_set<MNM_Veh*>();
 	m_truck_set = std::unordered_set<MNM_Veh*>();
@@ -4168,8 +4380,9 @@ int MNM_Cumulative_Emission_Multiclass::update(MNM_Veh_Factory* veh_factory)
 {
 	// assume car truck the same speed on the same link when computing the emissions
 	// possible to change to more accurate speeds for cars and trucks
-	TFlt _v;
+	TFlt _v, _nonev_ct_car, _ev_ct_car, _nonev_ct_truck, _ev_ct_truck;
 	TFlt _v_converted;
+	std::vector<TFlt> _veh_ct;
 	for (MNM_Dlink *link : m_link_vector){
 		MNM_Dlink_Multiclass *_mlink = dynamic_cast<MNM_Dlink_Multiclass *>(link);
 		IAssert(_mlink != nullptr);
@@ -4178,25 +4391,37 @@ int MNM_Cumulative_Emission_Multiclass::update(MNM_Veh_Factory* veh_factory)
 		_v_converted = MNM_Ults::max(_v_converted, TFlt(5));
 		_v_converted = MNM_Ults::min(_v_converted, TFlt(65));
 
+		_veh_ct = _mlink -> get_link_flow_emission_car(m_ev_label);
+		IAssert(_veh_ct.size() == 2);
+		_nonev_ct_car = _veh_ct[0];
+		_ev_ct_car = _veh_ct[1];
+
+		_veh_ct = _mlink -> get_link_flow_emission_truck(m_ev_label_truck);
+		IAssert(_veh_ct.size() == 2);
+		_nonev_ct_truck= _veh_ct[0];
+		_ev_ct_truck = _veh_ct[1];
+
 		// cars
-		m_fuel += calculate_fuel_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_car();
-		m_CO2 += calculate_CO2_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_car();
-		m_HC += calculate_HC_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_car();
-		m_CO += calculate_CO_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_car();
-		m_NOX += calculate_NOX_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_car();
-		m_VMT += (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_car();
+		m_fuel += calculate_fuel_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_car;
+		m_CO2 += calculate_CO2_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_car;
+		m_HC += calculate_HC_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_car;
+		m_CO += calculate_CO_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_car;
+		m_NOX += calculate_NOX_rate(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_car;
+		m_VMT += (_v * m_unit_time / TFlt(1600)) * (_nonev_ct_car + _ev_ct_car);
+		m_VMT_ev += (_v * m_unit_time / TFlt(1600)) * _ev_ct_car;
 
 		// trucks
-		m_fuel_truck += calculate_fuel_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_truck();
-		m_CO2_truck += calculate_CO2_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_truck();
-		m_HC_truck += calculate_HC_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_truck();
-		m_CO_truck += calculate_CO_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_truck();
-		m_NOX_truck += calculate_NOX_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_truck();
-		m_VMT_truck += (_v * m_unit_time / TFlt(1600)) * _mlink -> get_link_flow_truck();
+		m_fuel_truck += calculate_fuel_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_truck;
+		m_CO2_truck += calculate_CO2_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_truck;
+		m_HC_truck += calculate_HC_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_truck;
+		m_CO_truck += calculate_CO_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_truck;
+		m_NOX_truck += calculate_NOX_rate_truck(_v_converted) * (_v * m_unit_time / TFlt(1600)) * _nonev_ct_truck;
+		m_VMT_truck += (_v * m_unit_time / TFlt(1600)) * (_nonev_ct_truck + _ev_ct_truck);
+		m_VMT_ev_truck += (_v * m_unit_time / TFlt(1600)) * _ev_ct_truck;
 
 		// VHT (hours)
-		m_VHT_car += m_unit_time * _mlink -> get_link_flow_car() / 3600;
-		m_VHT_truck += m_unit_time * _mlink -> get_link_flow_truck() / 3600;
+		m_VHT_car += m_unit_time * (_nonev_ct_car + _ev_ct_car) / 3600;
+		m_VHT_truck += m_unit_time * (_nonev_ct_truck + _ev_ct_truck) / 3600;
 
 	}
 	// trips
@@ -4228,7 +4453,8 @@ std::string MNM_Cumulative_Emission_Multiclass::output()
 	_s += "HC: " + std::to_string(m_HC()) + " g, ";
 	_s += "CO: " + std::to_string(m_CO()) + " g, ";
 	_s += "NOX: " + std::to_string(m_NOX()) + " g, ";
-	_s += "VMT: " + std::to_string(m_VMT()) + " miles, ";
+	_s += "Total Car VMT: " + std::to_string(m_VMT()) + " miles, ";
+	_s += "EV Car VMT: " + std::to_string(m_VMT_ev()) + " miles, ";
 	_s += "VHT: " + std::to_string(m_VHT_car()) + " hours, ";
 	_s += "number of trips: " + std::to_string(int(m_car_set.size())) + " trips\n";
 
@@ -4238,16 +4464,17 @@ std::string MNM_Cumulative_Emission_Multiclass::output()
 	_s += "HC: " + std::to_string(m_HC_truck()) + " g, ";
 	_s += "CO: " + std::to_string(m_CO_truck()) + " g, ";
 	_s += "NOX: " + std::to_string(m_NOX_truck()) + " g, ";
-	_s += "VMT: " + std::to_string(m_VMT_truck()) + " miles, ";
+	_s += "Total Truck VMT: " + std::to_string(m_VMT_truck()) + " miles, ";
+	_s += "EV Truck VMT: " + std::to_string(m_VMT_ev_truck()) + " miles, ";
 	_s += "VHT: " + std::to_string(m_VHT_truck()) + " hours, ";
 	_s += "number of trips: " + std::to_string(int(m_truck_set.size())) + " trips\n";
 
 	printf("The emission stats for cars are: ");
-	printf("fuel: %lf gallons, CO2: %lf g, HC: %lf g, CO: %lf g, NOX: %lf g, VMT: %lf miles, VHT: %lf hours, %d trips\n", 
-		   m_fuel(), m_CO2(), m_HC(), m_CO(), m_NOX(), m_VMT(), m_VHT_car(), int(m_car_set.size()));
+	printf("fuel: %lf gallons, CO2: %lf g, HC: %lf g, CO: %lf g, NOX: %lf g, Total VMT: %lf miles, EV VMT: %lf miles, VHT: %lf hours, %d trips\n", 
+		   m_fuel(), m_CO2(), m_HC(), m_CO(), m_NOX(), m_VMT(), m_VMT_ev(), m_VHT_car(), int(m_car_set.size()));
 
 	printf("The emission stats for trucks are: ");
-	printf("fuel: %lf gallons, CO2: %lf g, HC: %lf g, CO: %lf g, NOX: %lf g, VMT: %lf miles, VHT: %lf hours, %d trips\n", 
-		   m_fuel_truck(), m_CO2_truck(), m_HC_truck(), m_CO_truck(), m_NOX_truck(), m_VMT_truck(), m_VHT_truck(), int(m_truck_set.size()));
+	printf("fuel: %lf gallons, CO2: %lf g, HC: %lf g, CO: %lf g, NOX: %lf g, Total VMT: %lf miles, EV VMT: %lf miles, VHT: %lf hours, %d trips\n", 
+		   m_fuel_truck(), m_CO2_truck(), m_HC_truck(), m_CO_truck(), m_NOX_truck(), m_VMT_truck(), m_VMT_ev_truck(), m_VHT_truck(), int(m_truck_set.size()));
 	return _s;
 }
