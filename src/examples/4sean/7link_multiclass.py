@@ -140,6 +140,8 @@ else:
     config['use_origin_vehicle_registration_data'] = True
     config['compute_origin_vehicle_registration_loss'] = True
     config['origin_vehicle_registration_weight'] = 1
+    config['origin_registration_data_car_weight'] = 1
+    config['origin_registration_data_truck_weight'] = 0
 
     dode = MCDODE(nb, config)
     dta = dode._run_simulation(true_f_car, true_f_truck)
@@ -305,6 +307,6 @@ postproc.scatter_plot_count('link_flow_scatterplot_pathflow.png')
 postproc.cal_r2_cost()
 postproc.scatter_plot_cost('link_cost_scatterplot_pathflow.png')
 
-# # %% travel speed
-# postproc.cal_r2_speed()
-# postproc.scatter_plot_speed('link_speed_scatterplot_pathflow.png')
+# %% travel speed
+postproc.cal_r2_speed()
+postproc.scatter_plot_speed('link_speed_scatterplot_pathflow.png')

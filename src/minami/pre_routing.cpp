@@ -105,7 +105,7 @@ MNM_Pre_Routing::~MNM_Pre_Routing(){
 
 
 
-int MNM_Pre_Routing::reassign_routing(TInt oid,TInt did, TInt pid, TInt interval, TFlt lambda){
+int MNM_Pre_Routing::reassign_routing(TInt oid, TInt did, TInt pid, TInt interval, TFlt lambda){
 
 	// TO DO: for period _int, in time _int, assign all demand to path pid
 	// denote the new routing scheme as f_n, original as f_o

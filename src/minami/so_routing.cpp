@@ -34,7 +34,7 @@ MNM_Routing_Predetermined::~MNM_Routing_Predetermined()
   m_tracker.clear();
 
   // add by Xidong, for clearing the memory of path table
-  if (m_path_table != NULL){
+  if (m_path_table != nullptr){
     for (auto _it : *m_path_table){
       for (auto _it_it : *(_it.second)){
         delete _it_it.second;
@@ -48,7 +48,6 @@ MNM_Routing_Predetermined::~MNM_Routing_Predetermined()
 }
 
 int MNM_Routing_Predetermined::update_routing(TInt timestamp){
-  // question: the releasing frequency of origin is not every assignment interval?
   TInt _release_freq = m_od_factory -> m_origin_map.begin() -> second -> m_frequency;
   MNM_Origin *_origin;
   MNM_DMOND *_origin_node;
@@ -67,31 +66,33 @@ int MNM_Routing_Predetermined::update_routing(TInt timestamp){
       _origin_node = _origin -> m_origin_node;
       _node_ID = _origin_node -> m_node_ID;
 
-      // here assume that the order of dest in veh deq is the same as in the mdemand of origin
+      // Problematic!!!
+      // here assume that the order of dest in veh deq is the same as in the m_demand of origin  
       // this is ensured by the release function of Origin
       auto _demand_it = _origin -> m_demand.begin();
       _destination = _demand_it -> first;
       TFlt _thisdemand = _demand_it ->second[_ass_int];
       int _id_path = 0;
       TFlt _remain_demand = m_pre_routing -> routing_table -> find(_origin -> m_origin_node -> m_node_ID)->
-        second.find(_destination -> m_dest_node -> m_node_ID)->second.find(_id_path) -> second[_ass_int];
+                            second.find(_destination -> m_dest_node -> m_node_ID)->second.find(_id_path) -> second[_ass_int];
       
       for (auto _veh_it = _origin_node -> m_in_veh_queue.begin(); _veh_it!=_origin_node -> m_in_veh_queue.end(); _veh_it++){
         _veh = *_veh_it;
-        if(_veh -> get_destination() != _destination &&_remain_demand<=0 ){
+        if(_veh -> get_destination() != _destination &&_remain_demand <= 0 ){
+          // Problematic: this is how to iterate over destination, however, this is based on the assumption of the order of dest in veh deq being the same as in the m_demand of origin
           _destination = _veh -> get_destination();
           _remain_demand = m_pre_routing -> routing_table -> find(_origin -> m_origin_node -> m_node_ID)->
-        second.find(_destination -> m_dest_node -> m_node_ID)->second.find(_id_path) -> second[_ass_int];
+                           second.find(_destination -> m_dest_node -> m_node_ID)->second.find(_id_path) -> second[_ass_int];
           _thisdemand = _origin -> m_demand.find(_destination) -> second[_ass_int];
 
           _id_path = 0;
-        }else if(_remain_demand<=0 && _thisdemand > 0){
+        }else if(_remain_demand <= 0 && _thisdemand > 0){
           _id_path ++;
           std::cout << _id_path << "," <<_origin -> m_origin_node -> m_node_ID << ","
-           << _destination -> m_dest_node -> m_node_ID << "," << std::endl;
+                    << _destination -> m_dest_node -> m_node_ID << "," << std::endl;
           _remain_demand = m_pre_routing -> routing_table -> find(_origin -> m_origin_node -> m_node_ID)->
-        second.find(_destination -> m_dest_node -> m_node_ID)->second.find(_id_path) -> second[_ass_int];
-        }else if(_remain_demand >0 && _thisdemand <0){
+                           second.find(_destination -> m_dest_node -> m_node_ID)->second.find(_id_path) -> second[_ass_int];
+        }else if(_remain_demand > 0 && _thisdemand < 0){
           std::cout<< "somthing wrong with the demand " <<std::endl;
           exit(1);
         }
@@ -138,7 +139,7 @@ int MNM_Routing_Predetermined::update_routing(TInt timestamp){
           printf("Something wrong in fixed routing!\n");
           exit(-1);
         }
-        _veh -> set_next_link(NULL);
+        _veh -> set_next_link(nullptr);
         // m_tracker.erase(m_tracker.find(_veh));
       }
       else{

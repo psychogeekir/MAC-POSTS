@@ -18,7 +18,15 @@ MNM_Due::MNM_Due(std::string file_folder) {
     m_total_assign_inter = m_dta_config->get_int("max_interval");
     m_path_table = nullptr;
     // m_od_factory = nullptr;
-    m_vot = m_due_config->get_float("vot");
+    try
+    {
+        m_vot = m_due_config -> get_float("vot") / 3600.;  // money / hour -> money / second
+    }
+    catch (const std::invalid_argument& ia)
+    {
+        std::cout << "vot does not exist in config.conf/DUE, use default value 20 usd/hour instead\n";
+        m_vot = 20. / 3600.;  // usd/second
+    }
     m_early_rate = m_due_config->get_float("early_rate");
     m_late_rate = m_due_config->get_float("late_rate");
     m_target_time = m_due_config->get_float("target_time");
