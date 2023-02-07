@@ -51,5 +51,7 @@ int add_dar_records_eigen(std::vector<Eigen::Triplet<double>> &record, MNM_Dlink
                     std::unordered_map<MNM_Path*, int> path_map, TFlt start_time, TFlt end_time,
                     int link_ind, int interval_ind, int num_e_link, int num_e_path,
                     const double *f_ptr);
+
+TFlt get_departure_cc_slope(MNM_Dlink* link, TFlt start_time, TFlt end_time);
 };
 #endif

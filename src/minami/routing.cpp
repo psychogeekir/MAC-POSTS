@@ -101,6 +101,7 @@ MNM_Routing_Adaptive::MNM_Routing_Adaptive(const std::string& file_folder, PNEGr
   m_self_config = new MNM_ConfReader(file_folder + "/config.conf", "ADAPTIVE");
   m_routing_freq = m_self_config -> get_int("route_frq");
 
+  // the unit of m_vot here is different from that of m_vot in DUE (money / interval)
   try
   {
     m_vot = m_self_config -> get_float("vot") / 3600.;  // money / hour -> money / second
@@ -108,7 +109,7 @@ MNM_Routing_Adaptive::MNM_Routing_Adaptive(const std::string& file_folder, PNEGr
   catch (const std::invalid_argument& ia)
   {
     std::cout << "vot does not exist in config.conf/ADAPTIVE, use default value 20 usd/hour instead\n";
-    m_vot = 20. / 3600.;  // usd/second
+    m_vot = 20. / 3600.;  // money / second
   }
   
   m_table = new Routing_Table();
@@ -504,6 +505,7 @@ int MNM_Routing_Fixed::remove_finished(MNM_Veh* veh, bool del)
 
 int MNM_Routing_Fixed::set_path_table(Path_Table *path_table)
 {
+  if (m_path_table != nullptr) delete m_path_table;
   m_path_table = path_table;
   return 0;
 }

@@ -57,6 +57,7 @@ public:
   int install_cc();
   int install_cc_tree();
   int run_whole(bool verbose=true);
+  int run_due(int max_iter, const std::string &folder, bool verbose=true, bool with_dtc=false, const std::string &method="MSA");
   py::array_t<double> get_travel_stats();
   std::string print_emission_stats();
   int print_simulation_results(const std::string &folder, int cong_frequency = 180);
@@ -68,6 +69,7 @@ public:
   int save_path_table(const std::string &folder);
   int get_cur_loading_interval();
   int build_link_cost_map(bool with_congestion_indicator=false);
+  int get_link_queue_dissipated_time();
   py::array_t<double> get_link_inflow(py::array_t<int>start_intervals, 
                                         py::array_t<int>end_intervals);
   py::array_t<double> get_link_tt_FD(py::array_t<int>start_intervals);
@@ -97,6 +99,9 @@ public:
   std::unordered_map<TInt, TFlt *> m_link_tt_map;
   std::unordered_map<TInt, TFlt *> m_link_cost_map;
   std::unordered_map<TInt, bool *> m_link_congested;
+
+  // time-varying queue dissipated time
+  std::unordered_map<TInt, int *> m_queue_dissipated_time;
 };
 
 

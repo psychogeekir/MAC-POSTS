@@ -9,27 +9,34 @@ MNM_Due::MNM_Due(std::string file_folder) {
     m_file_folder = file_folder;
     m_dta_config = new MNM_ConfReader(m_file_folder + "/config.conf", "DTA");
     IAssert(m_dta_config->get_string("routing_type") == "Due");
-    IAssert(m_dta_config->get_int("total_interval") > 0);
-    IAssert(m_dta_config->get_int("total_interval") >=
-            m_dta_config->get_int("assign_frq") * m_dta_config->get_int("max_interval"));
+    // IAssert(m_dta_config->get_int("total_interval") > 0);
+    // IAssert(m_dta_config->get_int("total_interval") >=
+    //         m_dta_config->get_int("assign_frq") * m_dta_config->get_int("max_interval"));
     m_unit_time = m_dta_config->get_float("unit_time");
     m_total_loading_inter = m_dta_config->get_int("total_interval");
     m_due_config = new MNM_ConfReader(m_file_folder + "/config.conf", "DUE");
     m_total_assign_inter = m_dta_config->get_int("max_interval");
+    if (m_total_loading_inter <= 0) m_total_loading_inter = m_total_assign_inter * m_dta_config->get_int("assign_frq");
     m_path_table = nullptr;
     // m_od_factory = nullptr;
+
+    // the unit of m_vot here is different from that of m_vot in adaptive routing (money / second)
     try
     {
-        m_vot = m_due_config -> get_float("vot") / 3600.;  // money / hour -> money / second
+        m_vot = m_due_config -> get_float("vot") / 3600. * m_unit_time;  // money / hour -> money / interval
     }
     catch (const std::invalid_argument& ia)
     {
         std::cout << "vot does not exist in config.conf/DUE, use default value 20 usd/hour instead\n";
-        m_vot = 20. / 3600.;  // usd/second
+        m_vot = 20. / 3600. * m_unit_time;  // money / interval
     }
-    m_early_rate = m_due_config->get_float("early_rate");
-    m_late_rate = m_due_config->get_float("late_rate");
-    m_target_time = m_due_config->get_float("target_time");
+
+    // money / hour -> money / interval
+    m_early_penalty = m_due_config->get_float("early_penalty") / 3600. * m_unit_time;
+    m_late_penalty = m_due_config->get_float("late_penalty") / 3600. * m_unit_time;
+    // minute -> interval
+    m_target_time = m_due_config->get_float("target_time") * 60 / m_unit_time; // in terms of number of unit intervals
+ 
     m_step_size = m_due_config->get_float("lambda");  //0.01;  // MSA
     m_link_tt_map = std::unordered_map<TInt, TFlt *>();  // time-varying link tt
     m_link_cost_map = std::unordered_map<TInt, TFlt *>();  // time-varying link cost
@@ -66,7 +73,7 @@ MNM_Dta *MNM_Due::run_dta(bool verbose) {
     // printf("ddd\n");
     update_demand_from_path_table(_dta);
 
-    // now dynamic_cast<MNM_Routing_Fixed*>(dta -> m_routing) -> m_path_table will pointer to m_path_table, watch this before deleting dta
+    // now dynamic_cast<MNM_Routing_Fixed*>(dta -> m_routing) -> m_path_table will point to m_path_table, watch this before deleting dta
     _dta->m_routing->init_routing(m_path_table);
 
     // printf("dddd\n");
@@ -126,16 +133,22 @@ TFlt MNM_Due::compute_merit_function() {
             for (int _col = 0; _col < m_total_assign_inter; _col++) {
                 _depart_time = TFlt(_col * m_dta_config->get_int("assign_frq"));
                 for (MNM_Path *_path : _it_it.second->m_path_vec) {  // get lowest disutility route at time interval _col and current OD pair
-                    _tt = get_tt(_depart_time, _path);
-                    _dis_utl = get_disutility(_depart_time, _tt);
+                    // _tt = get_tt(_depart_time, _path);
+                    // _dis_utl = get_disutility(_depart_time, _tt);
+                    // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
+                    _tt = _path -> m_travel_time_vec[_col];
+                    _dis_utl = _path -> m_travel_disutility_vec[_col];
                     if (_dis_utl < _lowest_dis_utl) _lowest_dis_utl = _dis_utl;
                 }
             }
             for (int _col = 0; _col < m_total_assign_inter; _col++) {
                 _depart_time = TFlt(_col * m_dta_config->get_int("assign_frq"));
                 for (MNM_Path *_path : _it_it.second->m_path_vec) {
-                    _tt = get_tt(_depart_time, _path);
-                    _dis_utl = get_disutility(_depart_time, _tt);
+                    // _tt = get_tt(_depart_time, _path);
+                    // _dis_utl = get_disutility(_depart_time, _tt);
+                    // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
+                    _tt = _path -> m_travel_time_vec[_col];
+                    _dis_utl = _path -> m_travel_disutility_vec[_col];
                     _total_gap += (_dis_utl - _lowest_dis_utl) * _path->m_buffer[_col];
                 }
             }
@@ -155,20 +168,28 @@ TFlt MNM_Due::compute_merit_function_fixed_departure_time_choice() {
                 _depart_time = TFlt(_col * m_dta_config->get_int("assign_frq"));
                 for (MNM_Path *_path : _it_it.second->m_path_vec) {  // get lowest disutility route at time interval _col and current OD pair
                     if (_path -> m_buffer[_col] > 0) {
-//                        for (int i=0; i<m_dta_config->get_int("assign_frq"); i++) {
-//                            _tt = get_tt(_depart_time + TFlt(i), _path);
-//                            _dis_utl = get_disutility(_depart_time + TFlt(i), _tt);
-//                            if (_dis_utl < _lowest_dis_utl) _lowest_dis_utl = _dis_utl;
-//                        }
-                        _tt = get_tt(_depart_time, _path);
-                        _dis_utl = get_disutility(_depart_time, _tt);
+                        // average over all loading intervals within an assignment interval?
+                        // for (int i=0; i<m_dta_config->get_int("assign_frq"); i++) {
+                        //     _tt = get_tt(_depart_time + TFlt(i), _path);
+                        //     _dis_utl = get_disutility(_depart_time + TFlt(i), _tt);
+                        //     if (_dis_utl < _lowest_dis_utl) _lowest_dis_utl = _dis_utl;
+                        // }
+
+                        // _tt = get_tt(_depart_time, _path);
+                        // _dis_utl = get_disutility(_depart_time, _tt);
+                        // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
+                        _tt = _path -> m_travel_time_vec[_col];
+                        _dis_utl = _path -> m_travel_disutility_vec[_col];
                         if (_dis_utl < _lowest_dis_utl) _lowest_dis_utl = _dis_utl;
                     }
                 }
                 for (MNM_Path *_path : _it_it.second->m_path_vec) {
                     if (_path -> m_buffer[_col] > 0) {
-                        _tt = get_tt(_depart_time, _path);
-                        _dis_utl = get_disutility(_depart_time, _tt);
+                        // _tt = get_tt(_depart_time, _path);
+                        // _dis_utl = get_disutility(_depart_time, _tt);
+                        // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
+                        _tt = _path -> m_travel_time_vec[_col];
+                        _dis_utl = _path -> m_travel_disutility_vec[_col];
                         _total_gap += (_dis_utl - _lowest_dis_utl) * _path->m_buffer[_col];
                         _min_flow_cost += _lowest_dis_utl * _path->m_buffer[_col];
                     }
@@ -182,34 +203,78 @@ TFlt MNM_Due::compute_merit_function_fixed_departure_time_choice() {
 TFlt MNM_Due::get_disutility(TFlt depart_time, TFlt tt) {
     TFlt _arrival_time = depart_time + tt;
     if (_arrival_time >= m_target_time) {
-        return m_vot * tt + m_late_rate * (_arrival_time - m_target_time);
+        return m_vot * tt + m_late_penalty * (_arrival_time - m_target_time);
     } else {
-        return m_vot * tt + m_early_rate * (m_target_time - _arrival_time);
+        return m_vot * tt + m_early_penalty * (m_target_time - _arrival_time);
     }
     throw std::runtime_error("Error in MNM_Due::get_disutility");
 }
 
 
 TFlt MNM_Due::get_tt(TFlt depart_time, MNM_Path *path) {
+    // assume build_link_cost_map is invoked beforehand
     // true path tt
     return MNM_DTA_GRADIENT::get_path_travel_time(path, depart_time, m_link_tt_map, m_total_loading_inter);
 }
 
 
-int MNM_Due::build_cost_map(MNM_Dta *dta) {
+int MNM_Due::build_link_cost_map(MNM_Dta *dta) {
     MNM_Dlink *_link;
     for (int i = 0; i < m_total_loading_inter; i++) {
         // std::cout << "********************** interval " << i << " **********************\n";
         for (auto _link_it : dta->m_link_factory->m_link_map) {
             _link = _link_it.second;
             // use i+1 as start_time in cc to compute link travel time for vehicles arriving at the beginning of interval i, i+1 is the end of the interval i, the beginning of interval i + 1
-            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_unit_time, dta -> m_current_loading_interval);
+            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_unit_time, dta -> m_current_loading_interval);  // intervals
             m_link_cost_map[_link_it.first][i] = m_vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_cost_map[_link_it.first][i] << "\n";
         }
     }
     return 0;
 }
+
+int MNM_Due::update_path_table_cost(MNM_Dta *dta)
+{
+    TInt _o_node_ID, _d_node_ID;
+    // #pragma omp parallel num_threads(20)
+    for (auto _o_it : *m_path_table) {
+        _o_node_ID = _o_it.first;
+        for (auto _d_it: *(_o_it.second)) {
+            _d_node_ID = _d_it.first;
+            for (auto _path: _d_it.second -> m_path_vec) {
+                update_one_path_cost(_path, _o_node_ID, _d_node_ID, dta);
+                printf("update_one_path_cost\n");
+            }
+        }
+    }
+    printf("Finish update path table cost\n");
+    return 0;
+}
+
+int MNM_Due::update_one_path_cost(MNM_Path *path, TInt o_node_ID, TInt d_node_ID, MNM_Dta *dta) {
+    TInt _depart_time;
+    TFlt _travel_time, _travel_disutility; // _travel_cost;
+
+    path->m_travel_time_vec.clear();
+    // path->m_travel_cost_vec.clear();
+    path->m_travel_disutility_vec.clear();
+    for (int _col = 0; _col < m_total_assign_inter; _col++) {
+        _depart_time = _col * m_dta_config->get_int("assign_frq");
+
+        _travel_time = get_tt(TFlt(_depart_time), path);  // intervals
+        // _travel_cost = _travel_time * m_vot;
+        _travel_disutility = get_disutility(TFlt(_depart_time), _travel_time);
+
+        _travel_time = _travel_time * m_unit_time;  // seconds
+
+
+        path->m_travel_time_vec.push_back(_travel_time);
+        // path->m_travel_cost_vec.push_back(_travel_cost);
+        path->m_travel_disutility_vec.push_back(_travel_disutility);
+    }
+    return 0;
+}
+
 //*************************************************************************
 //                                MNM_Due_Msa
 //*************************************************************************
@@ -244,17 +309,6 @@ int MNM_Due_Msa::initialize() {
         m_link_tt_map[_link_it.first] = new TFlt[m_total_loading_inter];
         m_link_cost_map[_link_it.first] = new TFlt[m_total_loading_inter];
     }
-    // switch(m_due_config -> get_int("init_demand_split")){
-    //   case 0:
-    //     m_od_factory = m_base_dta -> m_od_factory;
-    //     m_base_dta -> m_od_factory = NULL; // avoiding destructor
-    //     break;
-    //   case 1:
-    //     throw std::runtime_error("Not implemented yet");
-    //     break;
-    //   default:
-    //     throw std::runtime_error("Unknown init method");
-    // }
 
     // printf("%d, %d\n", m_od_factory -> m_origin_map.size(), m_od_factory -> m_destination_map.size());
     printf("finish initialization\n");
@@ -321,12 +375,12 @@ std::pair<MNM_Path *, TInt> MNM_Due_Msa::get_best_route(TInt o_node_ID,
 std::pair<MNM_Path *, TInt> MNM_Due_Msa::get_best_route_for_single_interval(
         TInt interval, TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree) {
 
-    IAssert(interval + m_base_dta -> m_assign_freq < tdsp_tree->m_max_interval);  // tdsp_tree -> m_max_interval = total_loading_interval
+    IAssert(interval + m_dta_config->get_int("assign_frq") < tdsp_tree->m_max_interval);  // tdsp_tree -> m_max_interval = total_loading_interval
     TFlt _cur_best_cost = TFlt(std::numeric_limits<double>::max());
     TInt _cur_best_time = -1;
     TFlt _tmp_tt, _tmp_cost;
     for (int i = interval; i < interval + 1; ++i) {
-    // for (int i = interval; i < interval + m_base_dta -> m_assign_freq; ++i) {  // tdsp_tree -> m_max_interval = total_loading_interval
+    // for (int i = interval; i < interval + m_dta_config->get_int("assign_frq"); ++i) {  // tdsp_tree -> m_max_interval = total_loading_interval
         _tmp_tt = tdsp_tree -> m_dist[o_node_ID][i < (int)tdsp_tree -> m_max_interval ? i : (int)tdsp_tree -> m_max_interval - 1];
         std::cout << "interval: " << i <<", tdsp_tt: "<< _tmp_tt <<"\n";
         _tmp_cost = get_disutility(TFlt(i), _tmp_tt);
@@ -355,7 +409,7 @@ int MNM_Due_Msa::update_path_table(MNM_Dta *dta, int iter) {
     int _best_time_col;
     int _best_assign_col;
 
-    build_cost_map(dta);
+    // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
     for (auto _it : dta->m_od_factory->m_destination_map) {
         _dest = _it.second;
         _dest_node_ID = _dest->m_dest_node->m_node_ID;
@@ -375,7 +429,7 @@ int MNM_Due_Msa::update_path_table(MNM_Dta *dta, int iter) {
             _path_result = get_best_route(_orig_node_ID, _tdsp_tree);
             _path = _path_result.first;
             _best_time_col = int(_path_result.second);
-            _best_assign_col = floor(_best_time_col / m_base_dta->m_assign_freq);
+            _best_assign_col = floor(_best_time_col / m_dta_config->get_int("assign_frq"));
             if (_best_assign_col >= m_total_assign_inter) _best_assign_col = m_total_assign_inter - 1;
             // printf("Best time col %d\n", _best_time_col);
 
@@ -412,6 +466,10 @@ int MNM_Due_Msa::update_path_table(MNM_Dta *dta, int iter) {
             } else {
                 printf("Adding new path\n");
 
+                // IAssert(_path->m_travel_time_vec.empty() &&
+                //         _path->m_travel_disutility_vec.empty());
+                // update_one_path_cost(_path, _orig_node_ID, _dest_node_ID, dta);
+
                 // Original
                 _path -> allocate_buffer(m_total_assign_inter);
                 _path -> m_buffer[_best_assign_col] += m_step_size / TFlt(iter + 1);
@@ -442,8 +500,8 @@ int MNM_Due_Msa::update_path_table(MNM_Dta *dta, int iter) {
         }
         delete _tdsp_tree;
     }
-    MNM::print_path_table(m_path_table, dta->m_od_factory, true);
-    MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);
+    // MNM::print_path_table(m_path_table, dta->m_od_factory, true);
+    // MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);
     return 0;
 }
 
@@ -459,7 +517,7 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
     MNM_Path *_best_path;
     bool _exist;
 
-    build_cost_map(dta);
+    // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
     for (auto _it : dta->m_od_factory->m_destination_map) {
         _dest = _it.second;
         _dest_node_ID = _dest->m_dest_node->m_node_ID;
@@ -484,7 +542,7 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
                 _tot_change = 0.0;
                 _best_path = nullptr;
 
-                _path_result = get_best_route_for_single_interval(_col * m_base_dta -> m_assign_freq, _orig_node_ID, _tdsp_tree);
+                _path_result = get_best_route_for_single_interval(_col * m_dta_config->get_int("assign_frq"), _orig_node_ID, _tdsp_tree);
                 _path = _path_result.first;
 
                 if (_path_set->is_in(_path)) {
@@ -492,6 +550,9 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
                     _exist = true;
                 } else {
                     printf("Adding new path\n");
+                    // IAssert(_path->m_travel_time_vec.empty() &&
+                    //         _path->m_travel_disutility_vec.empty());
+                    // update_one_path_cost(_path, _orig_node_ID, _dest_node_ID, dta);
                     _path->allocate_buffer(m_total_assign_inter);
                     _path_set->m_path_vec.push_back(_path);
                     _exist = false;
@@ -515,8 +576,8 @@ int MNM_Due_Msa::update_path_table_fixed_departure_time_choice(MNM_Dta *dta, int
         }
         delete _tdsp_tree;
     }
-    MNM::print_path_table(m_path_table, dta->m_od_factory, true);
-    MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);
+    // MNM::print_path_table(m_path_table, dta->m_od_factory, true);
+    // MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);
     return 0;
 }
 
@@ -532,7 +593,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
     TFlt _tot_path_cost, _tmp_change, _tau, _tmp_tt, _tmp_cost, _min_flow;
     bool _exist;
 
-    build_cost_map(dta);
+    // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
     for (auto _it : dta->m_od_factory->m_destination_map) {
         _dest = _it.second;
         _dest_node_ID = _dest->m_dest_node->m_node_ID;
@@ -554,7 +615,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
 
             for (int _col = 0; _col < m_total_assign_inter; _col++) {
 
-                _path_result = get_best_route_for_single_interval(_col * m_base_dta -> m_assign_freq, _orig_node_ID, _tdsp_tree);
+                _path_result = get_best_route_for_single_interval(_col * m_dta_config->get_int("assign_frq"), _orig_node_ID, _tdsp_tree);
                 _path = _path_result.first;
 
                 _tot_path_cost = 0.0;
@@ -567,6 +628,9 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                     _exist = true;
                 } else {
                     printf("Adding new path\n");
+                    IAssert(_path->m_travel_time_vec.empty() &&
+                            _path->m_travel_disutility_vec.empty());
+                    update_one_path_cost(_path, _orig_node_ID, _dest_node_ID, dta);
                     _path->allocate_buffer(m_total_assign_inter);
                     _path_set->m_path_vec.push_back(_path);
                     _exist = false;
@@ -575,9 +639,13 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                 // average path cost
                 for (auto _tmp_path : _path_set->m_path_vec) {
                     if ((*_tmp_path == *_path) || (_tmp_path->m_buffer[_col] > 0)) {
-                        _tmp_tt = get_tt(_col * m_base_dta -> m_assign_freq, _tmp_path);
+                        // _tmp_tt = get_tt(_col * m_dta_config->get_int("assign_frq"), _tmp_path);
+                        // printf("path in pathset, tt %lf\n", (float)_tmp_tt);
+                        // _tmp_cost = get_disutility(TFlt(_col * m_dta_config->get_int("assign_frq")), _tmp_tt);
+                        _tmp_tt = _tmp_path -> m_travel_time_vec[_col];
                         printf("path in pathset, tt %lf\n", (float)_tmp_tt);
-                        _tmp_cost = get_disutility(TFlt(_col * m_base_dta -> m_assign_freq), _tmp_tt);
+                        _tmp_cost = _tmp_path -> m_travel_disutility_vec[_col];
+                        printf("path in pathset, disutility %lf\n", (float)_tmp_cost);
                         _tot_path_cost += _tmp_cost;
                         _tot_nonzero_path += 1;
                         if ((_tmp_path->m_buffer[_col] > 0) && (_min_flow > _tmp_path->m_buffer[_col])) {
@@ -588,22 +656,24 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                 // minimum tau
                 for (auto _tmp_path : _path_set->m_path_vec) {
                     if ((*_tmp_path == *_path) || (_tmp_path->m_buffer[_col] > 0)) {
-                        _tmp_tt = get_tt(_col * m_base_dta -> m_assign_freq, _tmp_path);
-                        _tmp_cost = get_disutility(TFlt(_col * m_base_dta -> m_assign_freq), _tmp_tt);
+                        // _tmp_tt = get_tt(_col * m_dta_config->get_int("assign_frq"), _tmp_path);
+                        // _tmp_cost = get_disutility(TFlt(_col * m_dta_config->get_int("assign_frq")), _tmp_tt);
+                        _tmp_cost = _tmp_path -> m_travel_disutility_vec[_col];
                         _tmp_change = _tmp_cost - _tot_path_cost / _tot_nonzero_path;
                         if ((_tmp_change > 0) && (_tau > m_step_size * _min_flow / _tmp_change)) {
                             _tau = m_step_size * _min_flow / _tmp_change;
                         }
-//                        if ((_tmp_change > 0) && (_tau > 1.0 / _tmp_change)) {
-//                            _tau = 1.0 / _tmp_change;
-//                        }
+                        // if ((_tmp_change > 0) && (_tau > 1.0 / _tmp_change)) {
+                        //     _tau = 1.0 / _tmp_change;
+                        // }
                     }
                 }
                 // flow adjustment
                 for (auto _tmp_path : _path_set->m_path_vec) {
                     if ((*_tmp_path == *_path) || (_tmp_path->m_buffer[_col] > 0)) {
-                        _tmp_tt = get_tt(_col * m_base_dta -> m_assign_freq, _tmp_path);
-                        _tmp_cost = get_disutility(TFlt(_col * m_base_dta -> m_assign_freq), _tmp_tt);
+                        // _tmp_tt = get_tt(_col * m_dta_config->get_int("assign_frq"), _tmp_path);
+                        // _tmp_cost = get_disutility(TFlt(_col * m_dta_config->get_int("assign_frq")), _tmp_tt);
+                        _tmp_cost = _tmp_path -> m_travel_disutility_vec[_col];
                         _tmp_change = _tmp_cost - _tot_path_cost / _tot_nonzero_path;
                         _tmp_path -> m_buffer[_col] -= MNM_Ults::min(_tmp_path -> m_buffer[_col], _tau * _tmp_change);
                     }
@@ -613,7 +683,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
         }
         delete _tdsp_tree;
     }
-    MNM::print_path_table(m_path_table, dta->m_od_factory, true);
-    MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);
+    // MNM::print_path_table(m_path_table, dta->m_od_factory, true);
+    // MNM::save_path_table(dta -> m_file_folder + "/" + dta -> m_statistics -> m_self_config -> get_string("rec_folder"), m_path_table, dta->m_od_factory, true);
     return 0;
 }

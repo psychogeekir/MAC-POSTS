@@ -11,6 +11,10 @@ MNM_Path::MNM_Path() {
     m_buffer = nullptr;
     m_path_ID = -1;
     m_link_set = std::set<TInt>();
+
+    m_travel_time_vec = std::vector<TFlt>();
+    m_travel_cost_vec = std::vector<TFlt>();
+    m_travel_disutility_vec = std::vector<TFlt>();
 }
 
 
@@ -19,6 +23,10 @@ MNM_Path::~MNM_Path() {
     m_node_vec.clear();
     if (m_buffer != nullptr) free(m_buffer);
     m_link_set.clear();
+
+    m_travel_time_vec.clear();
+    m_travel_cost_vec.clear();
+    m_travel_disutility_vec.clear();
 }
 
 bool MNM_Path::is_link_in(TInt link_ID)
@@ -85,6 +93,36 @@ std::string MNM_Path::link_vec_to_string() {
     std::string _s;
     for (TInt link_ID : m_link_vec) {
         _s += std::to_string(link_ID) + " ";
+    }
+    _s.pop_back();
+    _s += "\n";
+    return _s;
+}
+
+std::string MNM_Path::time_vec_to_string() {
+    std::string _s;
+    for (TFlt _v : m_travel_time_vec) {
+        _s += std::to_string(_v) + " ";
+    }
+    _s.pop_back();
+    _s += "\n";
+    return _s;
+}
+
+std::string MNM_Path::cost_vec_to_string() {
+    std::string _s;
+    for (TFlt _v : m_travel_cost_vec) {
+        _s += std::to_string(_v) + " ";
+    }
+    _s.pop_back();
+    _s += "\n";
+    return _s;
+}
+
+std::string MNM_Path::disutility_vec_to_string() {
+    std::string _s;
+    for (TFlt _v : m_travel_disutility_vec) {
+        _s += std::to_string(_v) + " ";
     }
     _s.pop_back();
     _s += "\n";
@@ -443,8 +481,8 @@ namespace MNM {
         return _path_table;
     }
 
-    int save_path_table(const std::string& file_folder, Path_Table *path_table, MNM_OD_Factory *od_factory, bool w_buffer) {
-        std::string _file_name = file_folder + "/path_table";
+    int save_path_table(const std::string& file_folder, Path_Table *path_table, MNM_OD_Factory *od_factory, bool w_buffer, bool w_cost) {
+        std::string _path_file_name = file_folder + "/path_table";
         std::ofstream _path_buffer_file;
         if (w_buffer) {
             std::string _data_file_name = file_folder + "/path_table_buffer";
@@ -455,30 +493,36 @@ namespace MNM {
             }
         }
         std::ofstream _path_table_file;
-        _path_table_file.open(_file_name, std::ofstream::out);
+        _path_table_file.open(_path_file_name, std::ofstream::out);
         if (!_path_table_file.is_open()) {
             printf("Error happens when open _path_table_file\n");
             exit(-1);
         }
-        // TInt _dest_node_ID, _origin_node_ID;
-        // // printf("ssssssma\n");
-        // for (auto _d_it = od_factory->m_destination_map.begin(); _d_it != od_factory->m_destination_map.end(); _d_it++) {
-        //     // printf("---\n");
-        //     _dest_node_ID = _d_it->second->m_dest_node->m_node_ID;
-        //     for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
-        //         _origin_node_ID = _o_it->second->m_origin_node->m_node_ID;
-        //         // printf("----\n");
-        //         // printf("o node %d, d node %d\n", _origin_node_ID(), _dest_node_ID());
-        //         for (auto &_path : path_table->find(_origin_node_ID)->second->find(_dest_node_ID)->second->m_path_vec) {
-        //             // printf("test\n");
-        //             _path_table_file << _path->node_vec_to_string();
-        //             // printf("test2\n");
-        //             if (w_buffer) {
-        //                 _path_buffer_file << _path->buffer_to_string();
-        //             }
-        //         }
-        //     }
-        // }
+
+        std::ofstream _path_time_file;
+        // std::ofstream _path_cost_file;
+        std::ofstream _path_disutility_file;
+        if (w_cost){
+            std::string _path_time_file_name = _path_file_name + "_time";
+            _path_time_file.open(_path_time_file_name, std::ofstream::out);
+            if (!_path_time_file.is_open()){
+                printf("Error happens when open _path_time_file\n");
+                exit(-1);
+            }
+            // std::string _path_cost_file_name = _path_file_name + "_cost";
+            // _path_cost_file.open(_path_cost_file_name, std::ofstream::out);
+            // if (!_path_cost_file.is_open()){
+            //     printf("Error happens when open _path_cost_file\n");
+            //     exit(-1);
+            // }
+            std::string _path_disutility_file_name = _path_file_name + "_disutility";
+            _path_disutility_file.open(_path_disutility_file_name, std::ofstream::out);
+            if (!_path_disutility_file.is_open()){
+                printf("Error happens when open _path_disutility_file\n");
+                exit(-1);
+            }
+        }
+        
         for (auto _o_it : *path_table) {
             for (auto _d_it : *_o_it.second) {
                 for (auto &_path : _d_it.second->m_path_vec) {
@@ -487,6 +531,11 @@ namespace MNM {
                     if (w_buffer) {
                         _path_buffer_file << _path->buffer_to_string();
                     }
+                    if (w_cost) {
+                        _path_time_file << _path -> time_vec_to_string();
+                        // _path_cost_file << _path -> cost_vec_to_string();
+                        _path_disutility_file << _path -> disutility_vec_to_string();
+                    }
                 }
             }
         }
@@ -494,11 +543,16 @@ namespace MNM {
         if (w_buffer) {
             _path_buffer_file.close();
         }
+        if (w_cost){
+            _path_time_file.close();
+            // _path_cost_file.close();
+            _path_disutility_file.close();
+        }
         return 0;
     }
 
 
-    int print_path_table(Path_Table *path_table, MNM_OD_Factory *od_factory, bool w_buffer) {
+    int print_path_table(Path_Table *path_table, MNM_OD_Factory *od_factory, bool w_buffer, bool w_cost) {
         // TInt _dest_node_ID, _origin_node_ID;
         // // printf("ssssssma\n");
         // for (auto _d_it = od_factory->m_destination_map.begin();
@@ -526,6 +580,11 @@ namespace MNM {
                     // printf("test2\n");
                     if (w_buffer) {
                         std::cout << "buffer: " << _path->buffer_to_string();
+                    }
+                    if (w_cost) {
+                        std::cout << "travel time: " << _path -> time_vec_to_string();
+                        // std::cout << "travel cost: " << _path -> cost_vec_to_string();
+                        std::cout << "travel disutility: " << _path -> disutility_vec_to_string();
                     }
                 }
             }

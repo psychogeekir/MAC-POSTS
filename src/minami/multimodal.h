@@ -1153,11 +1153,6 @@ public:
     TFlt m_late_penalty; // money / interval
     TFlt m_target_time; // intervals
 
-    // for storing value for DUE
-    std::vector<TFlt> m_travel_time_vec;
-    std::vector<TFlt> m_travel_cost_vec;
-    std::vector<TFlt> m_travel_disutility_vec;
-
     virtual TFlt get_length(MNM_Dta_Multimodal *mmdta) {return TFlt(-1);}; // meter
     virtual TFlt get_travel_time(TFlt start_time, MNM_Dta_Multimodal *mmdta) {return TFlt(-1.0);};  // interval
     virtual TFlt get_travel_cost(TFlt start_time, MNM_Dta_Multimodal *mmdta) {return TFlt(-1.0);};
@@ -1172,9 +1167,6 @@ public:
 
     virtual bool is_equal(MNM_Passenger_Path_Base* path) {return false;};
     virtual std::string info2str() {return "Base method should not be called\n#origin_node_ID dest_node_ID mode mid_dest_node_ID parkinglot_ID <driving_node_sequence> <bus_transit_link_sequence>\n";};
-    std::string time_vec_to_string();
-    std::string cost_vec_to_string();
-    std::string disutility_vec_to_string();
 };
 
 

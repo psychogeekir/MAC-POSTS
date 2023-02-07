@@ -48,6 +48,14 @@ public:
       }
       return true;
   }
+
+  // for storing time-dependent value for DUE
+  std::vector<TFlt> m_travel_time_vec;
+  std::vector<TFlt> m_travel_cost_vec;
+  std::vector<TFlt> m_travel_disutility_vec;
+  std::string time_vec_to_string();
+  std::string cost_vec_to_string();
+  std::string disutility_vec_to_string();
 };
 
 struct LessByPathP
@@ -75,8 +83,8 @@ namespace MNM {
   MNM_Path *extract_path(TInt origin_ID, TInt dest_ID, std::unordered_map<TInt, TInt> &output_map, PNEGraph &graph);
   Path_Table *build_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory, 
                             TFlt min_path_length = 0.0, size_t MaxIter = 10, TFlt vot = 3., TFlt Mid_Scale = 3, TFlt Heavy_Scale = 6, TInt buffer_length = -1);
-  int save_path_table(const std::string& file_folder, Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer= false);
-  int print_path_table(Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer= false);
+  int save_path_table(const std::string& file_folder, Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer = false, bool w_cost = false);
+  int print_path_table(Path_Table *path_table, MNM_OD_Factory *m_od_factory, bool w_buffer = false, bool w_cost = false);
   Path_Table *build_shortest_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory);
   int allocate_path_table_buffer(Path_Table *path_table, TInt num);
   int normalize_path_table_p(Path_Table *path_table);

@@ -4608,7 +4608,8 @@ MNM_Routing_Multimodal_Adaptive::MNM_Routing_Multimodal_Adaptive(const std::stri
     IAssert(m_statistics != nullptr);
     m_self_config = new MNM_ConfReader(file_folder + "/config.conf", "ADAPTIVE");
     m_routing_freq = m_self_config -> get_int("route_frq");
-
+    
+    // the unit of m_vot here is different from that of m_vot in DUE (money / interval)
     try
     {
         m_vot = m_self_config -> get_float("vot") / 3600.;  // money / hour -> money / second
@@ -4616,7 +4617,7 @@ MNM_Routing_Multimodal_Adaptive::MNM_Routing_Multimodal_Adaptive(const std::stri
     catch (const std::invalid_argument& ia)
     {
         std::cout << "vot does not exist in config.conf/ADAPTIVE, use default value 2. instead\n";
-        m_vot = 2 / 3600.;
+        m_vot = 20 / 3600.;   // money / hour -> money / second
     }
 
     m_driving_table = new Routing_Table();
@@ -8191,52 +8192,15 @@ MNM_Passenger_Path_Base::MNM_Passenger_Path_Base(int mode, TFlt vot, TFlt early_
     m_vot = vot;  // money / interval
     m_early_penalty = early_penalty;  // money / interval
     m_late_penalty = late_penalty;  // money / interval
-    m_target_time = target_time;  // intervals
-
-    m_travel_time_vec = std::vector<TFlt>();
-    m_travel_cost_vec = std::vector<TFlt>();
-    m_travel_disutility_vec = std::vector<TFlt>();
+    m_target_time = target_time;  // // in terms of number of unit intervals
 }
 
 MNM_Passenger_Path_Base::~MNM_Passenger_Path_Base(){
     delete m_path;
-    m_travel_time_vec.clear();
-    m_travel_cost_vec.clear();
-    m_travel_disutility_vec.clear();
 }
 
 TFlt MNM_Passenger_Path_Base::get_wrongtime_penalty(TFlt arrival_time){
     return MNM_Ults::max(m_late_penalty * (arrival_time - m_target_time), m_early_penalty * (m_target_time - arrival_time));
-}
-
-std::string MNM_Passenger_Path_Base::time_vec_to_string() {
-    std::string _s;
-    for (TFlt _v : m_travel_time_vec) {
-        _s += std::to_string(_v) + " ";
-    }
-    _s.pop_back();
-    _s += "\n";
-    return _s;
-}
-
-std::string MNM_Passenger_Path_Base::cost_vec_to_string() {
-    std::string _s;
-    for (TFlt _v : m_travel_cost_vec) {
-        _s += std::to_string(_v) + " ";
-    }
-    _s.pop_back();
-    _s += "\n";
-    return _s;
-}
-
-std::string MNM_Passenger_Path_Base::disutility_vec_to_string() {
-    std::string _s;
-    for (TFlt _v : m_travel_disutility_vec) {
-        _s += std::to_string(_v) + " ";
-    }
-    _s.pop_back();
-    _s += "\n";
-    return _s;
 }
 
 /**************************************************************************
@@ -10492,6 +10456,7 @@ MNM_MM_Due::MNM_MM_Due(const std::string& file_folder) {
     m_unit_time = m_mmdta_config->get_float("unit_time"); // 5s
     m_total_loading_inter = m_mmdta_config->get_int("total_interval");
     m_total_assign_inter = m_mmdta_config->get_int("max_interval");
+    if (m_total_loading_inter <= 0) m_total_loading_inter = m_total_assign_inter * m_mmdta_config->get_int("assign_frq");
 
     m_mmdue_config = new MNM_ConfReader(m_file_folder + "/config.conf", "MMDUE");
 
@@ -10518,6 +10483,7 @@ MNM_MM_Due::MNM_MM_Due(const std::string& file_folder) {
     m_beta1 = m_mmdue_config->get_float("beta1");
 
     // money / hour -> money / interval
+    // the unit of m_vot here is different from that of m_vot in adaptive routing (money / second)
     m_vot = m_mmdue_config -> get_float("vot") / 3600. * m_unit_time;
     m_early_penalty = m_mmdue_config->get_float("early_penalty") / 3600. * m_unit_time;
     m_late_penalty = m_mmdue_config->get_float("late_penalty") / 3600. * m_unit_time;
@@ -11827,10 +11793,10 @@ int MNM_MM_Due::build_link_cost_map_snapshot(MNM_Dta_Multimodal *mmdta, int star
     for (auto _link_it : mmdta->m_link_factory->m_link_map) {
         _link = dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second);
         if (in_simulation) {
-            _tt = dynamic_cast<MNM_Statistics_Lrn_Multimodal*>(mmdta -> m_statistics) -> m_load_interval_tt.find(_link_it.first) -> second / m_unit_time;
+            _tt = dynamic_cast<MNM_Statistics_Lrn_Multimodal*>(mmdta -> m_statistics) -> m_load_interval_tt.find(_link_it.first) -> second / m_unit_time;  // intervals
         }
         else {
-            _tt = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(start_interval + 1), m_unit_time, mmdta -> m_current_loading_interval);
+            _tt = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(start_interval + 1), m_unit_time, mmdta -> m_current_loading_interval);  // intervals
         }
         m_driving_link_tt_map_snapshot.insert(std::pair<TInt, TFlt>(_link_it.first, _tt));
         m_driving_link_cost_map_snapshot.insert(std::pair<TInt, TFlt>(_link_it.first, m_vot * _tt + _link -> m_toll_car));
@@ -11840,18 +11806,18 @@ int MNM_MM_Due::build_link_cost_map_snapshot(MNM_Dta_Multimodal *mmdta, int star
         _transitlink = _link_it.second;
         if (_transitlink -> m_link_type == MNM_TYPE_WALKING_MULTIMODAL) {
             if (in_simulation) {
-                _tt = dynamic_cast<MNM_Statistics_Lrn_Multimodal*>(mmdta -> m_statistics) -> m_load_interval_tt_bus_transit.find(_link_it.first) -> second / m_unit_time;
+                _tt = dynamic_cast<MNM_Statistics_Lrn_Multimodal*>(mmdta -> m_statistics) -> m_load_interval_tt_bus_transit.find(_link_it.first) -> second / m_unit_time;  // intervals
             }
             else {
-                _tt = MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transitlink), TFlt(start_interval + 1), m_unit_time, mmdta -> m_current_loading_interval);
+                _tt = MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transitlink), TFlt(start_interval + 1), m_unit_time, mmdta -> m_current_loading_interval);  // intervals
             }
         }
         else if (_transitlink -> m_link_type == MNM_TYPE_BUS_MULTIMODAL) {
             if (in_simulation) {
-                _tt = dynamic_cast<MNM_Statistics_Lrn_Multimodal*>(mmdta -> m_statistics) -> m_load_interval_tt_bus_transit.find(_link_it.first) -> second / m_unit_time;
+                _tt = dynamic_cast<MNM_Statistics_Lrn_Multimodal*>(mmdta -> m_statistics) -> m_load_interval_tt_bus_transit.find(_link_it.first) -> second / m_unit_time;  // intervals
             }
             else {
-                _tt = MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transitlink), TFlt(start_interval + 1), m_unit_time, mmdta -> m_current_loading_interval, mmdta -> m_explicit_bus, false, !mmdta -> m_explicit_bus);
+                _tt = MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transitlink), TFlt(start_interval + 1), m_unit_time, mmdta -> m_current_loading_interval, mmdta -> m_explicit_bus, false, !mmdta -> m_explicit_bus);  // intervals
             }
         }
         else {
@@ -12557,14 +12523,14 @@ int MNM_MM_Due::build_link_cost_map(MNM_Dta_Multimodal *mmdta, bool with_congest
     MNM_Dlink_Multiclass *_link;
     MNM_Transit_Link *_transitlink;
     std::cout << "\n********************** Begin build_link_cost_map  **********************\n";
-    
+
     for (auto _link_it : mmdta->m_link_factory->m_link_map) {
         // #pragma omp task 
         _link = dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second);
         // std::cout << "********************** build_link_cost_map driving link " << _link_it.first << " **********************\n";
         for (int i = 0; i < m_total_loading_inter; i++) {
-            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(i+1), m_unit_time, m_total_loading_inter);
-            m_link_tt_map_truck[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_truck(_link, TFlt(i+1), m_unit_time, m_total_loading_inter);
+            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(i+1), m_unit_time, m_total_loading_inter);  // intervals
+            m_link_tt_map_truck[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_truck(_link, TFlt(i+1), m_unit_time, m_total_loading_inter);  // intervals
             m_link_cost_map[_link_it.first][i] = m_vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll_car;
             m_link_cost_map_truck[_link_it.first][i] = m_vot * m_link_tt_map_truck[_link_it.first][i] + _link -> m_toll_truck;
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << "\n";
@@ -12602,10 +12568,10 @@ int MNM_MM_Due::build_link_cost_map(MNM_Dta_Multimodal *mmdta, bool with_congest
         // std::cout << "********************** build_link_cost_map bus transit link " << _link_it.first << " **********************\n";
         for (int i = 0; i < m_total_loading_inter; i++) {
             if (_transitlink -> m_link_type == MNM_TYPE_WALKING_MULTIMODAL) {
-                m_transitlink_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transitlink), TFlt(i+1), m_unit_time, m_total_loading_inter);
+                m_transitlink_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_walking(dynamic_cast<MNM_Walking_Link*>(_transitlink), TFlt(i+1), m_unit_time, m_total_loading_inter);  // intervals
             }
             else if (_transitlink -> m_link_type == MNM_TYPE_BUS_MULTIMODAL) {
-                m_transitlink_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transitlink), TFlt(i+1), m_unit_time, m_total_loading_inter, mmdta -> m_explicit_bus, false, !mmdta -> m_explicit_bus);
+                m_transitlink_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_bus(dynamic_cast<MNM_Bus_Link*>(_transitlink), TFlt(i+1), m_unit_time, m_total_loading_inter, mmdta -> m_explicit_bus, false, !mmdta -> m_explicit_bus);  // intervals
             }
             else {
                 printf("Wrong transit link type!\n");

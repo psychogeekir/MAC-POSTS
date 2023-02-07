@@ -150,7 +150,8 @@ int MNM_Dta::set_routing()
   
   else if (m_config -> get_string("routing_type") == "Due"){
     // Path_Table *_path_table = MNM::build_pathset(m_graph, m_od_factory, m_link_factory);
-    MNM_ConfReader* _tmp_conf = new MNM_ConfReader(m_file_folder + "/config.conf", "DUE");
+    MNM_ConfReader* _tmp_conf = new MNM_ConfReader(m_file_folder + "/config.conf", "FIXED");
+    // no existing path_table, use column generation
     m_routing = new MNM_Routing_Fixed(m_graph, m_od_factory, m_node_factory, m_link_factory, m_config -> get_int("assign_frq"), _tmp_conf -> get_int("buffer_length"));
     // m_routing = new MNM_Routing_Fixed(m_graph, m_od_factory, m_node_factory, m_link_factory, m_config -> get_int("assign_frq"));
     // m_routing -> init_routing(_path_table);

@@ -13,11 +13,12 @@ int main() {
     }
 
     // the file path is relative to the current working directory (if launch.json exists, refer to "cwd"; otherwise it can be executable directory instead of source directory)
-    std::string file_folder = "../../../data/input_files_7link_due";
+    std::string file_folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_due";
     // std::string file_folder = "../../../data/input_files_new_philly";
 
     MNM_ConfReader *config = new MNM_ConfReader(file_folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
+    delete config;
 
     MNM_Due *due = new MNM_Due_Msa(file_folder);
     due->initialize();  // create and set m_buffer[i] = 0
@@ -40,13 +41,14 @@ int main() {
         // DNL using dta.cpp, new dta is built from scratch
         dta = due->run_dta(false);
 
-        // search for the lowest disutility route and update path flow
-        // with departure time choice
-        // due->update_path_table(dta, i);
-        // fixed departure time choice
-        // due->update_path_table_fixed_departure_time_choice(dta, i);
-        // gradient projection
-        due->update_path_table_gp_fixed_departure_time_choice(dta, i);
+        // time-dependent link cost
+        due -> build_link_cost_map(dta);
+
+        due -> update_path_table_cost(dta);
+
+        // save path table
+        MNM::print_path_table(due -> m_path_table, dta->m_od_factory, true, true);
+        MNM::save_path_table(file_folder + "/" + rec_folder, due -> m_path_table, dta->m_od_factory, true, true);
 
         // calculate gap
         // with departure time choice
@@ -56,14 +58,21 @@ int main() {
         printf("GAP = %lf\n", (float) gap);
         gap_file << std::to_string(gap) + "\n";
 
+
+        // search for the lowest disutility route and update path flow
+        // with departure time choice
+        // due->update_path_table(dta, i);
+        // fixed departure time choice
+        // due->update_path_table_fixed_departure_time_choice(dta, i);
+        // gradient projection
+        due->update_path_table_gp_fixed_departure_time_choice(dta, i);
+
         dynamic_cast<MNM_Routing_Fixed*>(dta -> m_routing) -> m_path_table = nullptr;
         delete dta;
     }
 
     gap_file.close();
 
-    delete config;
-    delete dta;
     delete due;
     printf("Finished\n");
     return 0;

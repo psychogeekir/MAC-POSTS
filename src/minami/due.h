@@ -32,7 +32,11 @@ public:
 
     TFlt get_tt(TFlt depart_time, MNM_Path *path);
 
-    int build_cost_map(MNM_Dta *dta);
+    int build_link_cost_map(MNM_Dta *dta);
+
+    int update_path_table_cost(MNM_Dta *dta);
+
+    int update_one_path_cost(MNM_Path *path, TInt o_node_ID, TInt d_node_ID, MNM_Dta *dta);
 
     int update_demand_from_path_table(MNM_Dta *dta);
 
@@ -48,8 +52,8 @@ public:
     MNM_ConfReader *m_due_config;
 
     TFlt m_vot;
-    TFlt m_early_rate;
-    TFlt m_late_rate;
+    TFlt m_early_penalty;
+    TFlt m_late_penalty;
     TFlt m_target_time;
     TFlt m_step_size;
 

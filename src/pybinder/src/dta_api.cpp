@@ -346,6 +346,8 @@ Dta_Api::Dta_Api()
     m_link_tt_map = std::unordered_map<TInt, TFlt *> ();
     m_link_cost_map = std::unordered_map<TInt, TFlt *>();
     m_link_congested = std::unordered_map<TInt, bool *>();
+
+    m_queue_dissipated_time = std::unordered_map<TInt, int *> ();
 }
 
 Dta_Api::~Dta_Api()
@@ -372,6 +374,11 @@ Dta_Api::~Dta_Api()
         delete _it.second;
     }
     m_link_congested.clear();
+
+    for (auto _it: m_queue_dissipated_time) {
+        delete _it.second;
+    }
+    m_queue_dissipated_time.clear();
 }
 
 int Dta_Api::initialize(const std::string &folder)
@@ -380,6 +387,7 @@ int Dta_Api::initialize(const std::string &folder)
   m_dta -> build_from_files();
   m_dta -> hook_up_node_and_link();
   m_dta -> is_ok();
+  IAssert(m_dta -> m_config->get_string("routing_type") == "Due" || m_dta -> m_config->get_string("routing_type") == "Hybrid" || m_dta -> m_config->get_string("routing_type") == "Fixed");
   // printf("start load ID path mapping 0\n");
   if (MNM_Routing_Fixed *_routing = dynamic_cast<MNM_Routing_Fixed *>(m_dta -> m_routing)){
     MNM::get_ID_path_mapping(m_ID_path_mapping, _routing -> m_path_table);
@@ -450,6 +458,92 @@ int Dta_Api::run_whole(bool verbose)
   m_dta -> pre_loading();
   m_dta -> loading(verbose);
   return 0;
+}
+
+int Dta_Api::run_due(int max_iter, const std::string &folder, bool verbose, bool with_dtc, const std::string &method)
+{
+    IAssert(m_dta == nullptr);
+    MNM_ConfReader *_config = new MNM_ConfReader(folder + "/config.conf", "STAT");
+    std::string _rec_folder = _config -> get_string("rec_folder");
+    delete _config;
+
+    MNM_Due *_due = new MNM_Due_Msa(folder);
+    _due->initialize();  // create and set m_buffer[i] = 0
+    _due->init_path_flow();
+
+    std::string _gap_file_name = folder + "/" + _rec_folder + "/gap_iteration";
+    std::ofstream _gap_file;
+    _gap_file.open(_gap_file_name, std::ofstream::out);
+    if (!_gap_file.is_open()){
+        printf("Dta_Api::run_due, Error happens when open gap_file\n");
+        exit(-1);
+    }
+
+    TFlt _gap;
+    for (int i = 0; i < max_iter; ++i) {
+        printf("---------- Iteration %d ----------\n", i);
+
+        // DNL using dta.cpp, new dta is built from scratch
+        m_dta = _due->run_dta(verbose);
+
+        // time-dependent link cost
+        build_link_cost_map(false);
+        _due -> m_link_tt_map = m_link_tt_map;
+        _due -> m_link_cost_map = m_link_cost_map;
+        // _due -> build_link_cost_map(m_dta);
+
+        _due -> update_path_table_cost(m_dta);
+
+        // path flow are saved in _rec_folder
+        // MNM::print_path_table(_due -> m_path_table, m_dta->m_od_factory, true, true);
+        MNM::save_path_table(folder + "/" + _rec_folder, _due -> m_path_table, m_dta->m_od_factory, true, true);
+
+        // calculate gap
+        if (with_dtc) {
+            // with departure time choice
+            _gap = _due -> compute_merit_function();
+        }
+        else {
+            // fixed departure time choice
+            _gap = _due -> compute_merit_function_fixed_departure_time_choice();
+        }
+        
+        printf("GAP = %lf\n", (float) _gap);
+        _gap_file << std::to_string(_gap) + "\n";
+
+
+        // search for the lowest disutility route and update path flow
+        if (with_dtc) {
+            // with departure time choice
+            _due->update_path_table(m_dta, i);
+        }
+        else {
+            if (method == "MSA") {
+                // fixed departure time choice
+                _due->update_path_table_fixed_departure_time_choice(m_dta, i);
+            }
+            else if (method == "GP") {
+                // gradient projection
+                _due->update_path_table_gp_fixed_departure_time_choice(m_dta, i);
+            }
+            else {
+                printf("Dta_Api::run_due, method undefined\n");
+                exit(-1);
+            }
+        }
+
+        dynamic_cast<MNM_Routing_Fixed*>(m_dta -> m_routing) -> m_path_table = nullptr;
+        delete m_dta;
+        m_dta = nullptr;
+    }
+
+    _gap_file.close();
+
+    _due -> m_link_tt_map = std::unordered_map<TInt, TFlt *> ();
+    _due -> m_link_cost_map = std::unordered_map<TInt, TFlt *> ();
+    delete _due;
+    printf("Dta_Api::run_due, finished\n");
+    return 0;
 }
 
 int Dta_Api::get_cur_loading_interval()
@@ -563,7 +657,20 @@ int Dta_Api::print_simulation_results(const std::string &folder, int cong_freque
 int Dta_Api::build_link_cost_map(bool with_congestion_indicator)
 {
     MNM_Dlink *_link;
-    TFlt _vot = dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_adaptive -> m_vot;
+    TFlt _vot;
+    if (m_dta -> m_config->get_string("routing_type") == "Due") {
+        MNM_ConfReader* _tmp_conf = new MNM_ConfReader(m_dta -> m_file_folder + "/config.conf", "DUE");
+        _vot = _tmp_conf -> get_float("vot") / 3600. * m_dta -> m_unit_time;  // money / hour -> money / interval
+        delete _tmp_conf;
+    }
+    else if (m_dta -> m_config->get_string("routing_type") == "Hybrid") {
+        _vot = dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_adaptive -> m_vot * m_dta -> m_unit_time;  // money / second -> money / interval
+    }
+    else {
+        printf("Set routing_type = Due or Hybrid in config.conf and valid vot value\n");
+        exit(-1);
+    }
+    
     for (auto _link_it : m_dta->m_link_factory->m_link_map) {
         // #pragma omp task 
         _link = _link_it.second;
@@ -582,8 +689,8 @@ int Dta_Api::build_link_cost_map(bool with_congestion_indicator)
 
         std::cout << "********************** build_link_cost_map link " << _link -> m_link_ID() << " **********************\n";
         for (int i = 0; i < get_cur_loading_interval(); i++) {
-            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_dta -> m_unit_time, get_cur_loading_interval());
-             m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
+            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_dta -> m_unit_time, get_cur_loading_interval());  // intervals
+            m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll;
             // std::cout << "interval: " << i << ", link: " << _link_it.first << ", tt: " << m_link_tt_map[_link_it.first][i] << "\n";
             // std::cout << "car in" << "\n";
             // std::cout << _link -> m_N_in -> to_string() << "\n";
@@ -596,6 +703,102 @@ int Dta_Api::build_link_cost_map(bool with_congestion_indicator)
         }
     }
     
+    return 0;
+}
+
+int Dta_Api::get_link_queue_dissipated_time()
+{
+    // suppose m_link_congested is constructed already in build_link_cost_map()
+    MNM_Dlink *_link;
+    int _total_loading_inter = get_cur_loading_interval();
+    IAssert(_total_loading_inter > 0);
+
+    bool _flg;
+    std::cout << "\n********************** Begin get_link_queue_dissipated_time **********************\n";
+    for (auto _link_it : m_dta->m_link_factory->m_link_map) {
+        if (m_queue_dissipated_time.find(_link_it.first) == m_queue_dissipated_time.end()) {
+            m_queue_dissipated_time[_link_it.first] = new int[_total_loading_inter];
+        }
+        // std::cout << "********************** get_link_queue_dissipated_time link " << _link_it.first << " **********************\n";
+        for (int i = 0; i < _total_loading_inter; i++ ) {
+
+            // ************************** car **************************
+            if (m_link_congested[_link_it.first][i]) {
+                if (i == _total_loading_inter - 1) {
+                    m_queue_dissipated_time[_link_it.first][i] = _total_loading_inter;
+                }
+                else {
+                    _flg = false;
+                    for (int k = i + 1; k < _total_loading_inter; k++) {
+                        if (m_link_congested[_link_it.first][k - 1] && !m_link_congested[_link_it.first][k]) {
+                            m_queue_dissipated_time[_link_it.first][i] = k;
+                            _flg = true;
+                            break;
+                        }
+                    }
+                    if (!_flg) {
+                        m_queue_dissipated_time[_link_it.first][i] = _total_loading_inter;
+                    }
+                }
+            }
+            else {
+                _link = dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second);
+                if (MNM_Ults::approximate_equal(m_link_tt_map[_link_it.first][i], (float)_link -> get_link_freeflow_tt_loading())) {
+                    // based on subgradient paper, when out flow = capacity and link tt = fftt, this is critical state where the subgradient applies
+                    if (dynamic_cast<MNM_Dlink_Ctm_Multiclass*>(_link) != nullptr) {
+                        // TODO: use spline to interpolate the N_out and extract the deriviative (out flow rate) and compare it with the capacity
+                        // https://kluge.in-chemnitz.de/opensource/spline/spline.h
+                        // tk::spline s;
+                        // s.set_boundary(tk::spline::second_deriv, 0.0,
+                        //                tk::spline::second_deriv, 0.0);
+                        // s.set_points(X,Y,tk::spline::cspline);
+                        // s.make_monotonic();
+                        // s.deriv(1, X[i])
+                        TFlt _outflow_rate = MNM_DTA_GRADIENT::get_departure_cc_slope(_link, 
+                                                                                      TFlt(i + (int)_link -> get_link_freeflow_tt_loading()), 
+                                                                                      TFlt(i + (int)_link -> get_link_freeflow_tt_loading() + 1));  // veh / 5s
+                        TFlt _cap = dynamic_cast<MNM_Dlink_Ctm*>(_link) -> m_cell_array.back() -> m_flow_cap * m_dta -> m_unit_time;  // veh / 5s
+                        if (MNM_Ults::approximate_equal(_outflow_rate * m_dta -> m_flow_scalar, floor(_cap * m_dta -> m_flow_scalar))) {
+                            if (i == _total_loading_inter - 1) {
+                                m_queue_dissipated_time[_link_it.first][i] = _total_loading_inter;
+                            }
+                            else {
+                                // to compute lift up time for the departure cc
+                                _flg = false;
+                                for (int k = i + 1; k < _total_loading_inter; k++) {
+                                    if (m_link_congested[_link_it.first][k - 1] && !m_link_congested[_link_it.first][k]) {
+                                        m_queue_dissipated_time[_link_it.first][i] = k;
+                                        _flg = true;
+                                        break;
+                                    }
+                                }
+                                if (!_flg) {
+                                    m_queue_dissipated_time[_link_it.first][i] = _total_loading_inter;
+                                }
+                            }
+                        } 
+                        else {
+                            // TODO: boundary condition
+                            m_queue_dissipated_time[_link_it.first][i] = i;
+                        }
+                    }
+                    else if (dynamic_cast<MNM_Dlink_Pq_Multiclass*>(_link) != nullptr) {
+                        // PQ link as OD connectors always has sufficient capacity
+                        m_queue_dissipated_time[_link_it.first][i] = i;
+                    }
+                    else {
+                        throw std::runtime_error("Dta_Api::get_link_queue_dissipated_time, Link type not implemented");
+                    }
+                }
+                else {
+                    // m_queue_dissipated_time[_link_it.first][i] = i;
+                    throw std::runtime_error("Dta_Api::get_link_queue_dissipated_time, Link travel time less than fftt");
+                }
+                // m_queue_dissipated_time[_link_it.first][i] = i;
+            }
+        }
+    }
+    std::cout << "********************** End get_link_queue_dissipated_time **********************\n";
     return 0;
 }
 
@@ -860,7 +1063,7 @@ py::array_t<int> Dta_Api::generate_paths_to_cover_registered_links()
         exit(-1);
     }
 
-    MNM::save_path_table(m_dta -> m_file_folder, dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_fixed -> m_path_table, m_dta -> m_od_factory, true);
+    MNM::save_path_table(m_dta -> m_file_folder, dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_fixed -> m_path_table, m_dta -> m_od_factory, true, false);
 
     result_prt[0] = 1;  // indicate whether the path table is updated
     for (size_t v = 0; v < _link_existing.size(); ++v) {
@@ -881,7 +1084,7 @@ int Dta_Api::save_path_table(const std::string &folder)
 {
     // write updated path table to file
     MNM::save_path_table(folder, dynamic_cast<MNM_Routing_Hybrid*>(m_dta -> m_routing) -> m_routing_fixed -> m_path_table, 
-                         m_dta -> m_od_factory, true);
+                         m_dta -> m_od_factory, true, false);
     return 0;
 }
 
@@ -1699,7 +1902,7 @@ int Mcdta_Api::build_link_cost_map(bool with_congestion_indicator)
 {
     MNM_Dlink_Multiclass *_link;
     // TODO: what if not hybrid routing, better way to get vot
-    TFlt _vot = dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_adaptive -> m_vot;
+    TFlt _vot = dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_adaptive -> m_vot * m_mcdta -> m_unit_time;  // money / second -> money / interval
     for (auto _link_it : m_mcdta->m_link_factory->m_link_map) {
         // #pragma omp task 
         _link = dynamic_cast<MNM_Dlink_Multiclass*>(_link_it.second);
@@ -1729,11 +1932,11 @@ int Mcdta_Api::build_link_cost_map(bool with_congestion_indicator)
         std::cout << "********************** build_link_cost_map link " << _link -> m_link_ID() << " **********************\n";
         for (int i = 0; i < get_cur_loading_interval(); i++) {
             
-            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(i+1), m_mcdta -> m_unit_time, get_cur_loading_interval());
+            m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_car(_link, TFlt(i+1), m_mcdta -> m_unit_time, get_cur_loading_interval());  // intervals
             
             m_link_cost_map[_link_it.first][i] = _vot * m_link_tt_map[_link_it.first][i] + _link -> m_toll_car;
 
-            m_link_tt_map_truck[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_truck(_link, TFlt(i+1), m_mcdta -> m_unit_time, get_cur_loading_interval());
+            m_link_tt_map_truck[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time_truck(_link, TFlt(i+1), m_mcdta -> m_unit_time, get_cur_loading_interval());  // intervals
             
             m_link_cost_map_truck[_link_it.first][i] = _vot * m_link_tt_map_truck[_link_it.first][i] + _link -> m_toll_truck;
 
@@ -2876,7 +3079,7 @@ py::array_t<int> Mcdta_Api::generate_paths_to_cover_registered_links()
         // exit(-1);
     }
 
-    MNM::save_path_table(m_mcdta -> m_file_folder, dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_fixed_car -> m_path_table, m_mcdta -> m_od_factory, true);
+    MNM::save_path_table(m_mcdta -> m_file_folder, dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_fixed_car -> m_path_table, m_mcdta -> m_od_factory, true, false);
 
     result_prt[0] = 1;  // indicate whether the path table is updated
     for (size_t v = 0; v < _link_existing.size(); ++v) {
@@ -2897,7 +3100,7 @@ int Mcdta_Api::save_path_table(const std::string &folder)
 {
     // write updated path table to file
     MNM::save_path_table(folder, dynamic_cast<MNM_Routing_Biclass_Hybrid*>(m_mcdta -> m_routing) -> m_routing_fixed_car -> m_path_table, 
-                         m_mcdta -> m_od_factory, true);
+                         m_mcdta -> m_od_factory, true, false);
     return 0;
 }
 
@@ -9771,6 +9974,7 @@ PYBIND11_MODULE(MNMAPI, m) {
             .def("initialize", &Dta_Api::initialize)
             .def("check_input_files", &Dta_Api::check_input_files)
             .def("run_whole", &Dta_Api::run_whole)
+            .def("run_due", &Dta_Api::run_due)
             .def("install_cc", &Dta_Api::install_cc)
             .def("install_cc_tree", &Dta_Api::install_cc_tree)
             .def("get_travel_stats", &Dta_Api::get_travel_stats)
