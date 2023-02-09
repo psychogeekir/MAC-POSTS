@@ -16,6 +16,7 @@ data/input_files_PGH_tdsp_node_cost/td_node_cost*
 data/input_files_PGH_tdsp_node_cost/td_link_tt*
 data/input_files_PGH_tdsp_node_cost/td_node_tt*
 
+
 #Shapefile
 *.cpg
 *.dbf
@@ -210,7 +211,9 @@ venv.bak/
 *.pickle
 *.pkl
 
-
+# nohup output
+*.log
+*.err
 
 ################################
 

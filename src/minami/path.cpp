@@ -306,6 +306,7 @@ namespace MNM {
 
 
     Path_Table *build_shortest_pathset(PNEGraph &graph, MNM_OD_Factory *od_factory, MNM_Link_Factory *link_factory) {
+        // this build for each OD pair, no matter this OD pair exists in demand file or not
         Path_Table *_path_table = new Path_Table();
         for (auto _o_it = od_factory->m_origin_map.begin(); _o_it != od_factory->m_origin_map.end(); _o_it++) {
             std::unordered_map<TInt, MNM_Pathset *> *_new_map = new std::unordered_map<TInt, MNM_Pathset *>();

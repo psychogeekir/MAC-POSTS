@@ -96,20 +96,19 @@ int MNM_Due::update_demand_from_path_table(MNM_Dta *dta) {
     TFlt _tot_dmd;
     MNM_Origin *_org;
     MNM_Destination *_dest;
-    MNM_Path *_one_path;
+
     for (auto _it : *m_path_table) {  // origin node
+        _org = ((MNM_DMOND *) dta->m_node_factory->get_node(_it.first))->m_origin;
         for (auto _it_it : *(_it.second)) {  // destination node
+            _dest = ((MNM_DMDND *) dta->m_node_factory->get_node(_it_it.first))->m_dest;
             for (int _col = 0; _col < m_total_assign_inter; _col++) {
                 _tot_dmd = 0.0;
-                for (MNM_Path *_path : _it_it.second->m_path_vec) {  // path
-                    _tot_dmd += _path->m_buffer[_col];
-                }
                 if (_it_it.second->m_path_vec.size() > 0) {
-                    _one_path = _it_it.second->m_path_vec[0];
-                    _org = ((MNM_DMOND *) dta->m_node_factory->get_node(_one_path->m_node_vec.front()))->m_origin;
-                    _dest = ((MNM_DMDND *) dta->m_node_factory->get_node(_one_path->m_node_vec.back()))->m_dest;
-                    _org->m_demand[_dest][_col] = _tot_dmd;
+                    for (MNM_Path *_path : _it_it.second->m_path_vec) {  // path
+                        _tot_dmd += _path->m_buffer[_col];
+                    }
                 }
+                _org->m_demand[_dest][_col] = _tot_dmd;
             }
         }
     }
@@ -122,6 +121,27 @@ TFlt MNM_Due::compute_total_demand(MNM_Origin *orig, MNM_Destination *dest, TInt
         _tot_dmd += orig->m_demand[dest][i];
     }
     return _tot_dmd;
+}
+
+TFlt MNM_Due::compute_total_travel_time() {
+    TFlt _tt, _depart_time;  // _dis_utl;
+    TFlt _total_tt = 0.0;
+    for (auto _it : *m_path_table) {
+        for (auto _it_it : *(_it.second)) {
+            for (int _col = 0; _col < m_total_assign_inter; _col++) {
+                _depart_time = TFlt(_col * m_dta_config->get_int("assign_frq"));
+                for (MNM_Path *_path : _it_it.second->m_path_vec) {
+                    _tt = get_tt(_depart_time, _path);
+                    // _dis_utl = get_disutility(_depart_time, _tt);
+                    // // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
+                    // _tt = _path -> m_travel_time_vec[_col];
+                    // _dis_utl = _path -> m_travel_disutility_vec[_col];
+                    _total_tt += _tt * _path->m_buffer[_col];
+                }
+            }
+        }
+    }
+    return _total_tt;
 }
 
 TFlt MNM_Due::compute_merit_function() {
@@ -213,16 +233,17 @@ TFlt MNM_Due::get_disutility(TFlt depart_time, TFlt tt) {
 
 TFlt MNM_Due::get_tt(TFlt depart_time, MNM_Path *path) {
     // assume build_link_cost_map is invoked beforehand
-    // true path tt
+    // true path tt, intervals
     return MNM_DTA_GRADIENT::get_path_travel_time(path, depart_time, m_link_tt_map, m_total_loading_inter);
 }
 
 
 int MNM_Due::build_link_cost_map(MNM_Dta *dta) {
+    IAssert(m_total_loading_inter <= dta -> m_current_loading_interval);
     MNM_Dlink *_link;
-    for (int i = 0; i < m_total_loading_inter; i++) {
-        // std::cout << "********************** interval " << i << " **********************\n";
-        for (auto _link_it : dta->m_link_factory->m_link_map) {
+    for (auto _link_it : dta->m_link_factory->m_link_map) {
+        std::cout << "********************** link " << _link_it.first() << " **********************\n";
+        for (int i = 0; i < m_total_loading_inter; i++) {
             _link = _link_it.second;
             // use i+1 as start_time in cc to compute link travel time for vehicles arriving at the beginning of interval i, i+1 is the end of the interval i, the beginning of interval i + 1
             m_link_tt_map[_link_it.first][i] = MNM_DTA_GRADIENT::get_travel_time(_link, TFlt(i+1), m_unit_time, dta -> m_current_loading_interval);  // intervals
@@ -300,9 +321,16 @@ MNM_Due_Msa::~MNM_Due_Msa() {
 int MNM_Due_Msa::initialize() {
     m_base_dta = new MNM_Dta(m_file_folder);
     m_base_dta->build_from_files();
-    m_path_table = MNM::build_shortest_pathset(m_base_dta->m_graph,
-                                               m_base_dta->m_od_factory, m_base_dta->m_link_factory);
-    MNM::allocate_path_table_buffer(m_path_table, m_total_assign_inter);  // create zero buffer
+
+    // build shortest path for each OD pair, no matter it is in demand or not
+    // m_path_table = MNM::build_shortest_pathset(m_base_dta->m_graph,
+    //                                            m_base_dta->m_od_factory, m_base_dta->m_link_factory);
+    // MNM::allocate_path_table_buffer(m_path_table, m_total_assign_inter);  // create zero buffer
+
+    // build shortest path for each OD pair in demand
+    m_path_table = MNM::build_pathset(m_base_dta->m_graph,
+                                      m_base_dta->m_od_factory, m_base_dta->m_link_factory,
+                                      0, 0, m_vot/m_unit_time, 1, 1, m_total_assign_inter);
     // MNM::save_path_table(m_path_table, m_base_dta -> m_od_factory, true);
 
     for (auto _link_it : m_base_dta->m_link_factory->m_link_map) {
@@ -321,14 +349,13 @@ int MNM_Due_Msa::init_path_flow() {
     MNM_Origin *_org;
     MNM_Destination *_dest;
     for (auto _it : *m_path_table) {
-        // printf("22m\n");
+        _org = ((MNM_DMOND *) m_base_dta->m_node_factory->get_node(_it.first))->m_origin;
         for (auto _it_it : *(_it.second)) {
-            // printf("23m\n");
+            _dest = ((MNM_DMDND *) m_base_dta->m_node_factory->get_node(_it_it.first))->m_dest;
             _len = TFlt(_it_it.second->m_path_vec.size());
+            IAssert(_len >= 1);
             for (MNM_Path *_path : _it_it.second->m_path_vec) {
                 // printf("24m\n");
-                _org = ((MNM_DMOND *) m_base_dta->m_node_factory->get_node(_path->m_node_vec.front()))->m_origin;
-                _dest = ((MNM_DMDND *) m_base_dta->m_node_factory->get_node(_path->m_node_vec.back()))->m_dest;
                 for (int _col = 0; _col < m_total_assign_inter; _col++) {
                     // printf("25m\n");
                     if (_org->m_demand.find(_dest) ==
@@ -375,7 +402,7 @@ std::pair<MNM_Path *, TInt> MNM_Due_Msa::get_best_route(TInt o_node_ID,
 std::pair<MNM_Path *, TInt> MNM_Due_Msa::get_best_route_for_single_interval(
         TInt interval, TInt o_node_ID, MNM_TDSP_Tree *tdsp_tree) {
 
-    IAssert(interval + m_dta_config->get_int("assign_frq") < tdsp_tree->m_max_interval);  // tdsp_tree -> m_max_interval = total_loading_interval
+    IAssert(interval + m_dta_config->get_int("assign_frq") <= tdsp_tree->m_max_interval);  // tdsp_tree -> m_max_interval = total_loading_interval
     TFlt _cur_best_cost = TFlt(std::numeric_limits<double>::max());
     TInt _cur_best_time = -1;
     TFlt _tmp_tt, _tmp_cost;

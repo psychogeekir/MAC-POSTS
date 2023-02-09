@@ -55,6 +55,9 @@ target_link_libraries (test_tdsp_node_cost Snap minami adv_ds)
 add_executable (test_due test_due.cpp)
 target_link_libraries (test_due Snap minami adv_ds)
 
+add_executable (test_dso test_dso.cpp)
+target_link_libraries (test_dso Snap minami adv_ds)
+
 add_executable (test_multiclass test_multiclass.cpp)
 target_link_libraries (test_multiclass Snap minami adv_ds)
 

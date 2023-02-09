@@ -7,6 +7,8 @@
 
 #include "Snap.h"
 #include "dta.h"
+#include "due.h"
+#include "dso.h"
 #include "multiclass.h"
 #include "multimodal.h"
 
@@ -58,6 +60,7 @@ public:
   int install_cc_tree();
   int run_whole(bool verbose=true);
   int run_due(int max_iter, const std::string &folder, bool verbose=true, bool with_dtc=false, const std::string &method="MSA");
+  int run_dso(int max_iter, const std::string &folder, bool verbose=true, bool with_dtc=false, const std::string &method="MSA");
   py::array_t<double> get_travel_stats();
   std::string print_emission_stats();
   int print_simulation_results(const std::string &folder, int cong_frequency = 180);

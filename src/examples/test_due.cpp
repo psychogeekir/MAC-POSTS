@@ -14,7 +14,7 @@ int main() {
 
     // the file path is relative to the current working directory (if launch.json exists, refer to "cwd"; otherwise it can be executable directory instead of source directory)
     std::string file_folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_due";
-    // std::string file_folder = "../../../data/input_files_new_philly";
+    // std::string file_folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_PGH_due";
 
     MNM_ConfReader *config = new MNM_ConfReader(file_folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
@@ -34,7 +34,7 @@ int main() {
         exit(-1);
     }
 
-    TFlt gap;
+    TFlt gap, total_tt;
     for (int i = 0; i < 100; ++i) {
         printf("---------- Iteration %d ----------\n", i);
 
@@ -43,6 +43,7 @@ int main() {
 
         // time-dependent link cost
         due -> build_link_cost_map(dta);
+        total_tt = due -> compute_total_travel_time();
 
         due -> update_path_table_cost(dta);
 
@@ -55,8 +56,9 @@ int main() {
         // gap = due -> compute_merit_function();
         // fixed departure time choice
         gap = due -> compute_merit_function_fixed_departure_time_choice();
-        printf("GAP = %lf\n", (float) gap);
-        gap_file << std::to_string(gap) + "\n";
+
+        printf("GAP = %lf, total tt = %lf\n", (float) gap, (float)total_tt);
+        gap_file << std::to_string(gap) + " " + std::to_string(total_tt) + "\n";
 
 
         // search for the lowest disutility route and update path flow

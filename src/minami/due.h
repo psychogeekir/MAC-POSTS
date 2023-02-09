@@ -12,7 +12,7 @@ public:
 
     virtual ~MNM_Due();
 
-    int virtual initialize() { return 0; };
+    virtual int initialize() { return 0; };
 
     MNM_Dta *run_dta(bool verbose);
 
@@ -24,15 +24,17 @@ public:
 
     virtual int update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, int iter) { return 0;};
 
+    TFlt compute_total_travel_time();
+
     TFlt compute_merit_function();
 
     TFlt compute_merit_function_fixed_departure_time_choice();
 
-    TFlt get_disutility(TFlt depart_time, TFlt tt);
+    virtual TFlt get_disutility(TFlt depart_time, TFlt tt);
 
     TFlt get_tt(TFlt depart_time, MNM_Path *path);
 
-    int build_link_cost_map(MNM_Dta *dta);
+    virtual int build_link_cost_map(MNM_Dta *dta);
 
     int update_path_table_cost(MNM_Dta *dta);
 
