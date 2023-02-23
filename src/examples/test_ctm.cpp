@@ -70,20 +70,12 @@
 #include "od.h"
 #include "factory.h"
 
-#include "g3log/g3log.hpp"
-#include "g3log/logworker.hpp"
-
 #include <deque>
 #include <iostream>
 
 
 int main()
 {
-
-  // auto worker = g3::LogWorker::createLogWorker();
-  // g3::initializeLogging(worker.get());
-
-  // LOG(DEBUG) << "Test SLOG INFO";
 
   std::cout << "START !!!!" << std::endl;
 

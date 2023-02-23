@@ -5,10 +5,6 @@
 #include "ults.h"
 #include "enum.h"
 
-
-// #include "g3log/g3log.hpp"
-// #include "g3log/logworker.hpp"
-
 #include <vector>
 #include <deque>
 #include <unordered_map>

@@ -1,9 +1,4 @@
 #include "dso.h"
-#include "dta_gradient_utls.h"
-#include "ults.h"
-
-// #include <assert.h>
-#include "limits.h"
 
 MNM_Dso::MNM_Dso(std::string file_folder)
         : MNM_Due_Msa::MNM_Due_Msa(file_folder) {
@@ -29,14 +24,8 @@ TFlt MNM_Dso::get_disutility(TFlt depart_time, TFlt tt) {
 int MNM_Dso::build_link_cost_map(MNM_Dta *dta) {
     MNM_Dlink *_link;
     for (auto _link_it : dta->m_link_factory->m_link_map) {
-        if (m_link_tt_map.find(_link_it.first) == m_link_tt_map.end()) {
-            m_link_tt_map[_link_it.first] = new TFlt[dta -> m_current_loading_interval()];
-        }
-        if (m_link_cost_map.find(_link_it.first) == m_link_cost_map.end()) {
-            m_link_cost_map[_link_it.first] = new TFlt[dta -> m_current_loading_interval()];
-        }
         if (m_link_congested.find(_link_it.first) == m_link_congested.end()) {
-            m_link_congested[_link_it.first] = new bool[dta -> m_current_loading_interval()];
+            m_link_congested[_link_it.first] = new bool[m_total_loading_inter];
         }
         std::cout << "********************** link " << _link_it.first() << " **********************\n";
         for (int i = 0; i < m_total_loading_inter; i++) {

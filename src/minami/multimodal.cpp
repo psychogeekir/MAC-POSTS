@@ -4710,6 +4710,7 @@ int MNM_Routing_Multimodal_Adaptive::update_routing(TInt timestamp) {
     // update routing_table based on the snapshot of the network
     if ((timestamp) % m_routing_freq  == 0 || timestamp == 0) {
         // printf("Calculating the shortest path trees!\n");
+        update_link_cost();
         for (auto _it : m_od_factory -> m_destination_map){
             // #pragma omp task firstprivate(_it)
             // {

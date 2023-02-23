@@ -10,12 +10,10 @@
 #include "ults.h"
 #include "shortest_path.h"
 #include "pmc_table.h"
-// #include "path.h"
 
 #include <unordered_map>
 #include <typeinfo>
-// #include "factory.h"
-// using namespace std;
+
 class MNM_Pre_Routing
 {
 public:

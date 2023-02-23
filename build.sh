@@ -15,7 +15,7 @@ if [ $1 = "Release" ]; then
 else
   echo "Build Debug version"
   cmake ../src \
-        -DCMAKE_CXX_FLAGS="-std=c++11 -m64 -Wall" \
+        -DCMAKE_CXX_FLAGS="-std=c++11 -m64 -Wall -g -Og" \
         -DPYTHON_INCLUDE_DIR=$(python -c "from distutils.sysconfig import get_python_inc; print(get_python_inc())")  \
         -DPYTHON_LIBRARY=$(python -c "import distutils.sysconfig as sysconfig; print(sysconfig.get_config_var('LIBDIR'))") \
         -DPYTHON_EXECUTABLE:FILEPATH=`which python`

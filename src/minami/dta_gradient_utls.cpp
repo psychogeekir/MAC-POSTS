@@ -30,12 +30,15 @@ namespace MNM_DTA_GRADIENT {
     }
 
     TFlt get_last_valid_time(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TInt end_loading_timestamp, const std::string& s) {
-        if (MNM_Ults::approximate_less_than(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second)) {
+        if (MNM_Ults::approximate_less_than(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second) 
+            && !MNM_Ults::approximate_equal(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second)) {
+            
             printf("max in cc flow: %lf, max out cc flow: %lf\n", N_in -> m_recorder.back().second(), N_out -> m_recorder.back().second());
             printf("diff: %lf\n", N_in -> m_recorder.back().second - N_out -> m_recorder.back().second);
             printf("Cumulative Curve Count Error!\n");
             std::cout << s << std::endl;
             exit(-1);
+            
         }
         IAssert(end_loading_timestamp >= int(N_in -> m_recorder.back().first));
         IAssert(end_loading_timestamp >= int(N_out -> m_recorder.back().first));
@@ -64,7 +67,8 @@ namespace MNM_DTA_GRADIENT {
 
     TFlt get_last_valid_time_bus(MNM_Cumulative_Curve *N_in, MNM_Cumulative_Curve *N_out, TInt end_loading_timestamp, const std::string& s)
     {
-        if (MNM_Ults::approximate_less_than(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second)) {
+        if (MNM_Ults::approximate_less_than(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second)
+            && !MNM_Ults::approximate_equal(N_in -> m_recorder.back().second, N_out -> m_recorder.back().second)) {
             printf("max in cc flow: %lf, max out cc flow: %lf\n", N_in -> m_recorder.back().second(), N_out -> m_recorder.back().second());
             printf("diff: %lf\n", N_in -> m_recorder.back().second - N_out -> m_recorder.back().second);
             printf("Cumulative Curve Count Error!\n");

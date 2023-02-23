@@ -1,9 +1,4 @@
 #include "due.h"
-#include "dta_gradient_utls.h"
-#include "ults.h"
-
-// #include <assert.h>
-#include "limits.h"
 
 MNM_Due::MNM_Due(std::string file_folder) {
     m_file_folder = file_folder;
