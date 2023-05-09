@@ -13,9 +13,9 @@ int main() {
     }
 
     // the file path is relative to the current working directory (if launch.json exists, refer to "cwd"; otherwise it can be executable directory instead of source directory)
-    std::string file_folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_dso";
+    // std::string file_folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_7link_dso";
     // std::string file_folder = "/home/qiling/Documents/MAC-POSTS/data/input_files_corridor_due";
-    // std::string file_folder = "../../../data/input_files_new_philly";
+    std::string file_folder = "/srv/data/qiling/Projects/Misc/Zemian/data/input_files_13_link_2_OD_dso";
 
     MNM_ConfReader *config = new MNM_ConfReader(file_folder + "/config.conf", "STAT");
     std::string rec_folder = config -> get_string("rec_folder");
