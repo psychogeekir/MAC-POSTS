@@ -613,7 +613,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
     MNM_Path *_path;
     MNM_Pathset *_path_set;
     TFlt _tot_path_cost, _tmp_change, _tau, _tmp_tt, _tmp_cost, _min_flow;
-    bool _exist;
+    bool _exist, _flg;
 
     // assume build_link_cost_map(dta) and update_path_table_cost(dta) are invoked beforehand
     for (auto _it : dta->m_od_factory->m_destination_map) {
@@ -643,6 +643,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                 _tot_path_cost = 0.0;
                 _tot_nonzero_path = 0;
                 _tau = TFlt(std::numeric_limits<double>::max());
+                _flg = false;
                 _min_flow = TFlt(std::numeric_limits<double>::max());
                 _tmp_change = 0.0;
                 if (_path_set->is_in(_path)) {
@@ -675,6 +676,7 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                         }
                     }
                 }
+                IAssert(_tot_nonzero_path > 0);
                 // minimum tau
                 for (auto _tmp_path : _path_set->m_path_vec) {
                     if ((*_tmp_path == *_path) || (_tmp_path->m_buffer[_col] > 0)) {
@@ -684,11 +686,16 @@ int MNM_Due_Msa::update_path_table_gp_fixed_departure_time_choice(MNM_Dta *dta, 
                         _tmp_change = _tmp_cost - _tot_path_cost / _tot_nonzero_path;
                         if ((_tmp_change > 0) && (_tau > m_step_size * _min_flow / _tmp_change)) {
                             _tau = m_step_size * _min_flow / _tmp_change;
+                            _flg = true;
                         }
                         // if ((_tmp_change > 0) && (_tau > 1.0 / _tmp_change)) {
                         //     _tau = 1.0 / _tmp_change;
                         // }
                     }
+                }
+                if (!_flg) {
+                    _tau = 0.;
+                    continue;
                 }
                 // flow adjustment
                 for (auto _tmp_path : _path_set->m_path_vec) {

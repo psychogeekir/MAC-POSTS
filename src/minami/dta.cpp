@@ -419,7 +419,7 @@ int MNM_Dta::load_once(bool verbose, TInt load_int, TInt assign_int)
         _origin -> release_one_interval(load_int, m_veh_factory, -1, TFlt(-1));
       }
       else{
-        if (m_config -> get_string("routing_type") == "Fixed"){
+        if (m_config -> get_string("routing_type") == "Fixed" || m_config -> get_string("routing_type") == "Due"){
           //printf("Fixed Releasing.\n");
           _origin -> release_one_interval(load_int, m_veh_factory, assign_int, TFlt(0));
         }
