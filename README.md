@@ -1,3 +1,5 @@
+## This project is no longer maintained. Please go to https://github.com/maccmu/macposts
+
 ## MAC-POSTS
 
 [![DOI](https://zenodo.org/badge/52655219.svg)](https://zenodo.org/badge/latestdoi/52655219)
